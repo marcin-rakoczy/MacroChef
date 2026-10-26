@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+    <linearGradient id="whiteGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#047857" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+
+  <!-- Chef Hat / Meal prep icon group with shadow -->
+  <g filter="url(#shadow)" transform="translate(64, 64) scale(0.75)">
+    <!-- Base band of chef hat -->
+    <path d="M128 360 C 128 344, 384 344, 384 360 L 384 410 C 384 426, 128 426, 128 410 Z" fill="url(#whiteGrad)"/>
+    
+    <!-- Accent Ribbon -->
+    <path d="M128 382 C 180 376, 332 376, 384 382 L 384 394 C 332 388, 180 388, 128 394 Z" fill="#10b981"/>
+
+    <!-- Chef Hat Puffs -->
+    <path d="M 148 350 
+             C 90 330, 70 230, 130 180 
+             C 120 120, 200 80, 256 110 
+             C 312 80, 392 120, 382 180 
+             C 442 230, 422 330, 364 350 
+             Z" 
+          fill="url(#whiteGrad)"/>
+
+    <!-- Fork & Knife Emblem in center puff -->
+    <g transform="translate(256, 230) scale(1.1)" stroke="#0d9488" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- Fork -->
+      <path d="M-28 -40 L-28 -15 C-28 -5 -15 -5 -15 -15 L-15 -40 M-21 -40 L-21 -15 M-21 -5 L-21 35"/>
+      <!-- Knife -->
+      <path d="M21 -40 C28 -40 32 -30 32 -10 L32 0 C32 10 21 10 21 10 L21 35"/>
+    </g>
+  </g>
+</svg>
+

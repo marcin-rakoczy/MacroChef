@@ -1,0 +1,23 @@
+{
+  "name": "macrochef",
+  "version": "1.0.0",
+  "description": "MacroChef - Meal Prep, Macro Control & Zero-Waste PWA",
+  "main": "index.html",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node scratch/test_logic.js",
+    "generate-icons": "node scripts/generate_png_icons.js"
+  },
+  "keywords": [
+    "meal-planner",
+    "macro-tracker",
+    "batch-cooking",
+    "zero-waste",
+    "pwa",
+    "react",
+    "indexeddb"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
