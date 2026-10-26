@@ -3,7 +3,7 @@ window.MacroChef = window.MacroChef || {};
 window.MacroChef.components = window.MacroChef.components || {};
 
 (function () {
-  const { Icon } = window.MacroChef.components;
+  const { Icon, RecipePickerModal } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
   const { getDailyTotals } = window.MacroChef.macroCalculations;
 
@@ -16,14 +16,28 @@ window.MacroChef.components = window.MacroChef.components || {};
     recipes,
     goals,
     onAssignMeal,
-    onClearWeek
+    onClearWeek,
+    onCreateRecipe
   }) {
+    // Active slot being picked: { dayKey, dayName, slotKey, slotLabel, currentId }
+    const [pickerSlot, setPickerSlot] = React.useState(null);
+
     const mealSlots = [
       { key: 'Breakfast', label: t.breakfast },
       { key: 'Lunch', label: t.lunch },
       { key: 'Dinner', label: t.dinner },
       { key: 'Snack', label: t.snack }
     ];
+
+    const handleOpenPicker = (dayKey, dayName, slotKey, slotLabel, currentId) => {
+      setPickerSlot({
+        dayKey,
+        dayName,
+        slotKey,
+        slotLabel,
+        currentId: currentId || ''
+      });
+    };
 
     return (
       <div className="space-y-6">
@@ -93,39 +107,70 @@ window.MacroChef.components = window.MacroChef.components || {};
                       return (
                         <div
                           key={slot.key}
-                          className="bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800"
+                          className="bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80"
                         >
-                          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
                             <span>{slot.label}</span>
                             {recipe && (
-                              <span className="text-emerald-600 dark:text-emerald-400">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                                 {recipe.calories} kcal
                               </span>
                             )}
                           </div>
 
-                          <select
-                            value={assignedId || ''}
-                            onChange={(e) => onAssignMeal(dayKey, slot.key, e.target.value)}
-                            className="w-full text-xs font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none dark:text-slate-200"
-                          >
-                            <option value="">{t.addMeal}</option>
-                            {recipes.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {getLocalized(r.name, lang)} ({r.calories} kcal)
-                              </option>
-                            ))}
-                          </select>
+                          {!recipe ? (
+                            /* Empty Slot: Clickable button to open Recipe Library */
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPicker(dayKey, dayNameDisplay, slot.key, slot.label, '')}
+                              className="w-full group py-2 px-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400 bg-white/70 dark:bg-slate-800/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-2 text-xs font-semibold cursor-pointer shadow-none hover:shadow-sm"
+                            >
+                              <div className="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <Icon name="plus" className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="truncate">{t.selectFromLibrary || 'Wybierz z biblioteki'}</span>
+                            </button>
+                          ) : (
+                            /* Filled Slot: Card displaying recipe with change & remove options */
+                            <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors">
+                              <div className="flex items-start justify-between gap-1.5 mb-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPicker(dayKey, dayNameDisplay, slot.key, slot.label, assignedId)}
+                                  className="text-left font-bold text-xs text-slate-800 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 line-clamp-1 transition-colors"
+                                  title={getLocalized(recipe.name, lang)}
+                                >
+                                  {getLocalized(recipe.name, lang)}
+                                </button>
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPicker(dayKey, dayNameDisplay, slot.key, slot.label, assignedId)}
+                                    className="p-1 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                    title={t.changeRecipe || 'Zmień'}
+                                  >
+                                    <Icon name="book-open" className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onAssignMeal(dayKey, slot.key, '')}
+                                    className="p-1 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                    title={t.removeMeal || 'Usuń'}
+                                  >
+                                    <Icon name="trash-2" className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
 
-                          {recipe && (
-                            <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-0.5">
-                              <span>
-                                B: {recipe.protein}g | W: {recipe.carbs}g | T: {recipe.fats}g
-                              </span>
-                              <span className="text-teal-600 dark:text-teal-400 flex items-center gap-1">
-                                <Icon name="clock" className="w-3 h-3" />
-                                <span>{recipe.prepTime}</span>
-                              </span>
+                              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                  B: {recipe.protein}g | W: {recipe.carbs}g | T: {recipe.fats}g
+                                </span>
+                                <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400 shrink-0">
+                                  <Icon name="clock" className="w-3 h-3" />
+                                  <span>{recipe.prepTime}</span>
+                                </span>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -144,10 +189,29 @@ window.MacroChef.components = window.MacroChef.components || {};
             );
           })}
         </div>
+
+        {/* Recipe Picker Modal from Recipe Library */}
+        {pickerSlot && (
+          <RecipePickerModal
+            lang={lang}
+            t={t}
+            slotInfo={pickerSlot}
+            recipes={recipes}
+            onSelectRecipe={(recipeId) => {
+              onAssignMeal(pickerSlot.dayKey, pickerSlot.slotKey, recipeId);
+              setPickerSlot(null);
+            }}
+            onClearSlot={() => {
+              onAssignMeal(pickerSlot.dayKey, pickerSlot.slotKey, '');
+              setPickerSlot(null);
+            }}
+            onClose={() => setPickerSlot(null)}
+            onCreateRecipe={onCreateRecipe}
+          />
+        )}
       </div>
     );
   }
 
   window.MacroChef.components.MealPlanner = MealPlanner;
 })();
-

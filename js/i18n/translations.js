@@ -76,7 +76,19 @@ window.MacroChef.TRANSLATIONS = {
     lunch: 'Lunch',
     dinner: 'Dinner',
     snack: 'Snack',
-    confirmDelete: 'Are you sure you want to delete this recipe?'
+    confirmDelete: 'Are you sure you want to delete this recipe?',
+    selectFromLibrary: 'Choose from Recipe Library',
+    selectRecipeFor: 'Select Recipe for',
+    selectRecipeSub: 'Browse your recipe library and pick a dish for this slot.',
+    allCategories: 'All Categories',
+    searchRecipesPlaceholder: 'Search by recipe name or ingredients...',
+    noRecipesFound: 'No recipes found matching your search.',
+    selectThisRecipe: 'Select Recipe',
+    changeRecipe: 'Change Recipe',
+    removeMeal: 'Remove Meal',
+    currentlySelected: 'Currently Selected',
+    clearSlot: 'Clear meal from this slot',
+    filterCategory: 'Category'
   },
   pl: {
     appTitle: 'MacroChef',
@@ -152,7 +164,18 @@ window.MacroChef.TRANSLATIONS = {
     lunch: 'Obiad',
     dinner: 'Kolacja',
     snack: 'Przekąska',
-    confirmDelete: 'Czy na pewno chcesz usunąć ten przepis?'
+    confirmDelete: 'Czy na pewno chcesz usunąć ten przepis?',
+    selectFromLibrary: 'Wybierz z biblioteki przepisów',
+    selectRecipeFor: 'Wybierz przepis dla',
+    selectRecipeSub: 'Przeglądaj bibliotekę przepisów i wybierz posiłek dla tego slotu.',
+    allCategories: 'Wszystkie kategorie',
+    searchRecipesPlaceholder: 'Szukaj po nazwie lub składnikach...',
+    noRecipesFound: 'Nie znaleziono przepisów spełniających kryteria.',
+    selectThisRecipe: 'Wybierz ten przepis',
+    changeRecipe: 'Zmień przepis',
+    removeMeal: 'Usuń posiłek',
+    currentlySelected: 'Aktualnie wybrany',
+    clearSlot: 'Wyczyść posiłek z tego slotu',
+    filterCategory: 'Kategoria'
   }
 };
-

@@ -19,6 +19,7 @@ const filesToBundle = [
   'components/Icon.js',
   'components/Header.js',
   'components/Navigation.js',
+  'components/RecipePickerModal.js',
   'components/MealPlanner.js',
   'components/RecipeLibrary.js',
   'components/BatchCooking.js',
@@ -76,4 +77,3 @@ fs.writeFileSync(path.join(distDir, 'index.html'), bundledHtml, 'utf8');
 console.log('✓ Successfully created dist/index.html.');
 
 console.log('[MacroChef Build] Build completed successfully.');
-

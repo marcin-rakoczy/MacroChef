@@ -1,5 +1,5 @@
 // MacroChef PWA Service Worker
-const CACHE_NAME = 'macrochef-v1';
+const CACHE_NAME = 'macrochef-v2';
 
 const STATIC_ASSETS = [
   './',
@@ -18,6 +18,7 @@ const STATIC_ASSETS = [
   './js/components/Icon.js',
   './js/components/Header.js',
   './js/components/Navigation.js',
+  './js/components/RecipePickerModal.js',
   './js/components/MealPlanner.js',
   './js/components/RecipeLibrary.js',
   './js/components/BatchCooking.js',
@@ -91,4 +92,3 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
-

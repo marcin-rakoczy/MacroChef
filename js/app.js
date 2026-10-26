@@ -189,6 +189,10 @@ window.MacroChef = window.MacroChef || {};
                 goals={goals}
                 onAssignMeal={handleAssignMeal}
                 onClearWeek={handleClearWeek}
+                onCreateRecipe={() => {
+                  setEditingRecipe(null);
+                  setShowRecipeModal(true);
+                }}
               />
             )}
 
@@ -273,4 +277,3 @@ window.MacroChef = window.MacroChef || {};
 
   window.MacroChef.App = App;
 })();
-
