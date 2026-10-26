@@ -8,6 +8,7 @@ const JS_DIR = path.join(ROOT_DIR, 'js');
 console.log('[MacroChef Build] Checking modular files...');
 
 const filesToBundle = [
+  'data/lidlProducts.js',
   'data/starterRecipes.js',
   'data/defaultPlan.js',
   'i18n/translations.js',

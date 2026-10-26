@@ -4,11 +4,18 @@ window.MacroChef = window.MacroChef || {};
 (function () {
   const db = new Dexie('MacroChefDB');
 
-  // Schema definition (v1)
+  // Schema definitions
   db.version(1).stores({
     recipes: 'id',
     planner: 'dayKey',
     goals: 'id'
+  });
+
+  db.version(2).stores({
+    recipes: 'id',
+    planner: 'dayKey',
+    goals: 'id',
+    products: 'id, name, category'
   });
 
   // Seed on populate
@@ -21,6 +28,9 @@ window.MacroChef = window.MacroChef || {};
     }
     if (window.MacroChef.DEFAULT_GOALS) {
       db.goals.add(window.MacroChef.DEFAULT_GOALS);
+    }
+    if (window.MacroChef.LIDL_PRODUCTS) {
+      db.products.bulkAdd(window.MacroChef.LIDL_PRODUCTS);
     }
   });
 
@@ -40,6 +50,11 @@ window.MacroChef = window.MacroChef || {};
         if (window.MacroChef.DEFAULT_GOALS) {
           await db.goals.add(window.MacroChef.DEFAULT_GOALS);
         }
+      }
+
+      const prodCount = await db.products.count();
+      if (prodCount === 0 && window.MacroChef.LIDL_PRODUCTS) {
+        await db.products.bulkAdd(window.MacroChef.LIDL_PRODUCTS);
       }
     },
 
@@ -122,9 +137,29 @@ window.MacroChef = window.MacroChef || {};
       const toSave = { id: 'user_goals', ...goals };
       await db.goals.put(toSave);
       return toSave;
+    },
+
+    async getAllProducts() {
+      const prods = await db.products.toArray();
+      if (prods.length === 0 && window.MacroChef.LIDL_PRODUCTS) {
+        return window.MacroChef.LIDL_PRODUCTS;
+      }
+      return prods;
+    },
+
+    async saveProduct(productData) {
+      const isNew = !productData.id;
+      const toSave = isNew
+        ? { ...productData, id: `lidl-custom-${Date.now()}` }
+        : productData;
+      await db.products.put(toSave);
+      return toSave;
+    },
+
+    async deleteProduct(id) {
+      await db.products.delete(id);
     }
   };
 
   window.MacroChef.dbService = dbService;
 })();
-

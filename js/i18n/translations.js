@@ -88,7 +88,22 @@ window.MacroChef.TRANSLATIONS = {
     removeMeal: 'Remove Meal',
     currentlySelected: 'Currently Selected',
     clearSlot: 'Clear meal from this slot',
-    filterCategory: 'Category'
+    filterCategory: 'Category',
+    searchLidlProduct: 'Search Lidl product (e.g. chicken, quark, oats, eggs)...',
+    addNewProductToDb: '+ Add New Ingredient',
+    productCatalogTitle: 'Lidl Products Catalog',
+    productName: 'Ingredient / Product Name',
+    packageSizeInUnit: 'Package size in this unit',
+    unit: 'Unit',
+    requiredAmount: 'Required amount in recipe',
+    addedIngredients: 'Ingredients in Recipe',
+    noIngredientsYet: 'No ingredients added yet. Search the Lidl database above to add!',
+    saveAndAddToRecipe: 'Save & Add to Recipe',
+    saveProductToDb: 'Save to Catalog',
+    packageSize: 'Package',
+    browseCatalog: 'Browse Lidl Catalog',
+    newProductModalTitle: 'Add New Ingredient to Catalog (Lidl)',
+    customProduct: 'Custom Product'
   },
   pl: {
     appTitle: 'MacroChef',
@@ -176,6 +191,21 @@ window.MacroChef.TRANSLATIONS = {
     removeMeal: 'Usuń posiłek',
     currentlySelected: 'Aktualnie wybrany',
     clearSlot: 'Wyczyść posiłek z tego slotu',
-    filterCategory: 'Kategoria'
+    filterCategory: 'Kategoria',
+    searchLidlProduct: 'Szukaj produktu z Lidla (np. kurczak, twaróg, płatki, jaja)...',
+    addNewProductToDb: '+ Dodaj Nowy Składnik',
+    productCatalogTitle: 'Baza Produktów (Lidl)',
+    productName: 'Nazwa Składnika / Produktu',
+    packageSizeInUnit: 'Wielkość opakowania w danej jednostce',
+    unit: 'Jednostka',
+    requiredAmount: 'Wymagana ilość w przepisie',
+    addedIngredients: 'Składniki dodane do przepisu',
+    noIngredientsYet: 'Brak dodanych składników. Użyj wyszukiwarki powyżej, aby dodać produkt z bazy Lidla!',
+    saveAndAddToRecipe: 'Zapisz i Dodaj do Przepisu',
+    saveProductToDb: 'Zapisz w Bazie',
+    packageSize: 'Opakowanie',
+    browseCatalog: 'Przeglądaj bazę produktów',
+    newProductModalTitle: 'Dodaj Nowy Składnik do Bazy (Lidl)',
+    customProduct: 'Własny produkt'
   }
 };
