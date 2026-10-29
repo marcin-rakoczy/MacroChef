@@ -88,7 +88,21 @@ window.MacroChef.TRANSLATIONS = {
     removeMeal: 'Remove Meal',
     currentlySelected: 'Currently Selected',
     clearSlot: 'Clear meal from this slot',
-    filterCategory: 'Category'
+    filterCategory: 'Category',
+    settingsMenu: 'Settings',
+    language: 'Language',
+    theme: 'Theme',
+    darkMode: 'Dark Mode',
+    lightMode: 'Light Mode',
+    english: 'English',
+    polish: 'Polish',
+    themeDark: 'Dark',
+    themeLight: 'Light',
+    colorPalette: 'Color Palette',
+    themeEmerald: 'Emerald Green',
+    themeMono: 'Grayscale (Mono)',
+    themeViolet: 'Modern Violet',
+    trendingBadge: 'Trending'
   },
   pl: {
     appTitle: 'MacroChef',
@@ -176,6 +190,20 @@ window.MacroChef.TRANSLATIONS = {
     removeMeal: 'Usuń posiłek',
     currentlySelected: 'Aktualnie wybrany',
     clearSlot: 'Wyczyść posiłek z tego slotu',
-    filterCategory: 'Kategoria'
+    filterCategory: 'Kategoria',
+    settingsMenu: 'Ustawienia',
+    language: 'Język',
+    theme: 'Motyw',
+    darkMode: 'Tryb ciemny',
+    lightMode: 'Tryb jasny',
+    english: 'Angielski',
+    polish: 'Polski',
+    themeDark: 'Ciemny',
+    themeLight: 'Jasny',
+    colorPalette: 'Tonacja kolorów',
+    themeEmerald: 'Szmaragdowa (obecna)',
+    themeMono: 'Odcienie szarości',
+    themeViolet: 'Nowoczesny fiolet',
+    trendingBadge: 'Nowy'
   }
 };

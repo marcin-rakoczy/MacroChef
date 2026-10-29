@@ -27,6 +27,9 @@ window.MacroChef = window.MacroChef || {};
     const [lang, setLang] = useState(() => {
       return localStorage.getItem('macrochef_lang') || 'pl';
     });
+    const [colorTheme, setColorTheme] = useState(() => {
+      return localStorage.getItem('macrochef_color_theme') || 'emerald';
+    });
 
     // Reactive Data State
     const [recipes, setRecipes] = useState([]);
@@ -61,6 +64,24 @@ window.MacroChef = window.MacroChef || {};
 
     useEffect(() => {
       localStorage.setItem('macrochef_dark', String(darkMode));
+    }, [darkMode]);
+
+    useEffect(() => {
+      localStorage.setItem('macrochef_color_theme', colorTheme);
+      document.documentElement.setAttribute('data-color-theme', colorTheme);
+
+      // Update mobile status bar theme-color
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) {
+        if (colorTheme === 'violet') {
+          metaTheme.setAttribute('content', darkMode ? '#1e1b4b' : '#6366f1');
+        } else if (colorTheme === 'mono') {
+          metaTheme.setAttribute('content', darkMode ? '#18181b' : '#27272a');
+        } else {
+          metaTheme.setAttribute('content', darkMode ? '#022c22' : '#10b981');
+        }
+      }
+    }, [colorTheme, darkMode]);
       if (darkMode) {
         document.documentElement.classList.add('dark');
       } else {
@@ -165,6 +186,8 @@ window.MacroChef = window.MacroChef || {};
             setLang={setLang}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
+            colorTheme={colorTheme}
+            setColorTheme={setColorTheme}
           />
 
           {/* Main Layout Container */}
