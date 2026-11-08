@@ -48,7 +48,12 @@ window.MacroChef.components = window.MacroChef.components || {};
     });
 
     // Lidl Products Catalog State
-    const [products, setProducts] = React.useState([]);
+    const productQuery = window.MacroChef.useRepositoryQuery(
+      () => window.MacroChef.repositories.watchProducts(),
+      [window.MacroChef.repositories],
+      null
+    );
+    const products = productQuery.data || [];
     const [productSearch, setProductSearch] = React.useState('');
     const [selectedProductCategory, setSelectedProductCategory] = React.useState('all');
     const [isCatalogOpen, setIsCatalogOpen] = React.useState(false);
@@ -65,25 +70,11 @@ window.MacroChef.components = window.MacroChef.components || {};
     // Reference to scroll to newly added ingredient
     const ingredientsEndRef = React.useRef(null);
 
-    // Load products from DB on mount
     React.useEffect(() => {
-      const loadProducts = async () => {
-        try {
-          if (window.MacroChef.repositories && window.MacroChef.repositories.products) {
-            const loaded = await window.MacroChef.repositories.products.getAll();
-            setProducts(loaded && loaded.length > 0 ? loaded : (window.MacroChef.LIDL_PRODUCTS || []));
-          } else if (window.MacroChef.LIDL_PRODUCTS) {
-            setProducts(window.MacroChef.LIDL_PRODUCTS);
-          }
-        } catch (err) {
-          console.warn('Could not load products from repository, using fallback catalog:', err);
-          if (window.MacroChef.LIDL_PRODUCTS) {
-            setProducts(window.MacroChef.LIDL_PRODUCTS);
-          }
-        }
-      };
-      loadProducts();
-    }, []);
+      if (productQuery.error) {
+        console.error('Product repository subscription error:', productQuery.error);
+      }
+    }, [productQuery.error]);
 
     // Filter products based on search & category
     const filteredProducts = React.useMemo(() => {
@@ -176,11 +167,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
       try {
         let saved = newProductObj;
-        if (window.MacroChef.repositories && window.MacroChef.repositories.products) {
-          saved = await window.MacroChef.repositories.products.save(newProductObj);
-        }
-        setProducts((prev) => [saved, ...prev]);
-
+        saved = await window.MacroChef.repositories.saveProduct(newProductObj);
         if (andAddToRecipe) {
           handleSelectProduct(saved);
         }

@@ -140,7 +140,8 @@ js/
 ├── i18n/          # Bilingual UI dictionaries
 ├── utils/         # Pure functions (calculations, helpers)
 ├── components/    # React components (UI presentation)
-├── db.js          # IndexedDB repositories for recipes, planner, goals, and products
+├── db.js          # ICalorieRepository contract and Dexie implementation
+├── hooks/         # React external-store hooks for live repository queries
 ├── app.js         # Root component orchestrator
 └── main.js        # DOM mount & Service Worker init
 ```
@@ -153,19 +154,17 @@ window.MacroChef = {
   components: { ... },
   macroCalculations: { ... },
   shoppingAggregator: { ... },
-  repositories: {
-    recipes: { getAll, save, delete },
-    planner: { getMap, saveSlot, clear },
-    goals: { get, save },
-    products: { getAll, save, delete }
-  }
+  repositories: new DexieCalorieRepository(),
+  useRepositoryQuery: function () { ... }
 }
 ```
 
 This allows cross-module communication without import/export syntax while running pure JSX in the browser.
 
-### Repository Pattern
-UI components access persisted data through entity-specific repositories in `db.js`, rather than calling Dexie directly. The repositories currently use IndexedDB through Dexie and keep the app's local-first, offline behavior. A future cloud integration can add a synchronization layer behind these interfaces while retaining IndexedDB for offline reads and writes; conflict resolution and sync behavior should be designed separately.
+### Repository Pattern and React 18 Queries
+`ICalorieRepository` defines the data-access contract and `DexieCalorieRepository` implements it. React components call this interface rather than Dexie, keeping IndexedDB details out of the view layer. `useRepositoryQuery` adapts Dexie's `liveQuery` observable to `useSyncExternalStore`, providing stable snapshots and subscriptions compatible with React 18 Concurrent Rendering.
+
+Recipe and product IDs are non-incrementing strings generated from random UUIDs for new records. Planner days (`dayKey`) and the single goals record (`user_goals`) use stable string natural keys because they are uniquely addressed by day and singleton purpose. The app remains local-first and offline-capable; future cloud support should synchronize through the repository boundary and define conflict handling separately.
 
 ### State Management
 - **React Hooks**: Centralized state in `app.js` with context passed to components
@@ -345,7 +344,8 @@ js/
 ├── i18n/          # Bilingual UI dictionaries
 ├── utils/         # Pure functions (calculations, helpers)
 ├── components/    # React components (UI presentation)
-├── db.js          # IndexedDB repositories for recipes, planner, goals, and products
+├── db.js          # ICalorieRepository contract and Dexie implementation
+├── hooks/         # React external-store hooks for live repository queries
 ├── app.js         # Root component orchestrator
 └── main.js        # DOM mount & Service Worker init
 ```
@@ -358,12 +358,8 @@ window.MacroChef = {
   components: { ... },
   macroCalculations: { ... },
   shoppingAggregator: { ... },
-  repositories: {
-    recipes: { getAll, save, delete },
-    planner: { getMap, saveSlot, clear },
-    goals: { get, save },
-    products: { getAll, save, delete }
-  }
+  repositories: new DexieCalorieRepository(),
+  useRepositoryQuery: function () { ... }
 }
 ```
 

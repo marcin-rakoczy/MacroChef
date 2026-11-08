@@ -18,6 +18,7 @@ window.MacroChef = window.MacroChef || {};
   const { shoppingAggregator } = window.MacroChef;
   const { TRANSLATIONS } = window.MacroChef;
   const { DAYS_KEYS, DAYS_TRANSLATED } = window.MacroChef;
+  const { useRepositoryQuery } = window.MacroChef;
 
   function App() {
     const [activeTab, setActiveTab] = useState('planner');
@@ -31,21 +32,25 @@ window.MacroChef = window.MacroChef || {};
       return localStorage.getItem('macrochef_color_theme') || 'emerald';
     });
 
-    // Reactive Data State
-    const [recipes, setRecipes] = useState([]);
-    const [plan, setPlan] = useState({});
-    const [goals, setGoals] = useState({
-      calories: 2200,
-      protein: 160,
-      carbs: 220,
-      fats: 70,
-      age: '',
-      weight: '',
-      height: '',
-      sex: '',
-      activityPal: '',
-      userGoal: ''
-    });
+    const appData = useRepositoryQuery(
+      () => repositories.watchAppData(),
+      [repositories],
+      null
+    );
+    const recipes = appData.data ? appData.data.recipes : [];
+    const plan = appData.data ? appData.data.plan : {};
+    const goals = appData.data
+      ? {
+          ...window.MacroChef.DEFAULT_GOALS,
+          ...appData.data.goals,
+          age: appData.data.goals.age ?? '',
+          weight: appData.data.goals.weight ?? '',
+          height: appData.data.goals.height ?? '',
+          sex: appData.data.goals.sex ?? '',
+          activityPal: appData.data.goals.activityPal ?? '',
+          userGoal: appData.data.goals.userGoal ?? ''
+        }
+      : window.MacroChef.DEFAULT_GOALS;
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
         const saved = localStorage.getItem('macrochef_checked');
@@ -101,40 +106,17 @@ window.MacroChef = window.MacroChef || {};
       localStorage.setItem('macrochef_checked', JSON.stringify(checkedShopping));
     }, [checkedShopping]);
 
-    // Load persisted data through the repository interfaces
-    const loadFromRepositories = async () => {
-      try {
-        await repositories.initialize();
-        const [savedRecipes, plannerMap, savedGoals] = await Promise.all([
-          repositories.recipes.getAll(),
-          repositories.planner.getMap(),
-          repositories.goals.get()
-        ]);
-
-        setRecipes(savedRecipes);
-        setPlan(plannerMap);
-        if (savedGoals) {
-          setGoals({
-            calories: savedGoals.calories,
-            protein: savedGoals.protein,
-            carbs: savedGoals.carbs,
-            fats: savedGoals.fats,
-            age: savedGoals.age ?? '',
-            weight: savedGoals.weight ?? '',
-            height: savedGoals.height ?? '',
-            sex: savedGoals.sex ?? '',
-            activityPal: savedGoals.activityPal ?? '',
-            userGoal: savedGoals.userGoal ?? ''
-          });
-        }
-      } catch (err) {
+    useEffect(() => {
+      repositories.initialize().catch((err) => {
         console.error('Data repository initialization error:', err);
-      }
-    };
+      });
+    }, []);
 
     useEffect(() => {
-      loadFromRepositories();
-    }, []);
+      if (appData.error) {
+        console.error('Data repository subscription error:', appData.error);
+      }
+    }, [appData.error]);
 
     // Aggregated Smart Shopping List
     const aggregatedShoppingList = useMemo(() => {
@@ -143,38 +125,33 @@ window.MacroChef = window.MacroChef || {};
 
     // Handlers
     const handleAssignMeal = async (dayKey, mealType, recipeId) => {
-      const updatedDay = await repositories.planner.saveSlot(
+      await repositories.savePlannerSlot(
         dayKey,
         plan[dayKey],
         mealType,
         recipeId
       );
-      setPlan((prev) => ({ ...prev, [dayKey]: updatedDay }));
     };
 
     const handleClearWeek = async () => {
-      const emptyMap = await repositories.planner.clear();
-      setPlan(emptyMap);
+      await repositories.clearPlanner();
     };
 
     const handleSaveRecipe = async (recipeData) => {
-      await repositories.recipes.save(recipeData);
-      await loadFromRepositories();
+      await repositories.saveRecipe(recipeData);
       setShowRecipeModal(false);
       setEditingRecipe(null);
     };
 
     const handleDeleteRecipe = async (id) => {
-      await repositories.recipes.delete(id);
-      await loadFromRepositories();
+      await repositories.deleteRecipe(id);
       if (selectedBatchRecipe && selectedBatchRecipe.id === id) {
         setSelectedBatchRecipe(null);
       }
     };
 
     const handleSaveGoals = async (newGoals) => {
-      setGoals(newGoals);
-      await repositories.goals.save(newGoals);
+      await repositories.saveGoals(newGoals);
     };
 
     const handleStartBatchCooking = (recipe) => {

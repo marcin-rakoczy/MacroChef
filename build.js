@@ -17,6 +17,7 @@ const filesToBundle = [
   'utils/macroCalculations.js',
   'utils/shoppingAggregator.js',
   'db.js',
+  'hooks/useRepositoryQuery.js',
   'components/Icon.js',
   'components/Header.js',
   'components/Navigation.js',
