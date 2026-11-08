@@ -1282,13 +1282,12 @@ window.MacroChef.shoppingAggregator = {
 // ==========================================
 // File: db.js
 // ==========================================
-// IndexedDB (Dexie.js) Data Access Layer for MacroChef
+// IndexedDB (Dexie.js) repositories for MacroChef
 window.MacroChef = window.MacroChef || {};
 
 (function () {
   const db = new Dexie('MacroChefDB');
 
-  // Schema definitions
   db.version(1).stores({
     recipes: 'id',
     planner: 'dayKey',
@@ -1302,150 +1301,146 @@ window.MacroChef = window.MacroChef || {};
     products: 'id, name, category'
   });
 
-  // Seed on populate
-  db.on('populate', () => {
+  const seedInitialData = async () => {
     if (window.MacroChef.STARTER_RECIPES) {
-      db.recipes.bulkAdd(window.MacroChef.STARTER_RECIPES);
+      await db.recipes.bulkAdd(window.MacroChef.STARTER_RECIPES);
     }
     if (window.MacroChef.DEFAULT_PLAN) {
-      db.planner.bulkAdd(window.MacroChef.DEFAULT_PLAN);
+      await db.planner.bulkAdd(window.MacroChef.DEFAULT_PLAN);
     }
     if (window.MacroChef.DEFAULT_GOALS) {
-      db.goals.add(window.MacroChef.DEFAULT_GOALS);
+      await db.goals.put(window.MacroChef.DEFAULT_GOALS);
     }
+  };
+
+  db.on('populate', async () => {
+    await seedInitialData();
     if (window.MacroChef.LIDL_PRODUCTS) {
-      db.products.bulkAdd(window.MacroChef.LIDL_PRODUCTS);
+      await db.products.bulkAdd(window.MacroChef.LIDL_PRODUCTS);
     }
   });
 
-  const dbService = {
-    rawDb: db,
-
-    async init() {
+  const repositories = {
+    async initialize() {
       await db.open();
-      const count = await db.recipes.count();
-      if (count === 0) {
-        if (window.MacroChef.STARTER_RECIPES) {
-          await db.recipes.bulkAdd(window.MacroChef.STARTER_RECIPES);
-        }
-        if (window.MacroChef.DEFAULT_PLAN) {
-          await db.planner.bulkAdd(window.MacroChef.DEFAULT_PLAN);
-        }
-        if (window.MacroChef.DEFAULT_GOALS) {
-          await db.goals.add(window.MacroChef.DEFAULT_GOALS);
-        }
+      if (await db.recipes.count() === 0) {
+        await seedInitialData();
       }
 
-      const prodCount = await db.products.count();
-      if (prodCount === 0 && window.MacroChef.LIDL_PRODUCTS) {
+      if (await db.products.count() === 0 && window.MacroChef.LIDL_PRODUCTS) {
         await db.products.bulkAdd(window.MacroChef.LIDL_PRODUCTS);
       }
     },
 
-    async getAllRecipes() {
-      return await db.recipes.toArray();
-    },
+    recipes: {
+      async getAll() {
+        return await db.recipes.toArray();
+      },
 
-    async saveRecipe(recipeData) {
-      const isNew = !recipeData.id;
-      const recipeToSave = isNew
-        ? { ...recipeData, id: `rec-${Date.now()}` }
-        : recipeData;
-      await db.recipes.put(recipeToSave);
-      return recipeToSave;
-    },
+      async save(recipeData) {
+        const recipeToSave = recipeData.id
+          ? recipeData
+          : { ...recipeData, id: `rec-${Date.now()}` };
+        await db.recipes.put(recipeToSave);
+        return recipeToSave;
+      },
 
-    async deleteRecipe(id) {
-      await db.recipes.delete(id);
-
-      // Clean up planner references
-      const allPlans = await db.planner.toArray();
-      for (const day of allPlans) {
-        let modified = false;
-        ['Breakfast', 'Lunch', 'Dinner', 'Snack'].forEach((slot) => {
-          if (day[slot] === id) {
-            delete day[slot];
-            modified = true;
+      async delete(id) {
+        await db.transaction('rw', db.recipes, db.planner, async () => {
+          await db.recipes.delete(id);
+          const allPlans = await db.planner.toArray();
+          for (const day of allPlans) {
+            let modified = false;
+            ['Breakfast', 'Lunch', 'Dinner', 'Snack'].forEach((slot) => {
+              if (day[slot] === id) {
+                delete day[slot];
+                modified = true;
+              }
+            });
+            if (modified) {
+              await db.planner.put(day);
+            }
           }
         });
-        if (modified) {
-          await db.planner.put(day);
+      }
+    },
+
+    planner: {
+      async getMap() {
+        const planArr = await db.planner.toArray();
+        const planMap = {};
+        planArr.forEach((item) => {
+          planMap[item.dayKey] = {
+            Breakfast: item.Breakfast || '',
+            Lunch: item.Lunch || '',
+            Dinner: item.Dinner || '',
+            Snack: item.Snack || ''
+          };
+        });
+        return planMap;
+      },
+
+      async saveSlot(dayKey, currentDayPlan, mealType, recipeId) {
+        const updatedDay = { ...(currentDayPlan || {}), [mealType]: recipeId };
+        await db.planner.put({ dayKey, ...updatedDay });
+        return updatedDay;
+      },
+
+      async clear() {
+        const days = window.MacroChef.DAYS_KEYS || [
+          'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+        ];
+        const emptyArr = days.map((dayKey) => ({ dayKey }));
+        await db.transaction('rw', db.planner, async () => {
+          await db.planner.clear();
+          await db.planner.bulkAdd(emptyArr);
+        });
+
+        const emptyMap = {};
+        days.forEach((dayKey) => {
+          emptyMap[dayKey] = {};
+        });
+        return emptyMap;
+      }
+    },
+
+    goals: {
+      async get() {
+        const goals = await db.goals.get('user_goals');
+        return goals || window.MacroChef.DEFAULT_GOALS;
+      },
+
+      async save(goals) {
+        const toSave = { id: 'user_goals', ...goals };
+        await db.goals.put(toSave);
+        return toSave;
+      }
+    },
+
+    products: {
+      async getAll() {
+        const products = await db.products.toArray();
+        if (products.length === 0 && window.MacroChef.LIDL_PRODUCTS) {
+          return window.MacroChef.LIDL_PRODUCTS;
         }
+        return products;
+      },
+
+      async save(productData) {
+        const toSave = productData.id
+          ? productData
+          : { ...productData, id: `lidl-custom-${Date.now()}` };
+        await db.products.put(toSave);
+        return toSave;
+      },
+
+      async delete(id) {
+        await db.products.delete(id);
       }
-    },
-
-    async getPlannerMap() {
-      const planArr = await db.planner.toArray();
-      const planMap = {};
-      planArr.forEach((item) => {
-        planMap[item.dayKey] = {
-          Breakfast: item.Breakfast || '',
-          Lunch: item.Lunch || '',
-          Dinner: item.Dinner || '',
-          Snack: item.Snack || ''
-        };
-      });
-      return planMap;
-    },
-
-    async savePlannerSlot(dayKey, currentDayPlan, mealType, recipeId) {
-      const updatedDay = { ...(currentDayPlan || {}), [mealType]: recipeId };
-      await db.planner.put({
-        dayKey,
-        ...updatedDay
-      });
-      return updatedDay;
-    },
-
-    async clearPlanner() {
-      const days = window.MacroChef.DAYS_KEYS || [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
-      ];
-      const emptyArr = days.map((dayKey) => ({ dayKey }));
-      await db.planner.clear();
-      await db.planner.bulkAdd(emptyArr);
-
-      const emptyMap = {};
-      days.forEach((dayKey) => {
-        emptyMap[dayKey] = {};
-      });
-      return emptyMap;
-    },
-
-    async getGoals() {
-      const goals = await db.goals.get('user_goals');
-      return goals || window.MacroChef.DEFAULT_GOALS;
-    },
-
-    async saveGoals(goals) {
-      const toSave = { id: 'user_goals', ...goals };
-      await db.goals.put(toSave);
-      return toSave;
-    },
-
-    async getAllProducts() {
-      const prods = await db.products.toArray();
-      if (prods.length === 0 && window.MacroChef.LIDL_PRODUCTS) {
-        return window.MacroChef.LIDL_PRODUCTS;
-      }
-      return prods;
-    },
-
-    async saveProduct(productData) {
-      const isNew = !productData.id;
-      const toSave = isNew
-        ? { ...productData, id: `lidl-custom-${Date.now()}` }
-        : productData;
-      await db.products.put(toSave);
-      return toSave;
-    },
-
-    async deleteProduct(id) {
-      await db.products.delete(id);
     }
   };
 
-  window.MacroChef.dbService = dbService;
+  window.MacroChef.repositories = repositories;
 })();
 
 
@@ -3328,14 +3323,14 @@ window.MacroChef.components = window.MacroChef.components || {};
     React.useEffect(() => {
       const loadProducts = async () => {
         try {
-          if (window.MacroChef.dbService && typeof window.MacroChef.dbService.getAllProducts === 'function') {
-            const loaded = await window.MacroChef.dbService.getAllProducts();
+          if (window.MacroChef.repositories && window.MacroChef.repositories.products) {
+            const loaded = await window.MacroChef.repositories.products.getAll();
             setProducts(loaded && loaded.length > 0 ? loaded : (window.MacroChef.LIDL_PRODUCTS || []));
           } else if (window.MacroChef.LIDL_PRODUCTS) {
             setProducts(window.MacroChef.LIDL_PRODUCTS);
           }
         } catch (err) {
-          console.warn('Could not load products from Dexie, using fallback catalog:', err);
+          console.warn('Could not load products from repository, using fallback catalog:', err);
           if (window.MacroChef.LIDL_PRODUCTS) {
             setProducts(window.MacroChef.LIDL_PRODUCTS);
           }
@@ -3435,8 +3430,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 
       try {
         let saved = newProductObj;
-        if (window.MacroChef.dbService && typeof window.MacroChef.dbService.saveProduct === 'function') {
-          saved = await window.MacroChef.dbService.saveProduct(newProductObj);
+        if (window.MacroChef.repositories && window.MacroChef.repositories.products) {
+          saved = await window.MacroChef.repositories.products.save(newProductObj);
         }
         setProducts((prev) => [saved, ...prev]);
 
@@ -4108,7 +4103,7 @@ window.MacroChef = window.MacroChef || {};
     RecipeModal
   } = window.MacroChef.components;
 
-  const { dbService } = window.MacroChef;
+  const { repositories } = window.MacroChef;
   const { shoppingAggregator } = window.MacroChef;
   const { TRANSLATIONS } = window.MacroChef;
   const { DAYS_KEYS, DAYS_TRANSLATED } = window.MacroChef;
@@ -4195,39 +4190,39 @@ window.MacroChef = window.MacroChef || {};
       localStorage.setItem('macrochef_checked', JSON.stringify(checkedShopping));
     }, [checkedShopping]);
 
-    // Initial load from IndexedDB
-    const loadFromDb = async () => {
+    // Load persisted data through the repository interfaces
+    const loadFromRepositories = async () => {
       try {
-        await dbService.init();
-        const [dbRecipes, dbPlanMap, dbGoals] = await Promise.all([
-          dbService.getAllRecipes(),
-          dbService.getPlannerMap(),
-          dbService.getGoals()
+        await repositories.initialize();
+        const [savedRecipes, plannerMap, savedGoals] = await Promise.all([
+          repositories.recipes.getAll(),
+          repositories.planner.getMap(),
+          repositories.goals.get()
         ]);
 
-        setRecipes(dbRecipes);
-        setPlan(dbPlanMap);
-        if (dbGoals) {
+        setRecipes(savedRecipes);
+        setPlan(plannerMap);
+        if (savedGoals) {
           setGoals({
-            calories: dbGoals.calories,
-            protein: dbGoals.protein,
-            carbs: dbGoals.carbs,
-            fats: dbGoals.fats,
-            age: dbGoals.age ?? '',
-            weight: dbGoals.weight ?? '',
-            height: dbGoals.height ?? '',
-            sex: dbGoals.sex ?? '',
-            activityPal: dbGoals.activityPal ?? '',
-            userGoal: dbGoals.userGoal ?? ''
+            calories: savedGoals.calories,
+            protein: savedGoals.protein,
+            carbs: savedGoals.carbs,
+            fats: savedGoals.fats,
+            age: savedGoals.age ?? '',
+            weight: savedGoals.weight ?? '',
+            height: savedGoals.height ?? '',
+            sex: savedGoals.sex ?? '',
+            activityPal: savedGoals.activityPal ?? '',
+            userGoal: savedGoals.userGoal ?? ''
           });
         }
       } catch (err) {
-        console.error('Dexie IndexedDB initialization error:', err);
+        console.error('Data repository initialization error:', err);
       }
     };
 
     useEffect(() => {
-      loadFromDb();
+      loadFromRepositories();
     }, []);
 
     // Aggregated Smart Shopping List
@@ -4237,7 +4232,7 @@ window.MacroChef = window.MacroChef || {};
 
     // Handlers
     const handleAssignMeal = async (dayKey, mealType, recipeId) => {
-      const updatedDay = await dbService.savePlannerSlot(
+      const updatedDay = await repositories.planner.saveSlot(
         dayKey,
         plan[dayKey],
         mealType,
@@ -4247,20 +4242,20 @@ window.MacroChef = window.MacroChef || {};
     };
 
     const handleClearWeek = async () => {
-      const emptyMap = await dbService.clearPlanner();
+      const emptyMap = await repositories.planner.clear();
       setPlan(emptyMap);
     };
 
     const handleSaveRecipe = async (recipeData) => {
-      await dbService.saveRecipe(recipeData);
-      await loadFromDb();
+      await repositories.recipes.save(recipeData);
+      await loadFromRepositories();
       setShowRecipeModal(false);
       setEditingRecipe(null);
     };
 
     const handleDeleteRecipe = async (id) => {
-      await dbService.deleteRecipe(id);
-      await loadFromDb();
+      await repositories.recipes.delete(id);
+      await loadFromRepositories();
       if (selectedBatchRecipe && selectedBatchRecipe.id === id) {
         setSelectedBatchRecipe(null);
       }
@@ -4268,7 +4263,7 @@ window.MacroChef = window.MacroChef || {};
 
     const handleSaveGoals = async (newGoals) => {
       setGoals(newGoals);
-      await dbService.saveGoals(newGoals);
+      await repositories.goals.save(newGoals);
     };
 
     const handleStartBatchCooking = (recipe) => {

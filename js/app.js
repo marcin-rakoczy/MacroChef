@@ -14,7 +14,7 @@ window.MacroChef = window.MacroChef || {};
     RecipeModal
   } = window.MacroChef.components;
 
-  const { dbService } = window.MacroChef;
+  const { repositories } = window.MacroChef;
   const { shoppingAggregator } = window.MacroChef;
   const { TRANSLATIONS } = window.MacroChef;
   const { DAYS_KEYS, DAYS_TRANSLATED } = window.MacroChef;
@@ -101,39 +101,39 @@ window.MacroChef = window.MacroChef || {};
       localStorage.setItem('macrochef_checked', JSON.stringify(checkedShopping));
     }, [checkedShopping]);
 
-    // Initial load from IndexedDB
-    const loadFromDb = async () => {
+    // Load persisted data through the repository interfaces
+    const loadFromRepositories = async () => {
       try {
-        await dbService.init();
-        const [dbRecipes, dbPlanMap, dbGoals] = await Promise.all([
-          dbService.getAllRecipes(),
-          dbService.getPlannerMap(),
-          dbService.getGoals()
+        await repositories.initialize();
+        const [savedRecipes, plannerMap, savedGoals] = await Promise.all([
+          repositories.recipes.getAll(),
+          repositories.planner.getMap(),
+          repositories.goals.get()
         ]);
 
-        setRecipes(dbRecipes);
-        setPlan(dbPlanMap);
-        if (dbGoals) {
+        setRecipes(savedRecipes);
+        setPlan(plannerMap);
+        if (savedGoals) {
           setGoals({
-            calories: dbGoals.calories,
-            protein: dbGoals.protein,
-            carbs: dbGoals.carbs,
-            fats: dbGoals.fats,
-            age: dbGoals.age ?? '',
-            weight: dbGoals.weight ?? '',
-            height: dbGoals.height ?? '',
-            sex: dbGoals.sex ?? '',
-            activityPal: dbGoals.activityPal ?? '',
-            userGoal: dbGoals.userGoal ?? ''
+            calories: savedGoals.calories,
+            protein: savedGoals.protein,
+            carbs: savedGoals.carbs,
+            fats: savedGoals.fats,
+            age: savedGoals.age ?? '',
+            weight: savedGoals.weight ?? '',
+            height: savedGoals.height ?? '',
+            sex: savedGoals.sex ?? '',
+            activityPal: savedGoals.activityPal ?? '',
+            userGoal: savedGoals.userGoal ?? ''
           });
         }
       } catch (err) {
-        console.error('Dexie IndexedDB initialization error:', err);
+        console.error('Data repository initialization error:', err);
       }
     };
 
     useEffect(() => {
-      loadFromDb();
+      loadFromRepositories();
     }, []);
 
     // Aggregated Smart Shopping List
@@ -143,7 +143,7 @@ window.MacroChef = window.MacroChef || {};
 
     // Handlers
     const handleAssignMeal = async (dayKey, mealType, recipeId) => {
-      const updatedDay = await dbService.savePlannerSlot(
+      const updatedDay = await repositories.planner.saveSlot(
         dayKey,
         plan[dayKey],
         mealType,
@@ -153,20 +153,20 @@ window.MacroChef = window.MacroChef || {};
     };
 
     const handleClearWeek = async () => {
-      const emptyMap = await dbService.clearPlanner();
+      const emptyMap = await repositories.planner.clear();
       setPlan(emptyMap);
     };
 
     const handleSaveRecipe = async (recipeData) => {
-      await dbService.saveRecipe(recipeData);
-      await loadFromDb();
+      await repositories.recipes.save(recipeData);
+      await loadFromRepositories();
       setShowRecipeModal(false);
       setEditingRecipe(null);
     };
 
     const handleDeleteRecipe = async (id) => {
-      await dbService.deleteRecipe(id);
-      await loadFromDb();
+      await repositories.recipes.delete(id);
+      await loadFromRepositories();
       if (selectedBatchRecipe && selectedBatchRecipe.id === id) {
         setSelectedBatchRecipe(null);
       }
@@ -174,7 +174,7 @@ window.MacroChef = window.MacroChef || {};
 
     const handleSaveGoals = async (newGoals) => {
       setGoals(newGoals);
-      await dbService.saveGoals(newGoals);
+      await repositories.goals.save(newGoals);
     };
 
     const handleStartBatchCooking = (recipe) => {

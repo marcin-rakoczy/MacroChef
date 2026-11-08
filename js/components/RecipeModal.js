@@ -69,14 +69,14 @@ window.MacroChef.components = window.MacroChef.components || {};
     React.useEffect(() => {
       const loadProducts = async () => {
         try {
-          if (window.MacroChef.dbService && typeof window.MacroChef.dbService.getAllProducts === 'function') {
-            const loaded = await window.MacroChef.dbService.getAllProducts();
+          if (window.MacroChef.repositories && window.MacroChef.repositories.products) {
+            const loaded = await window.MacroChef.repositories.products.getAll();
             setProducts(loaded && loaded.length > 0 ? loaded : (window.MacroChef.LIDL_PRODUCTS || []));
           } else if (window.MacroChef.LIDL_PRODUCTS) {
             setProducts(window.MacroChef.LIDL_PRODUCTS);
           }
         } catch (err) {
-          console.warn('Could not load products from Dexie, using fallback catalog:', err);
+          console.warn('Could not load products from repository, using fallback catalog:', err);
           if (window.MacroChef.LIDL_PRODUCTS) {
             setProducts(window.MacroChef.LIDL_PRODUCTS);
           }
@@ -176,8 +176,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 
       try {
         let saved = newProductObj;
-        if (window.MacroChef.dbService && typeof window.MacroChef.dbService.saveProduct === 'function') {
-          saved = await window.MacroChef.dbService.saveProduct(newProductObj);
+        if (window.MacroChef.repositories && window.MacroChef.repositories.products) {
+          saved = await window.MacroChef.repositories.products.save(newProductObj);
         }
         setProducts((prev) => [saved, ...prev]);
 

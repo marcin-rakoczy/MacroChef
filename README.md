@@ -140,7 +140,7 @@ js/
 ├── i18n/          # Bilingual UI dictionaries
 ├── utils/         # Pure functions (calculations, helpers)
 ├── components/    # React components (UI presentation)
-├── db.js          # IndexedDB abstraction layer
+├── db.js          # IndexedDB repositories for recipes, planner, goals, and products
 ├── app.js         # Root component orchestrator
 └── main.js        # DOM mount & Service Worker init
 ```
@@ -153,11 +153,19 @@ window.MacroChef = {
   components: { ... },
   macroCalculations: { ... },
   shoppingAggregator: { ... },
-  db: { ... }
+  repositories: {
+    recipes: { getAll, save, delete },
+    planner: { getMap, saveSlot, clear },
+    goals: { get, save },
+    products: { getAll, save, delete }
+  }
 }
 ```
 
 This allows cross-module communication without import/export syntax while running pure JSX in the browser.
+
+### Repository Pattern
+UI components access persisted data through entity-specific repositories in `db.js`, rather than calling Dexie directly. The repositories currently use IndexedDB through Dexie and keep the app's local-first, offline behavior. A future cloud integration can add a synchronization layer behind these interfaces while retaining IndexedDB for offline reads and writes; conflict resolution and sync behavior should be designed separately.
 
 ### State Management
 - **React Hooks**: Centralized state in `app.js` with context passed to components
@@ -188,9 +196,9 @@ Ensures instant offline load while fetching fresh assets in background.
 ```javascript
 {
   recipes: 'id',           // User-created & imported recipes
-  meals: 'id',             // Weekly meal plan assignments
+  planner: 'dayKey',       // Weekly meal plan assignments
   goals: 'id',             // User profile & fitness goals
-  products: 'id'           // Ingredient database (Lidl sourced)
+  products: 'id, name, category' // Ingredient database (Lidl sourced)
 }
 ```
 
@@ -287,7 +295,7 @@ MacroChef/
 │   │   ├── helpers.js           # String manipulation, PascalCase and translation extractors
 │   │   ├── macroCalculations.js # Daily caloric/macro totals & goal distribution engine
 │   │   └── shoppingAggregator.js# Smart whole-package calculations & zero-waste leftover tracker
-│   ├── db.js                    # Dexie.js IndexedDB client & persistent CRUD layer
+│   ├── db.js                    # Dexie.js repositories for persistent data
 │   ├── components/
 │   │   ├── Icon.js              # Safe Lucide Icon component (prevents React DOM reconciliation conflicts)
 │   │   ├── Header.js            # Sticky header with logo, DB offline badge, language & theme toggles
@@ -337,7 +345,7 @@ js/
 ├── i18n/          # Bilingual UI dictionaries
 ├── utils/         # Pure functions (calculations, helpers)
 ├── components/    # React components (UI presentation)
-├── db.js          # IndexedDB abstraction layer
+├── db.js          # IndexedDB repositories for recipes, planner, goals, and products
 ├── app.js         # Root component orchestrator
 └── main.js        # DOM mount & Service Worker init
 ```
@@ -350,7 +358,12 @@ window.MacroChef = {
   components: { ... },
   macroCalculations: { ... },
   shoppingAggregator: { ... },
-  db: { ... }
+  repositories: {
+    recipes: { getAll, save, delete },
+    planner: { getMap, saveSlot, clear },
+    goals: { get, save },
+    products: { getAll, save, delete }
+  }
 }
 ```
 
