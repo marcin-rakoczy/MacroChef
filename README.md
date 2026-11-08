@@ -455,6 +455,13 @@ node tests/sw.test.js
 ```
 With the development server running, open `tests/i18n.test.html` for the React localization checks and `tests/db.test.html` for the database checks.
 
+The browser-only suites `tests/nutrition.browser.test.html` and `tests/repository.browser.test.html`
+report each assertion separately and use disposable IndexedDB databases. They currently expose
+known gaps: suggested weight-loss calories can fall below estimated BMR, extreme inputs can
+produce negative carbohydrate values, and recipe writes do not maintain `updatedAt`. The
+account test checks separate scoped databases, not server authorization or filtering by `userId`.
+These failures are intentional regression specifications, not evidence that the features exist.
+
 ### Macro Calculation Validation
 The macro calculation system has been validated against Atwater constants:
 - **Weight Loss Goal** (2299 kcal): 210g P + 77g F + 192g C = 2301 kcal ✓
