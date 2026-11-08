@@ -164,7 +164,13 @@ This allows cross-module communication without import/export syntax while runnin
 ### Repository Pattern and React 18 Queries
 `ICalorieRepository` defines the data-access contract and `DexieCalorieRepository` implements it. React components call this interface rather than Dexie, keeping IndexedDB details out of the view layer. `useRepositoryQuery` adapts Dexie's `liveQuery` observable to `useSyncExternalStore`, providing stable snapshots and subscriptions compatible with React 18 Concurrent Rendering.
 
-Recipe and product IDs are non-incrementing strings generated from random UUIDs for new records. Planner days (`dayKey`) and the single goals record (`user_goals`) use stable string natural keys because they are uniquely addressed by day and singleton purpose. The app remains local-first and offline-capable; future cloud support should synchronize through the repository boundary and define conflict handling separately.
+All persisted recipes, products, planner entries and goals use non-incrementing, randomly generated string IDs. Planner entries retain an indexed `dayKey` for display and lookup. Database versions 3 and 4 migrate existing records and update planner recipe references without modifying the bundled starter data.
+
+Repository CRUD operations use an offline mutation decorator. When `navigator.onLine` is `false`, each successful local change and its `OutboxQueue` entry are committed in the same IndexedDB transaction. An entry contains `{ id, table, action, payload, timestamp }`: `create` carries the new record, `delete` carries `{ id }`, and `update` carries either `{ id, value }` for a replacement or `{ id, changes }` for a partial Dexie update. Undefined values in `changes` remove properties and must be preserved by any future consumer. Initial data population and schema migrations are not journaled; direct table writes bypass the decorator. Connectivity is only the browser's online hint, not proof that a server is reachable. IndexedDB failures still reject the operation and roll back both the data and queue entry.
+
+The queue is a local journal, not a synchronization system: there is currently no remote transport, replay, acknowledgement, conflict resolution or automatic cleanup, and online changes are not journaled. Dexie Cloud is not installed or configured. Before enabling it, define migration and ownership of existing records, handle duplicate seeded data and singleton records across devices, exclude `OutboxQueue` using Dexie Cloud's `unsyncedTables`, and avoid replaying journal entries alongside Dexie Cloud's own synchronization.
+
+The browser regression checks at `tests/db.test.html` exercise schema migration, offline CRUD journaling, online writes, and transaction rollback using disposable databases.
 
 ### State Management
 - **React Hooks**: Centralized state in `app.js` with context passed to components
