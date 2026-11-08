@@ -8,9 +8,6 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { getDailyTotals } = window.MacroChef.macroCalculations;
 
   function MealPlanner({
-    t,
-    lang,
-    daysList,
     daysKeys,
     plan,
     recipes,
@@ -19,6 +16,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     onClearWeek,
     onCreateRecipe
   }) {
+    const { t, lang, daysList } = window.MacroChef.useI18n();
     // Active slot being picked: { dayKey, dayName, slotKey, slotLabel, currentId }
     const [pickerSlot, setPickerSlot] = React.useState(null);
 
@@ -193,8 +191,6 @@ window.MacroChef.components = window.MacroChef.components || {};
         {/* Recipe Picker Modal from Recipe Library */}
         {pickerSlot && (
           <RecipePickerModal
-            lang={lang}
-            t={t}
             slotInfo={pickerSlot}
             recipes={recipes}
             onSelectRecipe={(recipeId) => {

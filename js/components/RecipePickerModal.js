@@ -23,8 +23,6 @@ window.MacroChef.components = window.MacroChef.components || {};
   }
 
   function RecipePickerModal({
-    lang,
-    t,
     slotInfo,
     recipes,
     onSelectRecipe,
@@ -32,6 +30,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     onClose,
     onCreateRecipe
   }) {
+    const { t, lang } = window.MacroChef.useI18n();
     // Categories list for tabs
     const categoryOptions = [
       { key: 'all', label: t.allCategories || 'Wszystkie' },

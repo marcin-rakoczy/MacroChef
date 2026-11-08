@@ -137,13 +137,14 @@ Files are organized by responsibility but served as a single Babel-compiled bund
 ```
 js/
 ├── data/          # Static datasets (recipes, meal plans, products)
-├── i18n/          # Bilingual UI dictionaries
-├── utils/         # Pure functions (calculations, helpers)
+├── i18n/          # Bilingual dictionaries and React context
+├── utils/         # Shopping aggregation and helpers
 ├── components/    # React components (UI presentation)
 ├── db.js          # ICalorieRepository contract and Dexie implementation
 ├── hooks/         # React external-store hooks for live repository queries
 ├── app.js         # Root component orchestrator
 └── main.js        # DOM mount & Service Worker init
+src/core/nutrition/ # Pure client-side nutrition calculations
 ```
 
 ### Global Namespace Pattern
@@ -160,6 +161,11 @@ window.MacroChef = {
 ```
 
 This allows cross-module communication without import/export syntax while running pure JSX in the browser.
+
+### Nutrition and localization
+`src/core/nutrition/calculations.js` exposes stateless Mifflin–St Jeor maintenance estimates, recommended calorie targets, macro distribution and daily totals through `window.MacroChef.macroCalculations`. The UI supplies profile and plan data without modifying the inputs.
+
+`I18nProvider` supplies the current language, dictionary and localized day names through `useI18n`; the provider memoizes its context value by language and persists the selection in localStorage. The dictionaries, provider and nutrition script are included in the service worker's local asset cache for offline use.
 
 ### Repository Pattern and React 18 Queries
 `ICalorieRepository` defines the data-access contract and `DexieCalorieRepository` implements it. React components call this interface rather than Dexie, keeping IndexedDB details out of the view layer. `useRepositoryQuery` adapts Dexie's `liveQuery` observable to `useSyncExternalStore`, providing stable snapshots and subscriptions compatible with React 18 Concurrent Rendering.
@@ -295,10 +301,10 @@ MacroChef/
 │   │   └── defaultPlan.js       # Default weekly schedule & user nutritional goals
 │   ├── i18n/
 │   │   ├── translations.js      # English & Polish bilingual UI dictionary
-│   │   └── days.js              # Days of the week definitions & localization
+│   │   ├── days.js              # Days of the week definitions & localization
+│   │   └── context.js           # Memoized React localization context
 │   ├── utils/
 │   │   ├── helpers.js           # String manipulation, PascalCase and translation extractors
-│   │   ├── macroCalculations.js # Daily caloric/macro totals & goal distribution engine
 │   │   └── shoppingAggregator.js# Smart whole-package calculations & zero-waste leftover tracker
 │   ├── db.js                    # Dexie.js repositories for persistent data
 │   ├── components/
@@ -313,6 +319,8 @@ MacroChef/
 │   │   └── RecipeModal.js       # Add / Edit recipe dialog with dynamic ingredients & step rows
 │   ├── app.js                   # Root React orchestrator managing state & tabs
 │   └── main.js                  # DOM mounting & Service Worker registration
+├── src/core/nutrition/
+│   └── calculations.js          # Pure nutrition calculations
 ├── dist/
 │   └── index.html               # Pre-bundled standalone version
 └── macrochef_calorie_meal_planner_pwa.html # Synchronized standalone file for double-click offline execution
@@ -329,7 +337,7 @@ MacroChef/
 3. **True PWA Offline Readiness**:
    - Created `manifest.json`, scalable SVG + PNG icons, and a custom Service Worker (`sw.js`) utilizing Stale-While-Revalidate caching for instant offline loads and installability on mobile and desktop.
 4. **Isolated Business Calculations**:
-   - Extracted `macroCalculations.js` and `shoppingAggregator.js` into pure, unit-testable modules.
+   - Extracted nutrition calculations and `shoppingAggregator.js` into unit-testable modules.
    - Tested and verified 100% test coverage for macro distribution and whole-package surplus calculations.
 ---
 
@@ -347,13 +355,14 @@ Files are organized by responsibility but served as a single Babel-compiled bund
 ```
 js/
 ├── data/          # Static datasets (recipes, meal plans, products)
-├── i18n/          # Bilingual UI dictionaries
-├── utils/         # Pure functions (calculations, helpers)
+├── i18n/          # Bilingual dictionaries and React context
+├── utils/         # Shopping aggregation and helpers
 ├── components/    # React components (UI presentation)
 ├── db.js          # ICalorieRepository contract and Dexie implementation
 ├── hooks/         # React external-store hooks for live repository queries
 ├── app.js         # Root component orchestrator
 └── main.js        # DOM mount & Service Worker init
+src/core/nutrition/ # Pure client-side nutrition calculations
 ```
 
 ### Global Namespace Pattern
@@ -431,9 +440,10 @@ npm start
 
 ### Testing
 ```bash
-# Run test suite (includes macro calculation & shopping aggregation validation)
-npm test
+# Run nutrition calculation checks
+node tests/nutrition.test.js
 ```
+With the development server running, open `tests/i18n.test.html` for the React localization checks and `tests/db.test.html` for the database checks.
 
 ### Macro Calculation Validation
 The macro calculation system has been validated against Atwater constants:

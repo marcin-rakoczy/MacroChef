@@ -1068,6 +1068,42 @@ window.MacroChef.DAYS_TRANSLATED = {
 
 
 // ==========================================
+// File: i18n/context.js
+// ==========================================
+window.MacroChef = window.MacroChef || {};
+
+(function () {
+  const { createContext, createElement, useContext, useEffect, useMemo, useState } = React;
+  const I18nContext = createContext(null);
+
+  function I18nProvider({ children }) {
+    const [lang, setLang] = useState(() => localStorage.getItem('macrochef_lang') || 'pl');
+    const value = useMemo(() => ({
+      lang,
+      setLang,
+      t: window.MacroChef.TRANSLATIONS[lang] || window.MacroChef.TRANSLATIONS.en,
+      daysList: window.MacroChef.DAYS_TRANSLATED[lang] || window.MacroChef.DAYS_TRANSLATED.en
+    }), [lang]);
+
+    useEffect(() => {
+      localStorage.setItem('macrochef_lang', lang);
+    }, [lang]);
+
+    return createElement(I18nContext.Provider, { value }, children);
+  }
+
+  function useI18n() {
+    const value = useContext(I18nContext);
+    if (!value) throw new Error('useI18n must be used within I18nProvider');
+    return value;
+  }
+
+  window.MacroChef.I18nProvider = I18nProvider;
+  window.MacroChef.useI18n = useI18n;
+})();
+
+
+// ==========================================
 // File: utils/helpers.js
 // ==========================================
 // Utility helpers for localization & strings
@@ -1094,12 +1130,35 @@ window.MacroChef.helpers = {
 
 
 // ==========================================
-// File: utils/macroCalculations.js
+// File: ../src/core/nutrition/calculations.js
 // ==========================================
 // Pure calculations for macros and daily goals
 window.MacroChef = window.MacroChef || {};
 
-window.MacroChef.macroCalculations = {
+(function () {
+const macroCalculations = {
+  calculateMaintenanceCalories(goals) {
+    const age = Number(goals.age);
+    const weight = Number(goals.weight);
+    const height = Number(goals.height);
+    const activity = String(goals.activityPal);
+    if (!Number.isFinite(age) || age < 18 || age > 120 ||
+        !Number.isFinite(weight) || weight <= 0 || weight > 500 ||
+        !Number.isFinite(height) || height < 50 || height > 300 ||
+        (goals.sex !== 'female' && goals.sex !== 'male') ||
+        !['1.25', '1.45', '1.65', '1.85', '2.2'].includes(activity)) {
+      return null;
+    }
+    return Math.round((10 * weight + 6.25 * height - 5 * age +
+      (goals.sex === 'female' ? -161 : 5)) * Number(activity));
+  },
+
+  calculateRecommendedCalories(cpm, userGoal) {
+    if (cpm === null) return null;
+    const adjustments = { weightLoss: -500, muscleGain: 300, maintenance: 0, healthyHabits: 0 };
+    return Math.max(500, cpm + (adjustments[userGoal] || 0));
+  },
+
   getDailyTotals(dayKey, plan, recipes) {
     const dayPlan = (plan && plan[dayKey]) || {};
     const totals = { calories: 0, protein: 0, carbs: 0, fats: 0 };
@@ -1179,8 +1238,7 @@ window.MacroChef.macroCalculations = {
 
     // If a goal is selected and we have CPM, recalculate macros
     if (goals.userGoal && goals.userGoal !== 'healthyHabits' && cpm) {
-      const macroCalc = window.MacroChef.macroCalculations;
-      const calculated = macroCalc.calculateMacrosForGoal(goals, cpm);
+      const calculated = macroCalculations.calculateMacrosForGoal(goals, cpm);
       protein = calculated.protein;
       carbs = calculated.carbs;
       fats = calculated.fats;
@@ -1204,7 +1262,8 @@ window.MacroChef.macroCalculations = {
     };
   }
 };
-
+window.MacroChef.macroCalculations = Object.freeze(macroCalculations);
+})();
 
 
 // ==========================================
@@ -1717,14 +1776,12 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
 
   function Header({
-    t,
-    lang,
-    setLang,
     darkMode,
     setDarkMode,
     colorTheme,
     setColorTheme
   }) {
+    const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const menuRef = React.useRef(null);
 
@@ -1966,7 +2023,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 (function () {
   const { Icon } = window.MacroChef.components;
 
-  function Navigation({ activeTab, setActiveTab, t, isMobile = false }) {
+  function Navigation({ activeTab, setActiveTab, isMobile = false }) {
+    const { t } = window.MacroChef.useI18n();
     const tabs = [
       { id: 'planner', label: t.planner, icon: 'calendar' },
       { id: 'recipes', label: t.recipes, icon: 'book-open' },
@@ -2026,7 +2084,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 })();
 
 
-
 // ==========================================
 // File: components/RecipePickerModal.js
 // ==========================================
@@ -2055,8 +2112,6 @@ window.MacroChef.components = window.MacroChef.components || {};
   }
 
   function RecipePickerModal({
-    lang,
-    t,
     slotInfo,
     recipes,
     onSelectRecipe,
@@ -2064,6 +2119,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     onClose,
     onCreateRecipe
   }) {
+    const { t, lang } = window.MacroChef.useI18n();
     // Categories list for tabs
     const categoryOptions = [
       { key: 'all', label: t.allCategories || 'Wszystkie' },
@@ -2417,9 +2473,6 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { getDailyTotals } = window.MacroChef.macroCalculations;
 
   function MealPlanner({
-    t,
-    lang,
-    daysList,
     daysKeys,
     plan,
     recipes,
@@ -2428,6 +2481,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     onClearWeek,
     onCreateRecipe
   }) {
+    const { t, lang, daysList } = window.MacroChef.useI18n();
     // Active slot being picked: { dayKey, dayName, slotKey, slotLabel, currentId }
     const [pickerSlot, setPickerSlot] = React.useState(null);
 
@@ -2602,8 +2656,6 @@ window.MacroChef.components = window.MacroChef.components || {};
         {/* Recipe Picker Modal from Recipe Library */}
         {pickerSlot && (
           <RecipePickerModal
-            lang={lang}
-            t={t}
             slotInfo={pickerSlot}
             recipes={recipes}
             onSelectRecipe={(recipeId) => {
@@ -2638,14 +2690,13 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { getLocalized } = window.MacroChef.helpers;
 
   function RecipeLibrary({
-    t,
-    lang,
     recipes,
     onCreateRecipe,
     onEditRecipe,
     onDeleteRecipe,
     onStartBatchCooking
   }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
       if (window.confirm(`${t.confirmDelete} (${name})`)) {
@@ -2762,7 +2813,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 })();
 
 
-
 // ==========================================
 // File: components/BatchCooking.js
 // ==========================================
@@ -2775,14 +2825,13 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { getLocalized } = window.MacroChef.helpers;
 
   function BatchCooking({
-    t,
-    lang,
     recipes,
     selectedRecipe,
     onSelectRecipe,
     batchStep,
     setBatchStep
   }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const stepsList = selectedRecipe
       ? getLocalized(selectedRecipe.steps, lang) || []
       : [];
@@ -2933,7 +2982,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 })();
 
 
-
 // ==========================================
 // File: components/ShoppingList.js
 // ==========================================
@@ -2945,12 +2993,12 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
 
   function ShoppingList({
-    t,
     shoppingList,
     checkedShopping,
     onToggleCheck,
     onUncheckAll
   }) {
+    const { t } = window.MacroChef.useI18n();
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -3081,7 +3129,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 })();
 
 
-
 // ==========================================
 // File: components/MacroTracker.js
 // ==========================================
@@ -3098,45 +3145,17 @@ window.MacroChef.components = window.MacroChef.components || {};
     { pal: '1.85', label: 'activityHigh', description: 'activityHighDesc' },
     { pal: '2.2', label: 'activityVeryHigh', description: 'activityVeryHighDesc' }
   ];
-  const calorieAdjustments = {
-    weightLoss: -500,
-    muscleGain: 300,
-    maintenance: 0,
-    healthyHabits: 0
-  };
+  const { calculateMaintenanceCalories, calculateRecommendedCalories, calculateDistribution } =
+    window.MacroChef.macroCalculations;
 
-  function MacroTracker({ t, lang, goals, onSaveGoals }) {
-    const age = Number(goals.age);
-    const weight = Number(goals.weight);
-    const height = Number(goals.height);
+  function MacroTracker({ goals, onSaveGoals }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const selectedActivity = activities.find(
       (activity) => activity.pal === String(goals.activityPal)
     );
-    const hasValidProfile =
-      Number.isFinite(age) &&
-      age >= 18 &&
-      age <= 120 &&
-      Number.isFinite(weight) &&
-      weight > 0 &&
-      weight <= 500 &&
-      Number.isFinite(height) &&
-      height >= 50 &&
-      height <= 300 &&
-      (goals.sex === 'female' || goals.sex === 'male') &&
-      selectedActivity;
-    const cpm = hasValidProfile
-      ? Math.round(
-          (10 * weight +
-            6.25 * height -
-            5 * age +
-            (goals.sex === 'female' ? -161 : 5)) *
-            Number(selectedActivity.pal)
-        )
-      : null;
+    const cpm = calculateMaintenanceCalories(goals);
     const userGoal = goals.userGoal || '';
-    const calorieAdjustment = calorieAdjustments[userGoal] || 0;
-    const recommendedCalories =
-      cpm === null ? null : Math.max(500, cpm + calorieAdjustment);
+    const recommendedCalories = calculateRecommendedCalories(cpm, userGoal);
     const goalDescription = {
       weightLoss: 'weightLossDesc',
       muscleGain: 'muscleGainDesc',
@@ -3144,8 +3163,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       healthyHabits: 'healthyHabitsDesc'
     }[userGoal];
 
-    // Calculate macros based on goal (call with proper context)
-    const dist = window.MacroChef.macroCalculations.calculateDistribution(goals, cpm);
+    const dist = calculateDistribution(goals, cpm);
 
     return (
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -3476,7 +3494,8 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
 
-  function RecipeModal({ lang, t, editingRecipe, onClose, onSave }) {
+  function RecipeModal({ editingRecipe, onClose, onSave }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
       if (editingRecipe) {
         return {
@@ -4308,8 +4327,7 @@ window.MacroChef = window.MacroChef || {};
 
   const { repositories } = window.MacroChef;
   const { shoppingAggregator } = window.MacroChef;
-  const { TRANSLATIONS } = window.MacroChef;
-  const { DAYS_KEYS, DAYS_TRANSLATED } = window.MacroChef;
+  const { DAYS_KEYS } = window.MacroChef;
   const { useRepositoryQuery } = window.MacroChef;
 
   function App() {
@@ -4317,9 +4335,7 @@ window.MacroChef = window.MacroChef || {};
     const [darkMode, setDarkMode] = useState(() => {
       return localStorage.getItem('macrochef_dark') === 'true';
     });
-    const [lang, setLang] = useState(() => {
-      return localStorage.getItem('macrochef_lang') || 'pl';
-    });
+    const { lang } = window.MacroChef.useI18n();
     const [colorTheme, setColorTheme] = useState(() => {
       return localStorage.getItem('macrochef_color_theme') || 'emerald';
     });
@@ -4356,14 +4372,6 @@ window.MacroChef = window.MacroChef || {};
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
-
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-    const daysList = DAYS_TRANSLATED[lang] || DAYS_TRANSLATED.en;
-
-    // Sync preferences to localStorage
-    useEffect(() => {
-      localStorage.setItem('macrochef_lang', lang);
-    }, [lang]);
 
     useEffect(() => {
       localStorage.setItem('macrochef_dark', String(darkMode));
@@ -4464,9 +4472,6 @@ window.MacroChef = window.MacroChef || {};
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200 pb-24 md:pb-8">
           {/* Header */}
           <Header
-            t={t}
-            lang={lang}
-            setLang={setLang}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
             colorTheme={colorTheme}
@@ -4479,16 +4484,12 @@ window.MacroChef = window.MacroChef || {};
             <Navigation
               activeTab={activeTab}
               setActiveTab={setActiveTab}
-              t={t}
               isMobile={false}
             />
 
             {/* Tab 1: Weekly Planner */}
             {activeTab === 'planner' && (
               <MealPlanner
-                t={t}
-                lang={lang}
-                daysList={daysList}
                 daysKeys={DAYS_KEYS}
                 plan={plan}
                 recipes={recipes}
@@ -4505,8 +4506,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 2: Recipe Library */}
             {activeTab === 'recipes' && (
               <RecipeLibrary
-                t={t}
-                lang={lang}
                 recipes={recipes}
                 onCreateRecipe={() => {
                   setEditingRecipe(null);
@@ -4524,8 +4523,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 3: Batch Cooking */}
             {activeTab === 'batch' && (
               <BatchCooking
-                t={t}
-                lang={lang}
                 recipes={recipes}
                 selectedRecipe={selectedBatchRecipe}
                 onSelectRecipe={setSelectedBatchRecipe}
@@ -4537,7 +4534,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 4: Smart Shopping List */}
             {activeTab === 'shopping' && (
               <ShoppingList
-                t={t}
                 shoppingList={aggregatedShoppingList}
                 checkedShopping={checkedShopping}
                 onToggleCheck={handleToggleShoppingCheck}
@@ -4548,8 +4544,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 5: Macro & Goals Tracker */}
             {activeTab === 'tracker' && (
               <MacroTracker
-                t={t}
-                lang={lang}
                 goals={goals}
                 onSaveGoals={handleSaveGoals}
               />
@@ -4559,8 +4553,6 @@ window.MacroChef = window.MacroChef || {};
           {/* Modal Dialog */}
           {showRecipeModal && (
             <RecipeModal
-              lang={lang}
-              t={t}
               editingRecipe={editingRecipe}
               onClose={() => {
                 setShowRecipeModal(false);
@@ -4574,7 +4566,6 @@ window.MacroChef = window.MacroChef || {};
           <Navigation
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            t={t}
             isMobile={true}
           />
         </div>
@@ -4591,13 +4582,13 @@ window.MacroChef = window.MacroChef || {};
 // ==========================================
 // Application Bootstrapper & Service Worker Registration
 (function () {
-  const { App } = window.MacroChef;
+  const { App, I18nProvider } = window.MacroChef;
 
   // Mount React App
   const rootElement = document.getElementById('root');
   if (rootElement && App) {
     const root = ReactDOM.createRoot(rootElement);
-    root.render(React.createElement(App));
+    root.render(React.createElement(I18nProvider, null, React.createElement(App)));
   }
 
   // Register PWA Service Worker for offline capability
@@ -4614,7 +4605,6 @@ window.MacroChef = window.MacroChef || {};
     });
   }
 })();
-
 
   </script>
 </body>

@@ -7,14 +7,13 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { getLocalized } = window.MacroChef.helpers;
 
   function BatchCooking({
-    t,
-    lang,
     recipes,
     selectedRecipe,
     onSelectRecipe,
     batchStep,
     setBatchStep
   }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const stepsList = selectedRecipe
       ? getLocalized(selectedRecipe.steps, lang) || []
       : [];
@@ -163,4 +162,3 @@ window.MacroChef.components = window.MacroChef.components || {};
 
   window.MacroChef.components.BatchCooking = BatchCooking;
 })();
-

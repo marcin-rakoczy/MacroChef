@@ -11,45 +11,17 @@ window.MacroChef.components = window.MacroChef.components || {};
     { pal: '1.85', label: 'activityHigh', description: 'activityHighDesc' },
     { pal: '2.2', label: 'activityVeryHigh', description: 'activityVeryHighDesc' }
   ];
-  const calorieAdjustments = {
-    weightLoss: -500,
-    muscleGain: 300,
-    maintenance: 0,
-    healthyHabits: 0
-  };
+  const { calculateMaintenanceCalories, calculateRecommendedCalories, calculateDistribution } =
+    window.MacroChef.macroCalculations;
 
-  function MacroTracker({ t, lang, goals, onSaveGoals }) {
-    const age = Number(goals.age);
-    const weight = Number(goals.weight);
-    const height = Number(goals.height);
+  function MacroTracker({ goals, onSaveGoals }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const selectedActivity = activities.find(
       (activity) => activity.pal === String(goals.activityPal)
     );
-    const hasValidProfile =
-      Number.isFinite(age) &&
-      age >= 18 &&
-      age <= 120 &&
-      Number.isFinite(weight) &&
-      weight > 0 &&
-      weight <= 500 &&
-      Number.isFinite(height) &&
-      height >= 50 &&
-      height <= 300 &&
-      (goals.sex === 'female' || goals.sex === 'male') &&
-      selectedActivity;
-    const cpm = hasValidProfile
-      ? Math.round(
-          (10 * weight +
-            6.25 * height -
-            5 * age +
-            (goals.sex === 'female' ? -161 : 5)) *
-            Number(selectedActivity.pal)
-        )
-      : null;
+    const cpm = calculateMaintenanceCalories(goals);
     const userGoal = goals.userGoal || '';
-    const calorieAdjustment = calorieAdjustments[userGoal] || 0;
-    const recommendedCalories =
-      cpm === null ? null : Math.max(500, cpm + calorieAdjustment);
+    const recommendedCalories = calculateRecommendedCalories(cpm, userGoal);
     const goalDescription = {
       weightLoss: 'weightLossDesc',
       muscleGain: 'muscleGainDesc',
@@ -57,8 +29,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       healthyHabits: 'healthyHabitsDesc'
     }[userGoal];
 
-    // Calculate macros based on goal (call with proper context)
-    const dist = window.MacroChef.macroCalculations.calculateDistribution(goals, cpm);
+    const dist = calculateDistribution(goals, cpm);
 
     return (
       <div className="space-y-6 max-w-3xl mx-auto">

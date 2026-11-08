@@ -6,12 +6,12 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
 
   function ShoppingList({
-    t,
     shoppingList,
     checkedShopping,
     onToggleCheck,
     onUncheckAll
   }) {
+    const { t } = window.MacroChef.useI18n();
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -140,4 +140,3 @@ window.MacroChef.components = window.MacroChef.components || {};
 
   window.MacroChef.components.ShoppingList = ShoppingList;
 })();
-

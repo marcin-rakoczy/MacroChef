@@ -5,7 +5,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 (function () {
   const { Icon } = window.MacroChef.components;
 
-  function Navigation({ activeTab, setActiveTab, t, isMobile = false }) {
+  function Navigation({ activeTab, setActiveTab, isMobile = false }) {
+    const { t } = window.MacroChef.useI18n();
     const tabs = [
       { id: 'planner', label: t.planner, icon: 'calendar' },
       { id: 'recipes', label: t.recipes, icon: 'book-open' },
@@ -63,4 +64,3 @@ window.MacroChef.components = window.MacroChef.components || {};
 
   window.MacroChef.components.Navigation = Navigation;
 })();
-

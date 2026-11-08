@@ -7,14 +7,13 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { getLocalized } = window.MacroChef.helpers;
 
   function RecipeLibrary({
-    t,
-    lang,
     recipes,
     onCreateRecipe,
     onEditRecipe,
     onDeleteRecipe,
     onStartBatchCooking
   }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
       if (window.confirm(`${t.confirmDelete} (${name})`)) {
@@ -129,4 +128,3 @@ window.MacroChef.components = window.MacroChef.components || {};
 
   window.MacroChef.components.RecipeLibrary = RecipeLibrary;
 })();
-

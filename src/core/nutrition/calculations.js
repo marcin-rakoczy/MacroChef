@@ -1,7 +1,30 @@
 // Pure calculations for macros and daily goals
 window.MacroChef = window.MacroChef || {};
 
-window.MacroChef.macroCalculations = {
+(function () {
+const macroCalculations = {
+  calculateMaintenanceCalories(goals) {
+    const age = Number(goals.age);
+    const weight = Number(goals.weight);
+    const height = Number(goals.height);
+    const activity = String(goals.activityPal);
+    if (!Number.isFinite(age) || age < 18 || age > 120 ||
+        !Number.isFinite(weight) || weight <= 0 || weight > 500 ||
+        !Number.isFinite(height) || height < 50 || height > 300 ||
+        (goals.sex !== 'female' && goals.sex !== 'male') ||
+        !['1.25', '1.45', '1.65', '1.85', '2.2'].includes(activity)) {
+      return null;
+    }
+    return Math.round((10 * weight + 6.25 * height - 5 * age +
+      (goals.sex === 'female' ? -161 : 5)) * Number(activity));
+  },
+
+  calculateRecommendedCalories(cpm, userGoal) {
+    if (cpm === null) return null;
+    const adjustments = { weightLoss: -500, muscleGain: 300, maintenance: 0, healthyHabits: 0 };
+    return Math.max(500, cpm + (adjustments[userGoal] || 0));
+  },
+
   getDailyTotals(dayKey, plan, recipes) {
     const dayPlan = (plan && plan[dayKey]) || {};
     const totals = { calories: 0, protein: 0, carbs: 0, fats: 0 };
@@ -81,8 +104,7 @@ window.MacroChef.macroCalculations = {
 
     // If a goal is selected and we have CPM, recalculate macros
     if (goals.userGoal && goals.userGoal !== 'healthyHabits' && cpm) {
-      const macroCalc = window.MacroChef.macroCalculations;
-      const calculated = macroCalc.calculateMacrosForGoal(goals, cpm);
+      const calculated = macroCalculations.calculateMacrosForGoal(goals, cpm);
       protein = calculated.protein;
       carbs = calculated.carbs;
       fats = calculated.fats;
@@ -106,4 +128,5 @@ window.MacroChef.macroCalculations = {
     };
   }
 };
-
+window.MacroChef.macroCalculations = Object.freeze(macroCalculations);
+})();

@@ -6,7 +6,8 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
 
-  function RecipeModal({ lang, t, editingRecipe, onClose, onSave }) {
+  function RecipeModal({ editingRecipe, onClose, onSave }) {
+    const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
       if (editingRecipe) {
         return {

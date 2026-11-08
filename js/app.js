@@ -16,8 +16,7 @@ window.MacroChef = window.MacroChef || {};
 
   const { repositories } = window.MacroChef;
   const { shoppingAggregator } = window.MacroChef;
-  const { TRANSLATIONS } = window.MacroChef;
-  const { DAYS_KEYS, DAYS_TRANSLATED } = window.MacroChef;
+  const { DAYS_KEYS } = window.MacroChef;
   const { useRepositoryQuery } = window.MacroChef;
 
   function App() {
@@ -25,9 +24,7 @@ window.MacroChef = window.MacroChef || {};
     const [darkMode, setDarkMode] = useState(() => {
       return localStorage.getItem('macrochef_dark') === 'true';
     });
-    const [lang, setLang] = useState(() => {
-      return localStorage.getItem('macrochef_lang') || 'pl';
-    });
+    const { lang } = window.MacroChef.useI18n();
     const [colorTheme, setColorTheme] = useState(() => {
       return localStorage.getItem('macrochef_color_theme') || 'emerald';
     });
@@ -64,14 +61,6 @@ window.MacroChef = window.MacroChef || {};
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
-
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-    const daysList = DAYS_TRANSLATED[lang] || DAYS_TRANSLATED.en;
-
-    // Sync preferences to localStorage
-    useEffect(() => {
-      localStorage.setItem('macrochef_lang', lang);
-    }, [lang]);
 
     useEffect(() => {
       localStorage.setItem('macrochef_dark', String(darkMode));
@@ -172,9 +161,6 @@ window.MacroChef = window.MacroChef || {};
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200 pb-24 md:pb-8">
           {/* Header */}
           <Header
-            t={t}
-            lang={lang}
-            setLang={setLang}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
             colorTheme={colorTheme}
@@ -187,16 +173,12 @@ window.MacroChef = window.MacroChef || {};
             <Navigation
               activeTab={activeTab}
               setActiveTab={setActiveTab}
-              t={t}
               isMobile={false}
             />
 
             {/* Tab 1: Weekly Planner */}
             {activeTab === 'planner' && (
               <MealPlanner
-                t={t}
-                lang={lang}
-                daysList={daysList}
                 daysKeys={DAYS_KEYS}
                 plan={plan}
                 recipes={recipes}
@@ -213,8 +195,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 2: Recipe Library */}
             {activeTab === 'recipes' && (
               <RecipeLibrary
-                t={t}
-                lang={lang}
                 recipes={recipes}
                 onCreateRecipe={() => {
                   setEditingRecipe(null);
@@ -232,8 +212,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 3: Batch Cooking */}
             {activeTab === 'batch' && (
               <BatchCooking
-                t={t}
-                lang={lang}
                 recipes={recipes}
                 selectedRecipe={selectedBatchRecipe}
                 onSelectRecipe={setSelectedBatchRecipe}
@@ -245,7 +223,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 4: Smart Shopping List */}
             {activeTab === 'shopping' && (
               <ShoppingList
-                t={t}
                 shoppingList={aggregatedShoppingList}
                 checkedShopping={checkedShopping}
                 onToggleCheck={handleToggleShoppingCheck}
@@ -256,8 +233,6 @@ window.MacroChef = window.MacroChef || {};
             {/* Tab 5: Macro & Goals Tracker */}
             {activeTab === 'tracker' && (
               <MacroTracker
-                t={t}
-                lang={lang}
                 goals={goals}
                 onSaveGoals={handleSaveGoals}
               />
@@ -267,8 +242,6 @@ window.MacroChef = window.MacroChef || {};
           {/* Modal Dialog */}
           {showRecipeModal && (
             <RecipeModal
-              lang={lang}
-              t={t}
               editingRecipe={editingRecipe}
               onClose={() => {
                 setShowRecipeModal(false);
@@ -282,7 +255,6 @@ window.MacroChef = window.MacroChef || {};
           <Navigation
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            t={t}
             isMobile={true}
           />
         </div>

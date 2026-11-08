@@ -1,5 +1,5 @@
 // MacroChef PWA Service Worker
-const CACHE_NAME = 'macrochef-v5';
+const CACHE_NAME = 'macrochef-v6';
 
 const STATIC_ASSETS = [
   './',
@@ -12,8 +12,9 @@ const STATIC_ASSETS = [
   './js/data/defaultPlan.js',
   './js/i18n/translations.js',
   './js/i18n/days.js',
+  './js/i18n/context.js',
   './js/utils/helpers.js',
-  './js/utils/macroCalculations.js',
+  './src/core/nutrition/calculations.js',
   './js/utils/shoppingAggregator.js',
   './js/db.js',
   './js/hooks/useRepositoryQuery.js',

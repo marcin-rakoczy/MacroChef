@@ -6,14 +6,12 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
 
   function Header({
-    t,
-    lang,
-    setLang,
     darkMode,
     setDarkMode,
     colorTheme,
     setColorTheme
   }) {
+    const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const menuRef = React.useRef(null);
 
