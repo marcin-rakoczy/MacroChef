@@ -16,6 +16,12 @@ window.MacroChef.DEFAULT_GOALS = {
   calories: 2200,
   protein: 160,
   carbs: 220,
-  fats: 70
+  fats: 70,
+  age: '',
+  weight: '',
+  height: '',
+  sex: '',
+  activityPal: '',
+  userGoal: ''
 };
 

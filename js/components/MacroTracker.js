@@ -4,7 +4,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 
 (function () {
   const { Icon } = window.MacroChef.components;
-  const { calculateDistribution } = window.MacroChef.macroCalculations;
   const activities = [
     { pal: '1.25', label: 'activitySedentary', description: 'activitySedentaryDesc' },
     { pal: '1.45', label: 'activityLow', description: 'activityLowDesc' },
@@ -20,7 +19,6 @@ window.MacroChef.components = window.MacroChef.components || {};
   };
 
   function MacroTracker({ t, lang, goals, onSaveGoals }) {
-    const dist = calculateDistribution(goals);
     const age = Number(goals.age);
     const weight = Number(goals.weight);
     const height = Number(goals.height);
@@ -58,6 +56,9 @@ window.MacroChef.components = window.MacroChef.components || {};
       maintenance: 'maintenanceDesc',
       healthyHabits: 'healthyHabitsDesc'
     }[userGoal];
+
+    // Calculate macros based on goal (call with proper context)
+    const dist = window.MacroChef.macroCalculations.calculateDistribution(goals, cpm);
 
     return (
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -244,12 +245,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <input
                   type="number"
                   min="0"
-                  value={goals.protein}
+                  value={userGoal && userGoal !== 'healthyHabits' ? dist.protein : goals.protein}
                   onChange={(e) =>
                     onSaveGoals({ ...goals, protein: Number(e.target.value) || 0 })
                   }
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  disabled={userGoal && userGoal !== 'healthyHabits'}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+                {userGoal && userGoal !== 'healthyHabits' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t.autoCalculatedFromGoal}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -259,12 +266,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <input
                   type="number"
                   min="0"
-                  value={goals.carbs}
+                  value={userGoal && userGoal !== 'healthyHabits' ? dist.carbs : goals.carbs}
                   onChange={(e) =>
                     onSaveGoals({ ...goals, carbs: Number(e.target.value) || 0 })
                   }
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  disabled={userGoal && userGoal !== 'healthyHabits'}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+                {userGoal && userGoal !== 'healthyHabits' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t.autoCalculatedFromGoal}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -274,12 +287,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <input
                   type="number"
                   min="0"
-                  value={goals.fats}
+                  value={userGoal && userGoal !== 'healthyHabits' ? dist.fats : goals.fats}
                   onChange={(e) =>
                     onSaveGoals({ ...goals, fats: Number(e.target.value) || 0 })
                   }
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  disabled={userGoal && userGoal !== 'healthyHabits'}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+                {userGoal && userGoal !== 'healthyHabits' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t.autoCalculatedFromGoal}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -289,11 +308,28 @@ window.MacroChef.components = window.MacroChef.components || {};
               {t.macroDist}
             </h3>
 
+            <div className="mb-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 p-3 rounded-xl">
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">
+                {t.totalCalories}
+              </span>
+              <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                {dist.totalKcal} / {Number(goals.calories) || 2000} kcal
+              </div>
+              {Math.abs(dist.totalKcal - (Number(goals.calories) || 2000)) > 5 && (
+                <span className="text-[11px] text-red-500 dark:text-red-400">
+                  ⚠ {t.caloriesMismatch}
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 p-3 rounded-xl">
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
                   {t.protein}
                 </span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {dist.protein} g
+                </div>
                 <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {dist.proteinKcal} kcal
                 </div>
@@ -306,6 +342,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase">
                   {t.carbs}
                 </span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {dist.carbs} g
+                </div>
                 <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {dist.carbsKcal} kcal
                 </div>
@@ -318,6 +357,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
                   {t.fats}
                 </span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {dist.fats} g
+                </div>
                 <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {dist.fatsKcal} kcal
                 </div>

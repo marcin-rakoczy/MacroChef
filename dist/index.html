@@ -745,7 +745,13 @@ window.MacroChef.DEFAULT_GOALS = {
   calories: 2200,
   protein: 160,
   carbs: 220,
-  fats: 70
+  fats: 70,
+  age: '',
+  weight: '',
+  height: '',
+  sex: '',
+  activityPal: '',
+  userGoal: ''
 };
 
 
@@ -848,6 +854,9 @@ window.MacroChef.TRANSLATIONS = {
     carbsGoal: 'Carbohydrates (g)',
     fatsGoal: 'Fats (g)',
     macroDist: 'Target Macro Caloric Distribution',
+    totalCalories: 'Total Calories',
+    caloriesMismatch: 'Macro calories do not sum to daily target',
+    autoCalculatedFromGoal: 'auto-calculated from goal',
     ofDailyTotal: 'of daily total',
     addNewMealRecipe: 'Add New Meal Recipe',
     recipeName: 'Recipe Name',
@@ -988,6 +997,9 @@ window.MacroChef.TRANSLATIONS = {
     carbsGoal: 'Węglowodany (g)',
     fatsGoal: 'Tłuszcze (g)',
     macroDist: 'Docelowy Rozkład Kalorii z Makro',
+    totalCalories: 'Razem Kalorie',
+    caloriesMismatch: 'Suma kalorii z makro nie zgadza się z celem dzienny',
+    autoCalculatedFromGoal: 'auto-obliczone z celu',
     ofDailyTotal: 'dziennej sumy',
     addNewMealRecipe: 'Dodaj Nowy Przepis',
     recipeName: 'Nazwa Przepisu',
@@ -1106,19 +1118,89 @@ window.MacroChef.macroCalculations = {
     return totals;
   },
 
-  calculateDistribution(goals) {
+  calculateMacrosForGoal(goals, cpm) {
     const calories = Number(goals.calories) || 2000;
-    const proteinKcal = (Number(goals.protein) || 0) * 4;
-    const carbsKcal = (Number(goals.carbs) || 0) * 4;
-    const fatsKcal = (Number(goals.fats) || 0) * 9;
+    const weight = Number(goals.weight) || 70;
+    const sex = goals.sex || 'male';
+    const userGoal = goals.userGoal || '';
+
+    let protein = 0;
+    let fats = 0;
+    let carbs = 0;
+
+    if (userGoal === 'weightLoss') {
+      // Weight loss: protein 2g/kg, fats 30% of calories, carbs fill remainder
+      protein = Math.round(weight * 2);
+      fats = Math.round((calories * 0.30) / 9);
+      
+      // Safety check for women: minimum 0.8g/kg
+      if (sex === 'female' && fats < weight * 0.8) {
+        fats = Math.round(weight * 0.8);
+      }
+      
+      const usedCalories = protein * 4 + fats * 9;
+      carbs = Math.max(0, Math.round((calories - usedCalories) / 4));
+    } else if (userGoal === 'maintenance') {
+      // Maintenance: protein 1.6-1.8g/kg (use 1.7), fats 30%, carbs fill remainder
+      protein = Math.round(weight * 1.7);
+      fats = Math.round((calories * 0.30) / 9);
+      
+      const usedCalories = protein * 4 + fats * 9;
+      carbs = Math.max(0, Math.round((calories - usedCalories) / 4));
+    } else if (userGoal === 'muscleGain') {
+      // Muscle gain: protein 1.8g/kg, fats 20-25% (use 22%), carbs 50-55% (use 53%)
+      protein = Math.round(weight * 1.8);
+      fats = Math.round((calories * 0.22) / 9);
+      
+      const usedCalories = protein * 4 + fats * 9;
+      carbs = Math.max(0, Math.round((calories - usedCalories) / 4));
+    } else {
+      // Healthy habits: no automatic adjustment, use input values
+      protein = Number(goals.protein) || 0;
+      carbs = Number(goals.carbs) || 0;
+      fats = Number(goals.fats) || 0;
+    }
+
+    // Ensure sum equals calorie goal (adjust carbs for rounding)
+    const calculatedCalories = protein * 4 + carbs * 4 + fats * 9;
+    if (calculatedCalories !== calories && userGoal !== 'healthyHabits') {
+      const difference = calories - (protein * 4 + fats * 9);
+      carbs = Math.round(difference / 4);
+    }
+
+    return { protein, carbs, fats };
+  },
+
+  calculateDistribution(goals, cpm) {
+    const calories = Number(goals.calories) || 2000;
+    let protein = Number(goals.protein) || 0;
+    let carbs = Number(goals.carbs) || 0;
+    let fats = Number(goals.fats) || 0;
+
+    // If a goal is selected and we have CPM, recalculate macros
+    if (goals.userGoal && goals.userGoal !== 'healthyHabits' && cpm) {
+      const macroCalc = window.MacroChef.macroCalculations;
+      const calculated = macroCalc.calculateMacrosForGoal(goals, cpm);
+      protein = calculated.protein;
+      carbs = calculated.carbs;
+      fats = calculated.fats;
+    }
+
+    const proteinKcal = protein * 4;
+    const carbsKcal = carbs * 4;
+    const fatsKcal = fats * 9;
 
     return {
+      protein,
+      carbs,
+      fats,
       proteinKcal,
       carbsKcal,
       fatsKcal,
-      proteinPercent: Math.round((proteinKcal / calories) * 100),
-      carbsPercent: Math.round((carbsKcal / calories) * 100),
-      fatsPercent: Math.round((fatsKcal / calories) * 100)
+      proteinPercent: calories > 0 ? Math.round((proteinKcal / calories) * 100) : 0,
+      carbsPercent: calories > 0 ? Math.round((carbsKcal / calories) * 100) : 0,
+      fatsPercent: calories > 0 ? Math.round((fatsKcal / calories) * 100) : 0,
+      totalKcal: proteinKcal + carbsKcal + fatsKcal
     };
   }
 };
@@ -2798,7 +2880,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 
 (function () {
   const { Icon } = window.MacroChef.components;
-  const { calculateDistribution } = window.MacroChef.macroCalculations;
   const activities = [
     { pal: '1.25', label: 'activitySedentary', description: 'activitySedentaryDesc' },
     { pal: '1.45', label: 'activityLow', description: 'activityLowDesc' },
@@ -2814,7 +2895,6 @@ window.MacroChef.components = window.MacroChef.components || {};
   };
 
   function MacroTracker({ t, lang, goals, onSaveGoals }) {
-    const dist = calculateDistribution(goals);
     const age = Number(goals.age);
     const weight = Number(goals.weight);
     const height = Number(goals.height);
@@ -2852,6 +2932,9 @@ window.MacroChef.components = window.MacroChef.components || {};
       maintenance: 'maintenanceDesc',
       healthyHabits: 'healthyHabitsDesc'
     }[userGoal];
+
+    // Calculate macros based on goal (call with proper context)
+    const dist = window.MacroChef.macroCalculations.calculateDistribution(goals, cpm);
 
     return (
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -3038,12 +3121,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <input
                   type="number"
                   min="0"
-                  value={goals.protein}
+                  value={userGoal && userGoal !== 'healthyHabits' ? dist.protein : goals.protein}
                   onChange={(e) =>
                     onSaveGoals({ ...goals, protein: Number(e.target.value) || 0 })
                   }
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  disabled={userGoal && userGoal !== 'healthyHabits'}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+                {userGoal && userGoal !== 'healthyHabits' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t.autoCalculatedFromGoal}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -3053,12 +3142,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <input
                   type="number"
                   min="0"
-                  value={goals.carbs}
+                  value={userGoal && userGoal !== 'healthyHabits' ? dist.carbs : goals.carbs}
                   onChange={(e) =>
                     onSaveGoals({ ...goals, carbs: Number(e.target.value) || 0 })
                   }
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  disabled={userGoal && userGoal !== 'healthyHabits'}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+                {userGoal && userGoal !== 'healthyHabits' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t.autoCalculatedFromGoal}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -3068,12 +3163,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <input
                   type="number"
                   min="0"
-                  value={goals.fats}
+                  value={userGoal && userGoal !== 'healthyHabits' ? dist.fats : goals.fats}
                   onChange={(e) =>
                     onSaveGoals({ ...goals, fats: Number(e.target.value) || 0 })
                   }
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  disabled={userGoal && userGoal !== 'healthyHabits'}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+                {userGoal && userGoal !== 'healthyHabits' && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {t.autoCalculatedFromGoal}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -3083,11 +3184,28 @@ window.MacroChef.components = window.MacroChef.components || {};
               {t.macroDist}
             </h3>
 
+            <div className="mb-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 p-3 rounded-xl">
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">
+                {t.totalCalories}
+              </span>
+              <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                {dist.totalKcal} / {Number(goals.calories) || 2000} kcal
+              </div>
+              {Math.abs(dist.totalKcal - (Number(goals.calories) || 2000)) > 5 && (
+                <span className="text-[11px] text-red-500 dark:text-red-400">
+                  ⚠ {t.caloriesMismatch}
+                </span>
+              )}
+            </div>
+
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 p-3 rounded-xl">
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">
                   {t.protein}
                 </span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {dist.protein} g
+                </div>
                 <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {dist.proteinKcal} kcal
                 </div>
@@ -3100,6 +3218,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase">
                   {t.carbs}
                 </span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {dist.carbs} g
+                </div>
                 <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {dist.carbsKcal} kcal
                 </div>
@@ -3112,6 +3233,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
                   {t.fats}
                 </span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {dist.fats} g
+                </div>
                 <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
                   {dist.fatsKcal} kcal
                 </div>
