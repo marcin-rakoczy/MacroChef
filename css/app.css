@@ -1,5 +1,121 @@
 /* MacroChef App Custom Styles & Polish */
 
+/* ========================================================
+   THEME PALETTE 1: EMERALD & TEAL (DEFAULT)
+   ======================================================== */
+:root,
+[data-color-theme="emerald"] {
+  --color-primary-50: 236 253 245;
+  --color-primary-100: 209 250 229;
+  --color-primary-200: 167 243 208;
+  --color-primary-300: 110 231 183;
+  --color-primary-400: 52 211 153;
+  --color-primary-500: 16 185 129;
+  --color-primary-600: 5 150 105;
+  --color-primary-700: 4 120 87;
+  --color-primary-800: 6 95 70;
+  --color-primary-900: 6 78 59;
+  --color-primary-950: 2 44 34;
+
+  --color-secondary-50: 240 253 250;
+  --color-secondary-100: 204 251 241;
+  --color-secondary-200: 153 246 228;
+  --color-secondary-300: 94 234 212;
+  --color-secondary-400: 45 212 191;
+  --color-secondary-500: 20 184 166;
+  --color-secondary-600: 13 148 136;
+  --color-secondary-700: 15 118 110;
+  --color-secondary-800: 17 94 89;
+  --color-secondary-900: 19 78 74;
+  --color-secondary-950: 4 47 46;
+}
+
+/* ========================================================
+   THEME PALETTE 2: MONOCHROME (ODCIENIE SZAROŚCI / ZINC)
+   ======================================================== */
+[data-color-theme="mono"] {
+  --color-primary-50: 244 244 245;
+  --color-primary-100: 228 228 231;
+  --color-primary-200: 212 212 216;
+  --color-primary-300: 161 161 170;
+  --color-primary-400: 113 113 122;
+  --color-primary-500: 39 39 42;
+  --color-primary-600: 24 24 27;
+  --color-primary-700: 9 9 11;
+  --color-primary-800: 24 24 27;
+  --color-primary-900: 9 9 11;
+  --color-primary-950: 0 0 0;
+
+  --color-secondary-50: 250 250 250;
+  --color-secondary-100: 244 244 245;
+  --color-secondary-200: 228 228 231;
+  --color-secondary-300: 161 161 170;
+  --color-secondary-400: 113 113 122;
+  --color-secondary-500: 82 82 91;
+  --color-secondary-600: 63 63 70;
+  --color-secondary-700: 39 39 42;
+  --color-secondary-800: 24 24 27;
+  --color-secondary-900: 9 9 11;
+  --color-secondary-950: 0 0 0;
+}
+
+/* Monochrome in Dark Mode (High contrast silver/zinc highlights) */
+.dark[data-color-theme="mono"],
+.dark [data-color-theme="mono"] {
+  --color-primary-50: 24 24 27;
+  --color-primary-100: 39 39 42;
+  --color-primary-200: 63 63 70;
+  --color-primary-300: 113 113 122;
+  --color-primary-400: 212 212 216;
+  --color-primary-500: 113 113 122;
+  --color-primary-600: 82 82 91;
+  --color-primary-700: 161 161 170;
+  --color-primary-800: 212 212 216;
+  --color-primary-900: 228 228 231;
+  --color-primary-950: 24 24 27;
+
+  --color-secondary-50: 24 24 27;
+  --color-secondary-100: 39 39 42;
+  --color-secondary-200: 63 63 70;
+  --color-secondary-300: 113 113 122;
+  --color-secondary-400: 161 161 170;
+  --color-secondary-500: 113 113 122;
+  --color-secondary-600: 82 82 91;
+  --color-secondary-700: 63 63 70;
+  --color-secondary-800: 39 39 42;
+  --color-secondary-900: 24 24 27;
+  --color-secondary-950: 9 9 11;
+}
+
+/* ========================================================
+   THEME PALETTE 3: MODERN INDIGO & VIOLET (NOWOCZESNY FIOLET)
+   ======================================================== */
+[data-color-theme="violet"] {
+  --color-primary-50: 238 242 255;
+  --color-primary-100: 224 231 255;
+  --color-primary-200: 199 210 254;
+  --color-primary-300: 165 180 252;
+  --color-primary-400: 129 140 248;
+  --color-primary-500: 99 102 241;
+  --color-primary-600: 79 70 229;
+  --color-primary-700: 67 56 202;
+  --color-primary-800: 55 48 163;
+  --color-primary-900: 49 46 129;
+  --color-primary-950: 30 27 75;
+
+  --color-secondary-50: 245 243 255;
+  --color-secondary-100: 237 233 254;
+  --color-secondary-200: 221 214 254;
+  --color-secondary-300: 196 181 253;
+  --color-secondary-400: 167 139 250;
+  --color-secondary-500: 139 92 246;
+  --color-secondary-600: 124 58 237;
+  --color-secondary-700: 109 40 217;
+  --color-secondary-800: 91 33 182;
+  --color-secondary-900: 76 29 149;
+  --color-secondary-950: 46 16 101;
+}
+
 /* Smooth scroll & modern font smoothing */
 html {
   scroll-behavior: smooth;
@@ -33,9 +149,9 @@ html {
   background: #475569;
 }
 
-/* Selection highlight */
+/* Selection highlight matches active theme */
 ::selection {
-  background-color: #10b981;
+  background-color: rgb(var(--color-primary-500));
   color: #ffffff;
 }
 
@@ -43,4 +159,3 @@ html {
 button, select, input {
   transition: all 0.15s ease-in-out;
 }
-
