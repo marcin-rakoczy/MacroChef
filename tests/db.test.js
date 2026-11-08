@@ -6,6 +6,8 @@
     if (!condition) throw new Error(message);
   };
   let repository;
+  const scopedDatabases = new Set();
+  const scopedRepositories = [];
   try {
     const old = new Dexie(name);
     old.version(1).stores({ recipes: 'id', planner: 'dayKey', goals: 'id' });
@@ -85,13 +87,45 @@
     } finally {
       fresh.db.close();
     }
-    result.textContent = 'PASS: migration, initial data, offline CRUD, rollback, online writes';
+
+    const identity = { issuer: 'test-issuer', tenantId: name, userId: 'account-a' };
+    const a = await window.MacroChef.createScopedRepository(identity);
+    const aAgain = await window.MacroChef.createScopedRepository({ ...identity });
+    const b = await window.MacroChef.createScopedRepository({ ...identity, userId: 'account-b' });
+    const otherTenant = await window.MacroChef.createScopedRepository({ ...identity, tenantId: `${name}-other` });
+    const otherIssuer = await window.MacroChef.createScopedRepository({ ...identity, issuer: 'other-issuer' });
+    [a, aAgain, b, otherTenant, otherIssuer].forEach((item) => {
+      scopedRepositories.push(item.repository);
+      scopedDatabases.add(item.repository.db.name);
+    });
+    assert(a.repository.db.name === aAgain.repository.db.name, 'Same scope must reopen the same database');
+    assert(scopedDatabases.size === 4, 'Accounts, tenants or issuers share a database');
+    assert(a.shoppingStorageKey !== b.shoppingStorageKey, 'Shopping keys are shared between accounts');
+    await a.repository.initialize();
+    await b.repository.initialize();
+    assert(await a.repository.db.recipes.count() === 0, 'Account data was seeded before cloud integration');
+    await a.repository.saveRecipe({ name: 'Account A private' });
+    assert(await b.repository.db.recipes.count() === 0, 'Account data leaked to another database');
+    await aAgain.repository.initialize();
+    assert((await aAgain.repository.db.recipes.toArray())[0].name === 'Account A private', 'Same account could not reopen data');
+    assert(!(await db.recipes.toArray()).some((item) => item.name === 'Account A private'), 'Account write changed guest data');
+    let invalidScopeRejected = false;
+    try { await window.MacroChef.createScopedRepository({ issuer: 'test', tenantId: '', userId: 'a' }); }
+    catch (error) { invalidScopeRejected = error instanceof TypeError; }
+    assert(invalidScopeRejected, 'Invalid scope was accepted');
+    const contract = new window.MacroChef.AppSyncManager();
+    let abstractRejected = false;
+    try { contract.requestSync(); } catch (error) { abstractRejected = /must be implemented/.test(error.message); }
+    assert(abstractRejected, 'Abstract sync contract silently succeeded');
+    result.textContent = 'PASS: migration, offline CRUD, rollback, scoped accounts, sync contract';
   } catch (error) {
     console.error(error);
     result.textContent = `FAIL: ${error.stack || error}`;
   } finally {
     delete navigator.onLine;
     if (repository) repository.db.close();
+    scopedRepositories.forEach((item) => item.db.close());
+    for (const databaseName of scopedDatabases) await Dexie.delete(databaseName);
     await Dexie.delete(name);
     await Dexie.delete(freshName);
   }

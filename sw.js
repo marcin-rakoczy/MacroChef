@@ -1,5 +1,5 @@
 // MacroChef PWA Service Worker
-const CACHE_NAME = 'macrochef-v6';
+const CACHE_NAME = 'macrochef-v7';
 
 const STATIC_ASSETS = [
   './',
@@ -17,6 +17,8 @@ const STATIC_ASSETS = [
   './src/core/nutrition/calculations.js',
   './js/utils/shoppingAggregator.js',
   './js/db.js',
+  './js/session/repositoryScope.js',
+  './js/sync/AppSyncManager.js',
   './js/hooks/useRepositoryQuery.js',
   './js/components/Icon.js',
   './js/components/Header.js',
@@ -32,14 +34,20 @@ const STATIC_ASSETS = [
   './js/main.js'
 ];
 
+const STATIC_URLS = new Set(STATIC_ASSETS.map((asset) => new URL(asset, self.registration.scope).href));
+const canCache = (response) => response.ok && response.type === 'basic' &&
+  !/\b(no-store|private)\b/i.test(response.headers.get('Cache-Control') || '') &&
+  response.headers.get('Vary') !== '*';
+
 // Install Event - Pre-cache core shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(STATIC_ASSETS);
-      })
+    caches.open(CACHE_NAME)
+      .then((cache) => Promise.all(STATIC_ASSETS.map(async (asset) => {
+        const response = await fetch(asset);
+        if (!canCache(response)) throw new Error(`Cannot cache static asset: ${asset}`);
+        await cache.put(asset, response);
+      })))
       .then(() => self.skipWaiting())
   );
 });
@@ -52,7 +60,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) => {
         return Promise.all(
           keys
-            .filter((key) => key !== CACHE_NAME)
+            .filter((key) => key.startsWith('macrochef-v') && key !== CACHE_NAME)
             .map((key) => caches.delete(key))
         );
       })
@@ -62,36 +70,29 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event - Stale-While-Revalidate Strategy
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') return;
+  const request = event.request;
+  if (request.method !== 'GET' || !STATIC_URLS.has(request.url) ||
+      request.headers.has('Authorization') ||
+      /\bno-store\b/i.test(request.headers.get('Cache-Control') || '')) return;
 
-  const url = new URL(event.request.url);
-
-  // Skip chrome-extension and unsupported schemes
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
-
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            networkResponse.type === 'basic'
-          ) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
-          // Offline fallback
-          return cachedResponse;
-        });
-
-      return cachedResponse || fetchPromise;
-    })
-  );
+  let refresh = Promise.resolve();
+  const response = caches.open(CACHE_NAME).then(async (cache) => {
+    const cached = await cache.match(request);
+    const network = fetch(request).then(async (fresh) => {
+      if (canCache(fresh)) await cache.put(request, fresh.clone());
+      else if (fresh.ok) await cache.delete(request);
+      return fresh;
+    });
+    if (cached) {
+      refresh = network.catch((error) => {
+        console.warn('[MacroChef PWA] Static asset refresh failed:', error);
+      });
+      return cached;
+    }
+    return network;
+  });
+  event.respondWith(response);
+  event.waitUntil(response.then(() => refresh).catch((error) => {
+    console.warn('[MacroChef PWA] Static asset request failed:', error);
+  }));
 });

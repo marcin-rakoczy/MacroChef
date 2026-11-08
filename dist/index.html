@@ -1431,9 +1431,10 @@ window.MacroChef = window.MacroChef || {};
   }
 
   class DexieCalorieRepository extends ICalorieRepository {
-    constructor(databaseName = 'MacroChefDB') {
+    constructor(databaseName = 'MacroChefDB', options = {}) {
       super();
       this.db = new Dexie(databaseName);
+      this.seedDefaults = options.seedDefaults !== false;
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -1487,8 +1488,10 @@ window.MacroChef = window.MacroChef || {};
       this.mutations = new OfflineMutationDecorator(this.db);
 
       this.db.on('populate', async () => {
-        await this.seedInitialData();
-        await this.seedProducts();
+        if (this.seedDefaults) {
+          await this.seedInitialData();
+          await this.seedProducts();
+        }
       });
     }
 
@@ -1527,6 +1530,7 @@ window.MacroChef = window.MacroChef || {};
 
     async initialize() {
       await this.db.open();
+      if (!this.seedDefaults) return;
       if (await this.db.recipes.count() === 0) {
         await this.db.transaction('rw', this.db.recipes, this.db.plannerEntries, this.db.goals, () => this.seedInitialData());
       }
@@ -1651,6 +1655,58 @@ window.MacroChef = window.MacroChef || {};
   window.MacroChef.ICalorieRepository = ICalorieRepository;
   window.MacroChef.DexieCalorieRepository = DexieCalorieRepository;
   window.MacroChef.repositories = new DexieCalorieRepository();
+})();
+
+
+// ==========================================
+// File: session/repositoryScope.js
+// ==========================================
+window.MacroChef = window.MacroChef || {};
+
+(function () {
+  function validateScope(scope) {
+    if (!scope || typeof scope !== 'object') throw new TypeError('Account scope is required');
+    ['issuer', 'tenantId', 'userId'].forEach((key) => {
+      if (typeof scope[key] !== 'string' || !scope[key].trim()) {
+        throw new TypeError(`Account scope ${key} must be a non-empty string`);
+      }
+    });
+  }
+
+  async function createScopedRepository(scope) {
+    validateScope(scope);
+    if (!window.crypto || !window.crypto.subtle) {
+      throw new Error('Web Crypto is required to derive an account database name');
+    }
+    const identity = JSON.stringify([scope.issuer, scope.tenantId, scope.userId]);
+    const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity));
+    const suffix = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    const databaseName = `MacroChef-account-${suffix}`;
+    return {
+      repository: new window.MacroChef.DexieCalorieRepository(databaseName, { seedDefaults: false }),
+      shoppingStorageKey: `macrochef_checked_${suffix}`
+    };
+  }
+
+  window.MacroChef.createScopedRepository = createScopedRepository;
+})();
+
+
+// ==========================================
+// File: sync/AppSyncManager.js
+// ==========================================
+window.MacroChef = window.MacroChef || {};
+
+(function () {
+  class AppSyncManager {
+    start(scope) { throw new Error('start() must be implemented'); }
+    requestSync() { throw new Error('requestSync() must be implemented'); }
+    getStatus() { throw new Error('getStatus() must be implemented'); }
+    subscribe(listener) { throw new Error('subscribe() must be implemented'); }
+    stop() { throw new Error('stop() must be implemented'); }
+  }
+
+  window.MacroChef.AppSyncManager = AppSyncManager;
 })();
 
 

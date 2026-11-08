@@ -178,6 +178,15 @@ The queue is a local journal, not a synchronization system: there is currently n
 
 The browser regression checks at `tests/db.test.html` exercise schema migration, offline CRUD journaling, online writes, and transaction rollback using disposable databases.
 
+### Account scope and future synchronization
+The current app remains a guest app using `MacroChefDB`; no authentication or account switching is implemented. `createScopedRepository({ issuer, tenantId, userId })` prepares a separate database and shopping-list storage key for a future authenticated session. Identifiers must come from the verified authentication provider, not user input. The deterministic SHA-256 suffix avoids storing identifiers literally in the database name but is not secret: predictable identifiers can be guessed. Account databases do not seed starter data automatically, and existing guest data is never migrated, claimed, or deleted automatically.
+
+Separate databases prevent accidental mixing, not access by other scripts on the same origin. They do not authenticate users, encrypt data, protect an unlocked session from XSS, or replace server-side tenant authorization. Before using this factory for real accounts, implement session verification and expiry, explicit guest-data migration, account lifecycle and logout policies, and server-side authorization. On account changes, abort synchronization and outstanding requests, unsubscribe live queries, unmount or reset React state, close the previous database, and reject late results from the previous session before opening the next one. Use the returned shopping key only within that lifecycle. The factory itself does not perform those steps.
+
+`AppSyncManager` defines the future `start(scope)`, `requestSync()`, `getStatus()`, `subscribe(listener)`, and `stop()` contract; its methods deliberately throw until an adapter is implemented. An adapter must coalesce sync requests, expose errors/conflicts, cancel work on session changes, and never block local writes on network access. Prefer Dexie Cloud's own sync and authorization mechanisms rather than replaying `OutboxQueue`; exclude that journal from cloud sync. Plan synced schema migrations and initialization separately in accordance with Dexie Cloud's rules. Background Sync is optional and browser-dependent, so resume from the foreground as well; do not persist tokens in the queue.
+
+The service worker caches only the explicit static asset allowlist, not arbitrary GETs, query-string URLs, or requests with an Authorization header. Static assets must always be public and identical for all accounts; private API endpoints must remain outside that list and send `Cache-Control: no-store`. The worker rejects private/no-store responses when populating its cache, but an already cached public response may be served once while a changed response is revalidated. An old pre-update worker can still serve its old cache until the new worker activates. This is not a substitute for server cache headers or access control.
+
 ### State Management
 - **React Hooks**: Centralized state in `app.js` with context passed to components
 - **IndexedDB**: Persistent storage for recipes, meal plans, user profiles
@@ -442,6 +451,7 @@ npm start
 ```bash
 # Run nutrition calculation checks
 node tests/nutrition.test.js
+node tests/sw.test.js
 ```
 With the development server running, open `tests/i18n.test.html` for the React localization checks and `tests/db.test.html` for the database checks.
 

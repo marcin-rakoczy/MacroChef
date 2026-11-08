@@ -18,6 +18,8 @@ const filesToBundle = [
   '../src/core/nutrition/calculations.js',
   'utils/shoppingAggregator.js',
   'db.js',
+  'session/repositoryScope.js',
+  'sync/AppSyncManager.js',
   'hooks/useRepositoryQuery.js',
   'components/Icon.js',
   'components/Header.js',

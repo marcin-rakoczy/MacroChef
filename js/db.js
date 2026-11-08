@@ -88,9 +88,10 @@ window.MacroChef = window.MacroChef || {};
   }
 
   class DexieCalorieRepository extends ICalorieRepository {
-    constructor(databaseName = 'MacroChefDB') {
+    constructor(databaseName = 'MacroChefDB', options = {}) {
       super();
       this.db = new Dexie(databaseName);
+      this.seedDefaults = options.seedDefaults !== false;
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -144,8 +145,10 @@ window.MacroChef = window.MacroChef || {};
       this.mutations = new OfflineMutationDecorator(this.db);
 
       this.db.on('populate', async () => {
-        await this.seedInitialData();
-        await this.seedProducts();
+        if (this.seedDefaults) {
+          await this.seedInitialData();
+          await this.seedProducts();
+        }
       });
     }
 
@@ -184,6 +187,7 @@ window.MacroChef = window.MacroChef || {};
 
     async initialize() {
       await this.db.open();
+      if (!this.seedDefaults) return;
       if (await this.db.recipes.count() === 0) {
         await this.db.transaction('rw', this.db.recipes, this.db.plannerEntries, this.db.goals, () => this.seedInitialData());
       }
