@@ -41,7 +41,7 @@ MacroChef/
 │   │   ├── RecipeLibrary.js     # Recipe catalog cards with macro breakdown & actions
 │   │   ├── BatchCooking.js      # Interactive step-by-step cooking assistant & full batch ingredients
 │   │   ├── ShoppingList.js      # Consolidated whole-package shopping list with zero-waste metrics
-│   │   ├── MacroTracker.js      # Calorie target & macro goals editor with caloric distribution
+│   │   ├── MacroTracker.js      # Calorie and macro goals, user profile, and PAL-based CPM estimate
 │   │   └── RecipeModal.js       # Add / Edit recipe dialog with dynamic ingredients & step rows
 │   ├── app.js                   # Root React orchestrator managing state & tabs
 │   └── main.js                  # DOM mounting & Service Worker registration
@@ -63,6 +63,9 @@ MacroChef/
 4. **Isolated Business Calculations**:
    - Extracted `macroCalculations.js` and `shoppingAggregator.js` into pure, unit-testable modules.
    - Tested and verified 100% test coverage for macro distribution and whole-package surplus calculations.
+5. **Personalized Calorie Estimates**:
+   - Save age, weight, height, sex, and activity level with the user's goals.
+   - Estimate daily energy expenditure using the Mifflin–St Jeor formula and the midpoint of the selected PAL range; optionally apply it as the calorie goal.
 5. **Dual-Mode Serving**:
    - **Modular Development Mode**: Serve [index.html](file:///c:/Repo/Training/MacroChef/index.html) with any web server (`npx serve`, VS Code Live Server, Python `http.server`, etc.).
    - **Zero-Server Standalone Mode**: Run `node build.js` to create or update the self-contained single-file bundle [macrochef_calorie_meal_planner_pwa.html](file:///c:/Repo/Training/MacroChef/macrochef_calorie_meal_planner_pwa.html) or `dist/index.html` for direct local opening (`file://`).
@@ -95,4 +98,3 @@ You can directly open [macrochef_calorie_meal_planner_pwa.html](file:///c:/Repo/
   ```bash
   npm test
   ```
-

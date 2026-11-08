@@ -38,7 +38,12 @@ window.MacroChef = window.MacroChef || {};
       calories: 2200,
       protein: 160,
       carbs: 220,
-      fats: 70
+      fats: 70,
+      age: '',
+      weight: '',
+      height: '',
+      sex: '',
+      activityPal: ''
     });
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
@@ -112,7 +117,12 @@ window.MacroChef = window.MacroChef || {};
             calories: dbGoals.calories,
             protein: dbGoals.protein,
             carbs: dbGoals.carbs,
-            fats: dbGoals.fats
+            fats: dbGoals.fats,
+            age: dbGoals.age ?? '',
+            weight: dbGoals.weight ?? '',
+            height: dbGoals.height ?? '',
+            sex: dbGoals.sex ?? '',
+            activityPal: dbGoals.activityPal ?? ''
           });
         }
       } catch (err) {
@@ -268,6 +278,7 @@ window.MacroChef = window.MacroChef || {};
             {activeTab === 'tracker' && (
               <MacroTracker
                 t={t}
+                lang={lang}
                 goals={goals}
                 onSaveGoals={handleSaveGoals}
               />
