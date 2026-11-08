@@ -43,7 +43,8 @@ window.MacroChef = window.MacroChef || {};
       weight: '',
       height: '',
       sex: '',
-      activityPal: ''
+      activityPal: '',
+      userGoal: ''
     });
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
@@ -122,7 +123,8 @@ window.MacroChef = window.MacroChef || {};
             weight: dbGoals.weight ?? '',
             height: dbGoals.height ?? '',
             sex: dbGoals.sex ?? '',
-            activityPal: dbGoals.activityPal ?? ''
+            activityPal: dbGoals.activityPal ?? '',
+            userGoal: dbGoals.userGoal ?? ''
           });
         }
       } catch (err) {

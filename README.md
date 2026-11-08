@@ -65,7 +65,7 @@ MacroChef/
    - Tested and verified 100% test coverage for macro distribution and whole-package surplus calculations.
 5. **Personalized Calorie Estimates**:
    - Save age, weight, height, sex, and activity level with the user's goals.
-   - Estimate daily energy expenditure using the Mifflin–St Jeor formula and the midpoint of the selected PAL range; optionally apply it as the calorie goal.
+   - Estimate daily energy expenditure using the Mifflin–St Jeor formula and the midpoint of the selected PAL range; suggest a 500 kcal deficit, 300 kcal surplus, or maintenance target based on the selected goal, and apply it only on request.
 5. **Dual-Mode Serving**:
    - **Modular Development Mode**: Serve [index.html](file:///c:/Repo/Training/MacroChef/index.html) with any web server (`npx serve`, VS Code Live Server, Python `http.server`, etc.).
    - **Zero-Server Standalone Mode**: Run `node build.js` to create or update the self-contained single-file bundle [macrochef_calorie_meal_planner_pwa.html](file:///c:/Repo/Training/MacroChef/macrochef_calorie_meal_planner_pwa.html) or `dist/index.html` for direct local opening (`file://`).

@@ -12,6 +12,12 @@ window.MacroChef.components = window.MacroChef.components || {};
     { pal: '1.85', label: 'activityHigh', description: 'activityHighDesc' },
     { pal: '2.2', label: 'activityVeryHigh', description: 'activityVeryHighDesc' }
   ];
+  const calorieAdjustments = {
+    weightLoss: -500,
+    muscleGain: 300,
+    maintenance: 0,
+    healthyHabits: 0
+  };
 
   function MacroTracker({ t, lang, goals, onSaveGoals }) {
     const dist = calculateDistribution(goals);
@@ -42,6 +48,16 @@ window.MacroChef.components = window.MacroChef.components || {};
             Number(selectedActivity.pal)
         )
       : null;
+    const userGoal = goals.userGoal || '';
+    const calorieAdjustment = calorieAdjustments[userGoal] || 0;
+    const recommendedCalories =
+      cpm === null ? null : Math.max(500, cpm + calorieAdjustment);
+    const goalDescription = {
+      weightLoss: 'weightLossDesc',
+      muscleGain: 'muscleGainDesc',
+      maintenance: 'maintenanceDesc',
+      healthyHabits: 'healthyHabitsDesc'
+    }[userGoal];
 
     return (
       <div className="space-y-6 max-w-3xl mx-auto">
@@ -55,6 +71,28 @@ window.MacroChef.components = window.MacroChef.components || {};
           </p>
 
           <div className="space-y-4">
+            <section className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                {t.userGoal}
+              </label>
+              <select
+                value={userGoal}
+                onChange={(e) => onSaveGoals({ ...goals, userGoal: e.target.value })}
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="">{t.selectUserGoal}</option>
+                <option value="weightLoss">{t.weightLoss}</option>
+                <option value="muscleGain">{t.muscleGain}</option>
+                <option value="maintenance">{t.maintenance}</option>
+                <option value="healthyHabits">{t.healthyHabits}</option>
+              </select>
+              {goalDescription && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t[goalDescription]}
+                </p>
+              )}
+            </section>
+
             <section className="space-y-4">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
                 {t.userProfile}
@@ -146,9 +184,19 @@ window.MacroChef.components = window.MacroChef.components || {};
                       {t.cpmEstimate}
                     </p>
                     {cpm !== null ? (
-                      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
-                        {cpm.toLocaleString(lang === 'pl' ? 'pl-PL' : 'en-US')} kcal
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {t.maintenanceCalories}:{' '}
+                          {cpm.toLocaleString(lang === 'pl' ? 'pl-PL' : 'en-US')} kcal
+                        </p>
+                        <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                          {t.recommendedCalories}:{' '}
+                          {recommendedCalories.toLocaleString(
+                            lang === 'pl' ? 'pl-PL' : 'en-US'
+                          )}{' '}
+                          kcal
+                        </p>
+                      </div>
                     ) : (
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         {t.completeProfile}
@@ -160,11 +208,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </div>
                   <button
                     type="button"
-                    disabled={cpm === null}
-                    onClick={() => onSaveGoals({ ...goals, calories: cpm })}
+                    disabled={recommendedCalories === null}
+                    onClick={() =>
+                      onSaveGoals({ ...goals, calories: recommendedCalories })
+                    }
                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {t.useCpm}
+                    {t.useRecommendedCalories}
                   </button>
                 </div>
               </div>
