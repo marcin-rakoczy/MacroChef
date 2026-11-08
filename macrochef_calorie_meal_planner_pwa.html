@@ -585,6 +585,7 @@ window.MacroChef.LIDL_PRODUCTS = [
 ];
 
 
+
 // ==========================================
 // File: data/starterRecipes.js
 // ==========================================
@@ -3779,6 +3780,8 @@ window.MacroChef = window.MacroChef || {};
         }
       }
     }, [colorTheme, darkMode]);
+
+    useEffect(() => {
       if (darkMode) {
         document.documentElement.classList.add('dark');
       } else {

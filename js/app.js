@@ -82,6 +82,8 @@ window.MacroChef = window.MacroChef || {};
         }
       }
     }, [colorTheme, darkMode]);
+
+    useEffect(() => {
       if (darkMode) {
         document.documentElement.classList.add('dark');
       } else {
