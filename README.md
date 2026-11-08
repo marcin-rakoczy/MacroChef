@@ -62,7 +62,7 @@ MacroChef provides scientifically-grounded, personalized daily nutritional recom
 
 | Goal | Calorie Adjustment | Protein | Fats | Carbs | Use Case |
 |------|------------------|---------|------|-------|----------|
-| **Fat Loss** | CPM - 500 kcal | 2.0 g/kg | 30% | Remainder | Weight reduction with muscle preservation |
+| **Fat Loss** | CPM - 500 kcal, not below estimated BMR | 2.0 g/kg | 30% | Remainder | Weight reduction with muscle preservation |
 | **Maintenance** | No adjustment | 1.7 g/kg | 30% | ~45% | Body weight stability & health |
 | **Muscle Gain** | CPM + 300 kcal | 1.8 g/kg | 22% | ~54% | Hypertrophy & strength building |
 | **Healthy Habits** | CPM (reference) | Manual | Manual | Manual | Health monitoring & micronutrient focus |
@@ -77,7 +77,7 @@ MacroChef provides scientifically-grounded, personalized daily nutritional recom
   5. Very High / Competitive (PAL: 2.0–2.4)
 
 **Math Consistency**:
-- All macros calculated to sum exactly to daily calorie goal (±2 kcal rounding tolerance)
+- When the protein and fat targets fit within the calorie goal, macros sum within ±2 kcal of that goal; otherwise the UI flags the mismatch.
 - Atwater constants applied: Protein 4 kcal/g, Carbs 4 kcal/g, Fats 9 kcal/g
 - Automatic carb adjustment to maintain exact calorie match
 
@@ -456,11 +456,13 @@ node tests/sw.test.js
 With the development server running, open `tests/i18n.test.html` for the React localization checks and `tests/db.test.html` for the database checks.
 
 The browser-only suites `tests/nutrition.browser.test.html` and `tests/repository.browser.test.html`
-report each assertion separately and use disposable IndexedDB databases. They currently expose
-known gaps: suggested weight-loss calories can fall below estimated BMR, extreme inputs can
-produce negative carbohydrate values, and recipe writes do not maintain `updatedAt`. The
-account test checks separate scoped databases, not server authorization or filtering by `userId`.
-These failures are intentional regression specifications, not evidence that the features exist.
+report each assertion separately and use disposable IndexedDB databases. The account test checks
+separate scoped databases, not server authorization or filtering by `userId`.
+Weight-loss suggestions are clamped to at least the estimated BMR; this is a heuristic, not
+individual medical guidance. When protein and fat alone exceed the calorie target, carbohydrates
+are clamped to zero and the UI displays a calorie mismatch rather than negative values. Recipe
+`updatedAt` is set to the local clock in ISO 8601 format on save; existing records receive it
+when next saved, and it is not a trusted server timestamp or conflict-resolution version.
 
 ### Macro Calculation Validation
 The macro calculation system has been validated against Atwater constants:

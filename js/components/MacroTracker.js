@@ -21,7 +21,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     );
     const cpm = calculateMaintenanceCalories(goals);
     const userGoal = goals.userGoal || '';
-    const recommendedCalories = calculateRecommendedCalories(cpm, userGoal);
+    const recommendedCalories = calculateRecommendedCalories(cpm, userGoal, goals);
     const goalDescription = {
       weightLoss: 'weightLossDesc',
       muscleGain: 'muscleGainDesc',

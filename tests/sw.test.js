@@ -86,7 +86,7 @@ function request(url, headers = {}) {
   const revalidated = request('/index.html');
   assert.ok(await revalidated.result);
   await revalidated.background;
-  assert.equal(stores.get('macrochef-v7').has(key('/index.html')), false);
+  assert.equal(stores.get('macrochef-v8').has(key('/index.html')), false);
   console.log('PASS: static allowlist, private responses, offline cache, cache ownership');
 })().catch((error) => {
   console.error(error);

@@ -26,9 +26,9 @@ assert.notEqual(nutrition.calculateMaintenanceCalories({
 assert.notEqual(nutrition.calculateMaintenanceCalories({
   age: 120, weight: 500, height: 300, sex: 'male', activityPal: '2.2'
 }), null);
-assert.equal(nutrition.calculateRecommendedCalories(cpm, 'weightLoss'), 2299);
+assert.equal(nutrition.calculateRecommendedCalories(cpm, 'weightLoss', profile), 2299);
 assert.equal(nutrition.calculateRecommendedCalories(cpm, 'muscleGain'), 3099);
-assert.equal(nutrition.calculateRecommendedCalories(600, 'weightLoss'), 500);
+assert.equal(nutrition.calculateRecommendedCalories(600, 'weightLoss', profile), 1930);
 assert.equal(nutrition.calculateRecommendedCalories(null, 'maintenance'), null);
 assert.deepEqual(plain(nutrition.calculateMacrosForGoal({
   calories: 2300, weight: 105, sex: 'male', userGoal: 'weightLoss'

@@ -814,11 +814,11 @@ window.MacroChef.TRANSLATIONS = {
     macroGoalsSub: 'Adjust your custom daily nutritional targets to align with your body composition goals.',
     userGoal: 'Your goal',
     selectUserGoal: '-- Select your goal --',
-    weightLoss: 'Fat loss / weight loss (−500 kcal)',
+    weightLoss: 'Fat loss / weight loss (up to −500 kcal)',
     muscleGain: 'Muscle gain / weight gain (+300 kcal)',
     maintenance: 'Maintain current weight (no adjustment)',
     healthyHabits: 'Healthy habits and health monitoring',
-    weightLossDesc: 'A moderate 500 kcal deficit is subtracted from estimated maintenance calories.',
+    weightLossDesc: 'Up to 500 kcal is subtracted from estimated maintenance, without going below estimated BMR.',
     muscleGainDesc: 'A moderate 300 kcal surplus is added to estimated maintenance calories.',
     maintenanceDesc: 'The recommended calorie target equals estimated maintenance calories.',
     healthyHabitsDesc: 'Calories are optional; the estimate is shown without adjustment. Focus on the nutrients that matter to you.',
@@ -957,11 +957,11 @@ window.MacroChef.TRANSLATIONS = {
     macroGoalsSub: 'Dostosuj swoje dzienne zapotrzebowanie do własnych celów sylwetkowych.',
     userGoal: 'Twój cel',
     selectUserGoal: '-- Wybierz swój cel --',
-    weightLoss: 'Redukcja tkanki tłuszczowej / utrata wagi (−500 kcal)',
+    weightLoss: 'Redukcja tkanki tłuszczowej / utrata wagi (do −500 kcal)',
     muscleGain: 'Budowanie masy mięśniowej / zwiększenie wagi (+300 kcal)',
     maintenance: 'Utrzymanie obecnej masy ciała (bez korekty)',
     healthyHabits: 'Zdrowe nawyki i kontrola zdrowia',
-    weightLossDesc: 'Od szacunkowego zapotrzebowania na utrzymanie odejmujemy umiarkowane 500 kcal.',
+    weightLossDesc: 'Od szacunkowego zapotrzebowania na utrzymanie odejmujemy do 500 kcal, nie schodząc poniżej szacowanego PPM.',
     muscleGainDesc: 'Do szacunkowego zapotrzebowania na utrzymanie dodajemy umiarkowane 300 kcal.',
     maintenanceDesc: 'Proponowany cel kalorii odpowiada szacunkowemu zapotrzebowaniu na utrzymanie.',
     healthyHabitsDesc: 'Kalorie są opcjonalne; pokazujemy szacunek bez korekty. Skup się na wybranych składnikach odżywczych.',
@@ -1137,26 +1137,39 @@ window.MacroChef = window.MacroChef || {};
 
 (function () {
 const macroCalculations = {
-  calculateMaintenanceCalories(goals) {
+  calculateBasalCalories(goals) {
     const age = Number(goals.age);
     const weight = Number(goals.weight);
     const height = Number(goals.height);
-    const activity = String(goals.activityPal);
     if (!Number.isFinite(age) || age < 18 || age > 120 ||
         !Number.isFinite(weight) || weight <= 0 || weight > 500 ||
         !Number.isFinite(height) || height < 50 || height > 300 ||
-        (goals.sex !== 'female' && goals.sex !== 'male') ||
-        !['1.25', '1.45', '1.65', '1.85', '2.2'].includes(activity)) {
+        (goals.sex !== 'female' && goals.sex !== 'male')) {
       return null;
     }
-    return Math.round((10 * weight + 6.25 * height - 5 * age +
-      (goals.sex === 'female' ? -161 : 5)) * Number(activity));
+    return 10 * weight + 6.25 * height - 5 * age + (goals.sex === 'female' ? -161 : 5);
   },
 
-  calculateRecommendedCalories(cpm, userGoal) {
+  calculateMaintenanceCalories(goals) {
+    const basal = macroCalculations.calculateBasalCalories(goals);
+    const activity = String(goals.activityPal);
+    if (basal === null || !['1.25', '1.45', '1.65', '1.85', '2.2'].includes(activity)) {
+      return null;
+    }
+    return Math.round(basal * Number(activity));
+  },
+
+  calculateRecommendedCalories(cpm, userGoal, goals) {
     if (cpm === null) return null;
     const adjustments = { weightLoss: -500, muscleGain: 300, maintenance: 0, healthyHabits: 0 };
-    return Math.max(500, cpm + (adjustments[userGoal] || 0));
+    let minimum = 500;
+    if (userGoal === 'weightLoss') {
+      if (!goals) throw new TypeError('A valid profile is required for a weight-loss recommendation');
+      const basal = macroCalculations.calculateBasalCalories(goals);
+      if (basal === null) throw new TypeError('A valid profile is required for a weight-loss recommendation');
+      minimum = Math.max(minimum, Math.ceil(basal));
+    }
+    return Math.max(minimum, cpm + (adjustments[userGoal] || 0));
   },
 
   getDailyTotals(dayKey, plan, recipes) {
@@ -1220,11 +1233,11 @@ const macroCalculations = {
       fats = Number(goals.fats) || 0;
     }
 
-    // Ensure sum equals calorie goal (adjust carbs for rounding)
+    // Adjust carbs for rounding without producing negative grams.
     const calculatedCalories = protein * 4 + carbs * 4 + fats * 9;
     if (calculatedCalories !== calories && userGoal !== 'healthyHabits') {
       const difference = calories - (protein * 4 + fats * 9);
-      carbs = Math.round(difference / 4);
+      carbs = Math.max(0, Math.round(difference / 4));
     }
 
     return { protein, carbs, fats };
@@ -1571,7 +1584,10 @@ window.MacroChef = window.MacroChef || {};
       const recipe = { ...recipeData };
       if (recipe.id === undefined || recipe.id === null || recipe.id === '') recipe.id = createId('rec');
       assertStringKey(recipe.id, 'Recipe');
-      await this.mutations.transaction([this.db.recipes], ({ put }) => put(this.db.recipes, recipe));
+      await this.mutations.transaction([this.db.recipes], ({ put }) => {
+        recipe.updatedAt = new Date().toISOString();
+        return put(this.db.recipes, recipe);
+      });
       return recipe;
     }
 
@@ -3211,7 +3227,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     );
     const cpm = calculateMaintenanceCalories(goals);
     const userGoal = goals.userGoal || '';
-    const recommendedCalories = calculateRecommendedCalories(cpm, userGoal);
+    const recommendedCalories = calculateRecommendedCalories(cpm, userGoal, goals);
     const goalDescription = {
       weightLoss: 'weightLossDesc',
       muscleGain: 'muscleGainDesc',

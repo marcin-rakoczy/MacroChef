@@ -77,5 +77,19 @@
     equal(stored.updatedAt, updated.updatedAt, 'updatedAt was not persisted');
   }));
 
+  test('Offline update journals the persisted timestamp', () => withRepository(async (repository) => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    try {
+      const input = { name: 'Offline meal', updatedAt: '2000-01-01T00:00:00.000Z' };
+      const created = await repository.saveRecipe(input);
+      const queue = await repository.db.OutboxQueue.toArray();
+      equal(input.updatedAt, '2000-01-01T00:00:00.000Z', 'Caller input mutated');
+      assert(created.updatedAt !== input.updatedAt, 'Caller timestamp was trusted');
+      equal(queue[0].payload.updatedAt, created.updatedAt, 'Journal timestamp differs');
+    } finally {
+      delete navigator.onLine;
+    }
+  }));
+
   run();
 })();

@@ -3,26 +3,39 @@ window.MacroChef = window.MacroChef || {};
 
 (function () {
 const macroCalculations = {
-  calculateMaintenanceCalories(goals) {
+  calculateBasalCalories(goals) {
     const age = Number(goals.age);
     const weight = Number(goals.weight);
     const height = Number(goals.height);
-    const activity = String(goals.activityPal);
     if (!Number.isFinite(age) || age < 18 || age > 120 ||
         !Number.isFinite(weight) || weight <= 0 || weight > 500 ||
         !Number.isFinite(height) || height < 50 || height > 300 ||
-        (goals.sex !== 'female' && goals.sex !== 'male') ||
-        !['1.25', '1.45', '1.65', '1.85', '2.2'].includes(activity)) {
+        (goals.sex !== 'female' && goals.sex !== 'male')) {
       return null;
     }
-    return Math.round((10 * weight + 6.25 * height - 5 * age +
-      (goals.sex === 'female' ? -161 : 5)) * Number(activity));
+    return 10 * weight + 6.25 * height - 5 * age + (goals.sex === 'female' ? -161 : 5);
   },
 
-  calculateRecommendedCalories(cpm, userGoal) {
+  calculateMaintenanceCalories(goals) {
+    const basal = macroCalculations.calculateBasalCalories(goals);
+    const activity = String(goals.activityPal);
+    if (basal === null || !['1.25', '1.45', '1.65', '1.85', '2.2'].includes(activity)) {
+      return null;
+    }
+    return Math.round(basal * Number(activity));
+  },
+
+  calculateRecommendedCalories(cpm, userGoal, goals) {
     if (cpm === null) return null;
     const adjustments = { weightLoss: -500, muscleGain: 300, maintenance: 0, healthyHabits: 0 };
-    return Math.max(500, cpm + (adjustments[userGoal] || 0));
+    let minimum = 500;
+    if (userGoal === 'weightLoss') {
+      if (!goals) throw new TypeError('A valid profile is required for a weight-loss recommendation');
+      const basal = macroCalculations.calculateBasalCalories(goals);
+      if (basal === null) throw new TypeError('A valid profile is required for a weight-loss recommendation');
+      minimum = Math.max(minimum, Math.ceil(basal));
+    }
+    return Math.max(minimum, cpm + (adjustments[userGoal] || 0));
   },
 
   getDailyTotals(dayKey, plan, recipes) {
@@ -86,11 +99,11 @@ const macroCalculations = {
       fats = Number(goals.fats) || 0;
     }
 
-    // Ensure sum equals calorie goal (adjust carbs for rounding)
+    // Adjust carbs for rounding without producing negative grams.
     const calculatedCalories = protein * 4 + carbs * 4 + fats * 9;
     if (calculatedCalories !== calories && userGoal !== 'healthyHabits') {
       const difference = calories - (protein * 4 + fats * 9);
-      carbs = Math.round(difference / 4);
+      carbs = Math.max(0, Math.round(difference / 4));
     }
 
     return { protein, carbs, fats };

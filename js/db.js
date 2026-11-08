@@ -228,7 +228,10 @@ window.MacroChef = window.MacroChef || {};
       const recipe = { ...recipeData };
       if (recipe.id === undefined || recipe.id === null || recipe.id === '') recipe.id = createId('rec');
       assertStringKey(recipe.id, 'Recipe');
-      await this.mutations.transaction([this.db.recipes], ({ put }) => put(this.db.recipes, recipe));
+      await this.mutations.transaction([this.db.recipes], ({ put }) => {
+        recipe.updatedAt = new Date().toISOString();
+        return put(this.db.recipes, recipe);
+      });
       return recipe;
     }
 
