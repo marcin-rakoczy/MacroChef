@@ -812,6 +812,11 @@ window.MacroChef.TRANSLATIONS = {
     shoppingEmptySub: 'Assign recipes to your Weekly Meal Schedule to automatically generate whole-package shopping lists.',
     macroGoalsTitle: 'Daily Calorie & Macro Goals',
     macroGoalsSub: 'Adjust your custom daily nutritional targets to align with your body composition goals.',
+    goalsLoading: 'Loading saved goals...',
+    goalsSaving: 'Saving goals locally...',
+    goalsLoadError: 'Could not load saved goals. Check browser storage and reload the app.',
+    goalsSaveError: 'Could not save your goals locally. Your changes are not saved.',
+    retry: 'Retry',
     userGoal: 'Your goal',
     selectUserGoal: '-- Select your goal --',
     weightLoss: 'Fat loss / weight loss (up to −500 kcal)',
@@ -955,6 +960,11 @@ window.MacroChef.TRANSLATIONS = {
     shoppingEmptySub: 'Dodaj posiłki do tygodniowego planu, aby automatycznie wygenerować listę zakupów.',
     macroGoalsTitle: 'Dzienne Cele Kalorii i Makro',
     macroGoalsSub: 'Dostosuj swoje dzienne zapotrzebowanie do własnych celów sylwetkowych.',
+    goalsLoading: 'Wczytywanie zapisanych celów...',
+    goalsSaving: 'Zapisywanie celów lokalnie...',
+    goalsLoadError: 'Nie udało się wczytać celów. Sprawdź pamięć przeglądarki i odśwież aplikację.',
+    goalsSaveError: 'Nie udało się zapisać celów lokalnie. Twoje zmiany nie zostały zapisane.',
+    retry: 'Spróbuj ponownie',
     userGoal: 'Twój cel',
     selectUserGoal: '-- Wybierz swój cel --',
     weightLoss: 'Redukcja tkanki tłuszczowej / utrata wagi (do −500 kcal)',
@@ -3255,7 +3265,7 @@ window.MacroChef.components = window.MacroChef.components || {};
               </label>
               <select
                 value={userGoal}
-                onChange={(e) => onSaveGoals({ ...goals, userGoal: e.target.value })}
+                onChange={(e) => onSaveGoals({ userGoal: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
                 <option value="">{t.selectUserGoal}</option>
@@ -3285,7 +3295,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     min="18"
                     max="120"
                     value={goals.age}
-                    onChange={(e) => onSaveGoals({ ...goals, age: e.target.value })}
+                    onChange={(e) => onSaveGoals({ age: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -3299,7 +3309,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     max="500"
                     step="0.1"
                     value={goals.weight}
-                    onChange={(e) => onSaveGoals({ ...goals, weight: e.target.value })}
+                    onChange={(e) => onSaveGoals({ weight: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -3312,7 +3322,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     min="50"
                     max="300"
                     value={goals.height}
-                    onChange={(e) => onSaveGoals({ ...goals, height: e.target.value })}
+                    onChange={(e) => onSaveGoals({ height: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -3322,7 +3332,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </label>
                   <select
                     value={goals.sex}
-                    onChange={(e) => onSaveGoals({ ...goals, sex: e.target.value })}
+                    onChange={(e) => onSaveGoals({ sex: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     <option value="">{t.selectSex}</option>
@@ -3337,7 +3347,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <select
                     value={goals.activityPal}
                     onChange={(e) =>
-                      onSaveGoals({ ...goals, activityPal: e.target.value })
+                      onSaveGoals({ activityPal: e.target.value })
                     }
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
@@ -3388,7 +3398,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     type="button"
                     disabled={recommendedCalories === null}
                     onClick={() =>
-                      onSaveGoals({ ...goals, calories: recommendedCalories })
+                      onSaveGoals({ calories: recommendedCalories })
                     }
                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -3408,7 +3418,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 max="10000"
                 value={goals.calories}
                 onChange={(e) =>
-                  onSaveGoals({ ...goals, calories: Number(e.target.value) || 0 })
+                  onSaveGoals({ calories: Number(e.target.value) || 0 })
                 }
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
@@ -3424,7 +3434,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   min="0"
                   value={userGoal && userGoal !== 'healthyHabits' ? dist.protein : goals.protein}
                   onChange={(e) =>
-                    onSaveGoals({ ...goals, protein: Number(e.target.value) || 0 })
+                    onSaveGoals({ protein: Number(e.target.value) || 0 })
                   }
                   disabled={userGoal && userGoal !== 'healthyHabits'}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
@@ -3445,7 +3455,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   min="0"
                   value={userGoal && userGoal !== 'healthyHabits' ? dist.carbs : goals.carbs}
                   onChange={(e) =>
-                    onSaveGoals({ ...goals, carbs: Number(e.target.value) || 0 })
+                    onSaveGoals({ carbs: Number(e.target.value) || 0 })
                   }
                   disabled={userGoal && userGoal !== 'healthyHabits'}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
@@ -3466,7 +3476,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   min="0"
                   value={userGoal && userGoal !== 'healthyHabits' ? dist.fats : goals.fats}
                   onChange={(e) =>
-                    onSaveGoals({ ...goals, fats: Number(e.target.value) || 0 })
+                    onSaveGoals({ fats: Number(e.target.value) || 0 })
                   }
                   disabled={userGoal && userGoal !== 'healthyHabits'}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
@@ -4385,7 +4395,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 window.MacroChef = window.MacroChef || {};
 
 (function () {
-  const { useState, useEffect, useMemo } = React;
+  const { useState, useEffect, useMemo, useRef } = React;
   const {
     Header,
     Navigation,
@@ -4407,7 +4417,7 @@ window.MacroChef = window.MacroChef || {};
     const [darkMode, setDarkMode] = useState(() => {
       return localStorage.getItem('macrochef_dark') === 'true';
     });
-    const { lang } = window.MacroChef.useI18n();
+    const { lang, t } = window.MacroChef.useI18n();
     const [colorTheme, setColorTheme] = useState(() => {
       return localStorage.getItem('macrochef_color_theme') || 'emerald';
     });
@@ -4419,7 +4429,7 @@ window.MacroChef = window.MacroChef || {};
     );
     const recipes = appData.data ? appData.data.recipes : [];
     const plan = appData.data ? appData.data.plan : {};
-    const goals = appData.data
+    const storedGoals = appData.data
       ? {
           ...window.MacroChef.DEFAULT_GOALS,
           ...appData.data.goals,
@@ -4431,6 +4441,14 @@ window.MacroChef = window.MacroChef || {};
           userGoal: appData.data.goals.userGoal ?? ''
         }
       : window.MacroChef.DEFAULT_GOALS;
+    const [goalsDraft, setGoalsDraft] = useState(null);
+    const [goalsSaveError, setGoalsSaveError] = useState(false);
+    const [goalsSaving, setGoalsSaving] = useState(false);
+    const goalsDraftRef = useRef(null);
+    const goalsSaveQueue = useRef(Promise.resolve());
+    const goalsSaveVersion = useRef(0);
+    const [savedGoalsVersion, setSavedGoalsVersion] = useState(0);
+    const goals = goalsDraft || storedGoals;
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
         const saved = localStorage.getItem('macrochef_checked');
@@ -4490,6 +4508,17 @@ window.MacroChef = window.MacroChef || {};
       }
     }, [appData.error]);
 
+    useEffect(() => {
+      if (!goalsDraftRef.current || !appData.data ||
+          savedGoalsVersion !== goalsSaveVersion.current || goalsSaveError) return;
+      const saved = appData.data.goals;
+      const draft = goalsDraftRef.current;
+      if (Object.keys(draft).every((key) => key === 'id' || saved[key] === draft[key])) {
+        goalsDraftRef.current = null;
+        setGoalsDraft(null);
+      }
+    }, [appData.data, savedGoalsVersion, goalsSaveError]);
+
     // Aggregated Smart Shopping List
     const aggregatedShoppingList = useMemo(() => {
       return shoppingAggregator.calculateShoppingList(plan, recipes, lang);
@@ -4522,8 +4551,28 @@ window.MacroChef = window.MacroChef || {};
       }
     };
 
-    const handleSaveGoals = async (newGoals) => {
-      await repositories.saveGoals(newGoals);
+    const handleSaveGoals = (changes) => {
+      const newGoals = { ...(goalsDraftRef.current || storedGoals), ...changes };
+      goalsDraftRef.current = newGoals;
+      setGoalsDraft(newGoals);
+      setGoalsSaveError(false);
+      setGoalsSaving(true);
+      const version = ++goalsSaveVersion.current;
+      goalsSaveQueue.current = goalsSaveQueue.current.then(async () => {
+        try {
+          await repositories.saveGoals(newGoals);
+          if (version === goalsSaveVersion.current) {
+            setSavedGoalsVersion(version);
+            setGoalsSaving(false);
+          }
+        } catch (error) {
+          console.error('Failed to save goals:', error);
+          if (version === goalsSaveVersion.current) {
+            setGoalsSaveError(true);
+            setGoalsSaving(false);
+          }
+        }
+      });
     };
 
     const handleStartBatchCooking = (recipe) => {
@@ -4615,10 +4664,31 @@ window.MacroChef = window.MacroChef || {};
 
             {/* Tab 5: Macro & Goals Tracker */}
             {activeTab === 'tracker' && (
-              <MacroTracker
-                goals={goals}
-                onSaveGoals={handleSaveGoals}
-              />
+              appData.error ? (
+                <p role="alert" className="text-red-600 dark:text-red-400">{t.goalsLoadError}</p>
+              ) : !appData.data ? (
+                <p role="status">{t.goalsLoading}</p>
+              ) : (
+                <>
+                  {goalsSaving && (
+                    <p role="status" className="max-w-3xl mx-auto mb-4 text-slate-500">
+                      {t.goalsSaving}
+                    </p>
+                  )}
+                  {goalsSaveError && (
+                    <div role="alert" className="max-w-3xl mx-auto mb-4 text-red-600 dark:text-red-400">
+                      {t.goalsSaveError}{' '}
+                      <button type="button" className="underline" onClick={() => handleSaveGoals({})}>
+                        {t.retry}
+                      </button>
+                    </div>
+                  )}
+                  <MacroTracker
+                    goals={goals}
+                    onSaveGoals={handleSaveGoals}
+                  />
+                </>
+              )
             )}
           </main>
 

@@ -49,7 +49,7 @@ window.MacroChef.components = window.MacroChef.components || {};
               </label>
               <select
                 value={userGoal}
-                onChange={(e) => onSaveGoals({ ...goals, userGoal: e.target.value })}
+                onChange={(e) => onSaveGoals({ userGoal: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
                 <option value="">{t.selectUserGoal}</option>
@@ -79,7 +79,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     min="18"
                     max="120"
                     value={goals.age}
-                    onChange={(e) => onSaveGoals({ ...goals, age: e.target.value })}
+                    onChange={(e) => onSaveGoals({ age: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -93,7 +93,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     max="500"
                     step="0.1"
                     value={goals.weight}
-                    onChange={(e) => onSaveGoals({ ...goals, weight: e.target.value })}
+                    onChange={(e) => onSaveGoals({ weight: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -106,7 +106,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     min="50"
                     max="300"
                     value={goals.height}
-                    onChange={(e) => onSaveGoals({ ...goals, height: e.target.value })}
+                    onChange={(e) => onSaveGoals({ height: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -116,7 +116,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </label>
                   <select
                     value={goals.sex}
-                    onChange={(e) => onSaveGoals({ ...goals, sex: e.target.value })}
+                    onChange={(e) => onSaveGoals({ sex: e.target.value })}
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     <option value="">{t.selectSex}</option>
@@ -131,7 +131,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <select
                     value={goals.activityPal}
                     onChange={(e) =>
-                      onSaveGoals({ ...goals, activityPal: e.target.value })
+                      onSaveGoals({ activityPal: e.target.value })
                     }
                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
@@ -182,7 +182,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     type="button"
                     disabled={recommendedCalories === null}
                     onClick={() =>
-                      onSaveGoals({ ...goals, calories: recommendedCalories })
+                      onSaveGoals({ calories: recommendedCalories })
                     }
                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -202,7 +202,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 max="10000"
                 value={goals.calories}
                 onChange={(e) =>
-                  onSaveGoals({ ...goals, calories: Number(e.target.value) || 0 })
+                  onSaveGoals({ calories: Number(e.target.value) || 0 })
                 }
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
@@ -218,7 +218,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   min="0"
                   value={userGoal && userGoal !== 'healthyHabits' ? dist.protein : goals.protein}
                   onChange={(e) =>
-                    onSaveGoals({ ...goals, protein: Number(e.target.value) || 0 })
+                    onSaveGoals({ protein: Number(e.target.value) || 0 })
                   }
                   disabled={userGoal && userGoal !== 'healthyHabits'}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
@@ -239,7 +239,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   min="0"
                   value={userGoal && userGoal !== 'healthyHabits' ? dist.carbs : goals.carbs}
                   onChange={(e) =>
-                    onSaveGoals({ ...goals, carbs: Number(e.target.value) || 0 })
+                    onSaveGoals({ carbs: Number(e.target.value) || 0 })
                   }
                   disabled={userGoal && userGoal !== 'healthyHabits'}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
@@ -260,7 +260,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   min="0"
                   value={userGoal && userGoal !== 'healthyHabits' ? dist.fats : goals.fats}
                   onChange={(e) =>
-                    onSaveGoals({ ...goals, fats: Number(e.target.value) || 0 })
+                    onSaveGoals({ fats: Number(e.target.value) || 0 })
                   }
                   disabled={userGoal && userGoal !== 'healthyHabits'}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"

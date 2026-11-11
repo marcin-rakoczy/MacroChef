@@ -60,6 +60,11 @@ MacroChef provides scientifically-grounded, personalized daily nutritional recom
 
 **Four Fitness Goals with Auto-Calculated Macros**:
 
+Goal, profile, calorie and manual macro settings are saved automatically in the browser's
+IndexedDB as you edit them and restored when you reopen the app. They remain on this browser
+and device; clearing site data or using a different browser or device will not retain them.
+If saving fails, the goals screen displays an error and offers a retry.
+
 | Goal | Calorie Adjustment | Protein | Fats | Carbs | Use Case |
 |------|------------------|---------|------|-------|----------|
 | **Fat Loss** | CPM - 500 kcal, not below estimated BMR | 2.0 g/kg | 30% | Remainder | Weight reduction with muscle preservation |

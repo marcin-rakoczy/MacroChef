@@ -24,6 +24,46 @@
       'Saved recipe not returned');
   }));
 
+  test('Goals persist across reopening and overwrite the existing record', () => withRepository(async (repository) => {
+    const original = {
+      userGoal: 'healthyHabits', age: '42', weight: '83.5', height: '180',
+      sex: 'male', activityPal: '1.45', calories: 2400, protein: 160, carbs: 250, fats: 80
+    };
+    const first = await repository.saveGoals(original);
+    const updated = { ...original, age: '43', weight: '82', calories: 2300, protein: 150 };
+    const second = await repository.saveGoals(updated);
+    equal(second.id, first.id, 'Goals record ID changed');
+    repository.db.close();
+    const reopened = new window.MacroChef.DexieCalorieRepository(repository.db.name, { seedDefaults: false });
+    try {
+      await reopened.initialize();
+      const rows = await reopened.db.goals.toArray();
+      equal(rows.length, 1, 'Goals record count');
+      Object.keys(updated).forEach((key) => equal(rows[0][key], updated[key], `Restored ${key}`));
+    } finally {
+      reopened.db.close();
+    }
+  }));
+
+  test('Offline goal edits are stored and journaled', () => withRepository(async (repository) => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    try {
+      const first = await repository.saveGoals({ age: '42', calories: 2400 });
+      await repository.saveGoals({ ...first, age: '43', calories: 2300 });
+      const stored = await repository.db.goals.toArray();
+      const queue = await repository.db.OutboxQueue.toArray();
+      equal(stored.length, 1, 'Offline goals record count');
+      equal(stored[0].age, '43', 'Offline age');
+      equal(stored[0].calories, 2300, 'Offline calories');
+      assert(queue.some((entry) => entry.table === 'goals' && entry.action === 'create'),
+        'Missing offline goals creation');
+      assert(queue.some((entry) => entry.table === 'goals' && entry.action === 'update' &&
+        entry.payload.value.calories === 2300), 'Missing offline goals update');
+    } finally {
+      delete navigator.onLine;
+    }
+  }));
+
   test('Delete recipe and clear only its planner references', () => withRepository(async (repository) => {
     const deleted = await repository.saveRecipe({ name: 'Delete' });
     const kept = await repository.saveRecipe({ name: 'Keep' });

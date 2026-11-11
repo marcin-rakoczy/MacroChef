@@ -2,7 +2,7 @@
 window.MacroChef = window.MacroChef || {};
 
 (function () {
-  const { useState, useEffect, useMemo } = React;
+  const { useState, useEffect, useMemo, useRef } = React;
   const {
     Header,
     Navigation,
@@ -24,7 +24,7 @@ window.MacroChef = window.MacroChef || {};
     const [darkMode, setDarkMode] = useState(() => {
       return localStorage.getItem('macrochef_dark') === 'true';
     });
-    const { lang } = window.MacroChef.useI18n();
+    const { lang, t } = window.MacroChef.useI18n();
     const [colorTheme, setColorTheme] = useState(() => {
       return localStorage.getItem('macrochef_color_theme') || 'emerald';
     });
@@ -36,7 +36,7 @@ window.MacroChef = window.MacroChef || {};
     );
     const recipes = appData.data ? appData.data.recipes : [];
     const plan = appData.data ? appData.data.plan : {};
-    const goals = appData.data
+    const storedGoals = appData.data
       ? {
           ...window.MacroChef.DEFAULT_GOALS,
           ...appData.data.goals,
@@ -48,6 +48,14 @@ window.MacroChef = window.MacroChef || {};
           userGoal: appData.data.goals.userGoal ?? ''
         }
       : window.MacroChef.DEFAULT_GOALS;
+    const [goalsDraft, setGoalsDraft] = useState(null);
+    const [goalsSaveError, setGoalsSaveError] = useState(false);
+    const [goalsSaving, setGoalsSaving] = useState(false);
+    const goalsDraftRef = useRef(null);
+    const goalsSaveQueue = useRef(Promise.resolve());
+    const goalsSaveVersion = useRef(0);
+    const [savedGoalsVersion, setSavedGoalsVersion] = useState(0);
+    const goals = goalsDraft || storedGoals;
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
         const saved = localStorage.getItem('macrochef_checked');
@@ -107,6 +115,17 @@ window.MacroChef = window.MacroChef || {};
       }
     }, [appData.error]);
 
+    useEffect(() => {
+      if (!goalsDraftRef.current || !appData.data ||
+          savedGoalsVersion !== goalsSaveVersion.current || goalsSaveError) return;
+      const saved = appData.data.goals;
+      const draft = goalsDraftRef.current;
+      if (Object.keys(draft).every((key) => key === 'id' || saved[key] === draft[key])) {
+        goalsDraftRef.current = null;
+        setGoalsDraft(null);
+      }
+    }, [appData.data, savedGoalsVersion, goalsSaveError]);
+
     // Aggregated Smart Shopping List
     const aggregatedShoppingList = useMemo(() => {
       return shoppingAggregator.calculateShoppingList(plan, recipes, lang);
@@ -139,8 +158,28 @@ window.MacroChef = window.MacroChef || {};
       }
     };
 
-    const handleSaveGoals = async (newGoals) => {
-      await repositories.saveGoals(newGoals);
+    const handleSaveGoals = (changes) => {
+      const newGoals = { ...(goalsDraftRef.current || storedGoals), ...changes };
+      goalsDraftRef.current = newGoals;
+      setGoalsDraft(newGoals);
+      setGoalsSaveError(false);
+      setGoalsSaving(true);
+      const version = ++goalsSaveVersion.current;
+      goalsSaveQueue.current = goalsSaveQueue.current.then(async () => {
+        try {
+          await repositories.saveGoals(newGoals);
+          if (version === goalsSaveVersion.current) {
+            setSavedGoalsVersion(version);
+            setGoalsSaving(false);
+          }
+        } catch (error) {
+          console.error('Failed to save goals:', error);
+          if (version === goalsSaveVersion.current) {
+            setGoalsSaveError(true);
+            setGoalsSaving(false);
+          }
+        }
+      });
     };
 
     const handleStartBatchCooking = (recipe) => {
@@ -232,10 +271,31 @@ window.MacroChef = window.MacroChef || {};
 
             {/* Tab 5: Macro & Goals Tracker */}
             {activeTab === 'tracker' && (
-              <MacroTracker
-                goals={goals}
-                onSaveGoals={handleSaveGoals}
-              />
+              appData.error ? (
+                <p role="alert" className="text-red-600 dark:text-red-400">{t.goalsLoadError}</p>
+              ) : !appData.data ? (
+                <p role="status">{t.goalsLoading}</p>
+              ) : (
+                <>
+                  {goalsSaving && (
+                    <p role="status" className="max-w-3xl mx-auto mb-4 text-slate-500">
+                      {t.goalsSaving}
+                    </p>
+                  )}
+                  {goalsSaveError && (
+                    <div role="alert" className="max-w-3xl mx-auto mb-4 text-red-600 dark:text-red-400">
+                      {t.goalsSaveError}{' '}
+                      <button type="button" className="underline" onClick={() => handleSaveGoals({})}>
+                        {t.retry}
+                      </button>
+                    </div>
+                  )}
+                  <MacroTracker
+                    goals={goals}
+                    onSaveGoals={handleSaveGoals}
+                  />
+                </>
+              )
             )}
           </main>
 
