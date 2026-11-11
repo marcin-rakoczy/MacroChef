@@ -118,8 +118,84 @@ If saving fails, the goals screen displays an error and offers a retry.
 ### 6. Full Offline Support
 - Service Worker with Stale-While-Revalidate strategy
 - IndexedDB for persistent user data
-- Works 100% offline after first load
+- Works offline after a successful service-worker installation has cached the app shell and required CDN scripts
 - Installable on mobile (iOS/Android) and desktop
+
+### Android installation and APK
+
+MacroChef is a client-side app, not a Spring Boot or ASP.NET application. Its existing
+`server.js` serves the manifest as `application/manifest+json` and the service worker with
+`Cache-Control: no-cache`; a production host or reverse proxy must do the same. Serve the
+site from a public HTTPS origin (localhost is only suitable for local testing). Keep the
+manifest, worker, icons and static assets publicly accessible. For a subpath deployment,
+preserve the directory structure and serve the worker from that application directory.
+
+On Android, users can install the site directly from a compatible browser's install menu.
+Open the site online first and wait for the service worker to install successfully; it
+pre-caches the app shell and required CDN scripts. Google Fonts are optional and fall back
+to system fonts offline. Browser storage can be evicted or cleared, so this is not a backup.
+The existing PNG launcher icons are solid-color placeholders; replace them with branded
+192×192 and 512×512 images before distribution.
+
+To package the site as an Android Trusted Web Activity (TWA):
+
+1. Deploy MacroChef at its final public HTTPS URL and verify that
+   `https://YOUR-DOMAIN.example/manifest.json` and the icons load without authentication.
+   The examples below assume deployment at the origin root.
+2. Use Bubblewrap CLI, Node.js 18 or newer, a JDK, Android SDK tools and a connected
+   Android phone or emulator. Follow Bubblewrap's prompts to configure the Android tools.
+   Create a separate directory for the Android wrapper, then run:
+
+   ```powershell
+   bubblewrap init --manifest https://YOUR-DOMAIN.example/manifest.json
+   bubblewrap build
+   ```
+
+3. During initialization choose a unique, permanent Android package ID and a signing
+   key. Bubblewrap creates the Android project and `twa-manifest.json`; it produces
+   `app-release-signed.apk` and an Android App Bundle. Back up the signing key securely
+   and never commit the keystore or passwords. The Android wrapper is separate from the
+   web app and does not change its client-side architecture.
+4. Extract the **public** SHA-256 certificate fingerprint:
+
+   ```powershell
+   keytool -list -v -keystore "PATH\TO\YOUR-KEYSTORE"
+   ```
+
+5. On the HTTPS origin, publish `/.well-known/assetlinks.json` with the actual package ID
+   and certificate fingerprint. It must return HTTP 200 without redirects and use
+   `application/json`. Do not deploy the example placeholders:
+
+   ```json
+   [
+     {
+       "relation": ["delegate_permission/common.handle_all_urls"],
+       "target": {
+         "namespace": "android_app",
+         "package_name": "YOUR.ANDROID.PACKAGE",
+         "sha256_cert_fingerprints": ["YOUR:SHA256:FINGERPRINT"]
+       }
+     }
+   ]
+   ```
+
+   Include the Google Play app-signing certificate fingerprint as well if distributing
+   through Play App Signing; it can differ from the locally signed APK certificate.
+6. Enable USB debugging, connect a device and install the signed APK:
+
+   ```powershell
+   adb install app-release-signed.apk
+   ```
+
+   Open the app online, allow the offline cache to finish installing, then test reopening
+   it in airplane mode. If Digital Asset Links verification fails, the site opens in a
+   browser Custom Tab rather than a full-screen TWA. For Play distribution, follow the
+   current Play Console app-bundle and signing requirements.
+
+The actual HTTPS domain, Android package ID, signing certificate and deployment are needed
+before the APK and Digital Asset Links association can be generated and verified.
+See the [Chrome TWA quick start](https://developer.chrome.com/docs/android/trusted-web-activity/quick-start)
+and [Android Digital Asset Links guide](https://developer.android.com/training/app-links/configure-assetlinks).
 
 ### 7. Bilingual UI
 - English & Polish translations

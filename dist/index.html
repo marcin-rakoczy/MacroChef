@@ -4861,7 +4861,7 @@ window.MacroChef = window.MacroChef || {};
 
   // Register PWA Service Worker for offline capability
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
+    const registerServiceWorker = () => {
       navigator.serviceWorker
         .register('./sw.js')
         .then((reg) => {
@@ -4869,7 +4869,12 @@ window.MacroChef = window.MacroChef || {};
         })
         .catch((err) => {
           console.warn('[MacroChef PWA] Service Worker registration failed:', err);
-        });
+        };
+        if (document.readyState === 'complete') {
+          registerServiceWorker();
+        } else {
+          window.addEventListener('load', registerServiceWorker);
+        }
     });
   }
 })();

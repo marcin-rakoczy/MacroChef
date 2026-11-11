@@ -2,6 +2,7 @@
   "name": "MacroChef - Calorie & Meal Planner",
   "short_name": "MacroChef",
   "description": "Smart meal planning, batch cooking, macro tracking, and zero-waste shopping list PWA.",
+  "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -27,4 +28,3 @@
     }
   ]
 }
-

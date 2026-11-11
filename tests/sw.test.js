@@ -9,10 +9,11 @@ const stores = new Map();
 let privateResponse = false;
 let offline = false;
 let skipped = false;
+let failCachePut = false;
 const key = (request) => new URL(typeof request === 'string' ? request : request.url, origin).href;
-const response = () => ({
+const response = (type = 'basic') => ({
   ok: true,
-  type: 'basic',
+  type,
   headers: new Headers(privateResponse ? { 'Cache-Control': 'private, no-store' } : {}),
   clone() { return this; }
 });
@@ -21,7 +22,10 @@ const caches = {
     if (!stores.has(name)) stores.set(name, new Map());
     const data = stores.get(name);
     return {
-      async put(request, value) { data.set(key(request), value); },
+      async put(request, value) {
+        if (failCachePut) throw new Error('QuotaExceededError');
+        data.set(key(request), value);
+      },
       async match(request) { return data.get(key(request)); },
       async delete(request) { return data.delete(key(request)); }
     };
@@ -37,8 +41,12 @@ const self = {
 };
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), {
   self, caches, URL, Promise, Set, console,
-  fetch: async () => {
+  fetch: async (request, options) => {
     if (offline) throw new Error('offline');
+    const url = key(request);
+    if (url.startsWith('https://unpkg.com/') || url.startsWith('https://cdn.tailwindcss.com/')) {
+      return response(options && options.mode === 'cors' ? 'cors' : 'opaque');
+    }
     return response();
   }
 });
@@ -77,17 +85,26 @@ function request(url, headers = {}) {
   assert.equal(request('/index.html?token=secret').result, undefined);
   assert.equal(request('/index.html', { Authorization: 'Bearer test' }).result, undefined);
   assert.equal(request('/index.html', { 'Cache-Control': 'no-store' }).result, undefined);
+  assert.equal(request('https://unpkg.com/other-script.js').result, undefined);
   offline = true;
   const cached = request('/index.html');
   assert.ok(await cached.result);
   await cached.background;
+  const cachedReact = request('https://unpkg.com/react@18/umd/react.production.min.js');
+  assert.ok(await cachedReact.result);
+  await cachedReact.background;
   offline = false;
+  failCachePut = true;
+  const quota = request('/index.html');
+  assert.ok(await quota.result);
+  await quota.background;
+  failCachePut = false;
   privateResponse = true;
   const revalidated = request('/index.html');
   assert.ok(await revalidated.result);
   await revalidated.background;
-  assert.equal(stores.get('macrochef-v9').has(key('/index.html')), false);
-  console.log('PASS: static allowlist, private responses, offline cache, cache ownership');
+  assert.equal(stores.get('macrochef-v10').has(key('/index.html')), false);
+  console.log('PASS: static and CDN allowlists, offline cache, quota handling, cache ownership');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

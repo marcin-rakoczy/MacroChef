@@ -38,7 +38,9 @@ const server = http.createServer((req, res) => {
     }
 
     const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const contentType = path.basename(filePath) === 'manifest.json'
+      ? 'application/manifest+json; charset=utf-8'
+      : MIME_TYPES[ext] || 'application/octet-stream';
 
     const headers = {
       'Content-Type': contentType,
@@ -48,6 +50,9 @@ const server = http.createServer((req, res) => {
 
     if (path.basename(filePath) === 'sw.js') {
       headers['Service-Worker-Allowed'] = '/';
+      headers['Cache-Control'] = 'no-cache';
+    }
+    if (path.basename(filePath) === 'manifest.json') {
       headers['Cache-Control'] = 'no-cache';
     }
 
@@ -77,4 +82,3 @@ server.on('listening', () => {
 });
 
 server.listen(currentPort);
-
