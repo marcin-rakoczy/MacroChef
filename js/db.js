@@ -6,6 +6,9 @@ window.MacroChef = window.MacroChef || {};
     initialize() { throw new Error('initialize() must be implemented'); }
     watchAppData() { throw new Error('watchAppData() must be implemented'); }
     watchProducts() { throw new Error('watchProducts() must be implemented'); }
+    watchSettings() { throw new Error('watchSettings() must be implemented'); }
+    initializeSettings(defaults) { throw new Error('initializeSettings() must be implemented'); }
+    saveSettings(settings) { throw new Error('saveSettings() must be implemented'); }
     getAllRecipes() { throw new Error('getAllRecipes() must be implemented'); }
     saveRecipe(recipeData) { throw new Error('saveRecipe() must be implemented'); }
     deleteRecipe(id) { throw new Error('deleteRecipe() must be implemented'); }
@@ -92,6 +95,7 @@ window.MacroChef = window.MacroChef || {};
       super();
       this.db = new Dexie(databaseName);
       this.seedDefaults = options.seedDefaults !== false;
+      this.userId = options.userId || 'guest';
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -142,6 +146,7 @@ window.MacroChef = window.MacroChef || {};
         }
       });
       this.db.version(4).stores({ planner: null });
+      this.db.version(5).stores({ settings: 'id, userId' });
       this.mutations = new OfflineMutationDecorator(this.db);
 
       this.db.on('populate', async () => {
@@ -218,6 +223,35 @@ window.MacroChef = window.MacroChef || {};
 
     watchProducts() {
       return Dexie.liveQuery(() => this.db.products.toArray());
+    }
+
+    watchSettings() {
+      return Dexie.liveQuery(() => this.db.settings.where('userId').equals(this.userId).first());
+    }
+
+    async initializeSettings(defaults) {
+      return await this.db.transaction('rw', this.db.settings, async () => {
+        const current = await this.db.settings.where('userId').equals(this.userId).first();
+        if (current) return current;
+        const settings = { ...defaults, id: window.crypto.randomUUID(), userId: this.userId };
+        await this.db.settings.add(settings);
+        return settings;
+      });
+    }
+
+    async saveSettings(settings) {
+      return await this.mutations.transaction([this.db.settings], async ({ put }) => {
+        const current = await this.db.settings.where('userId').equals(this.userId).first();
+        if (!current) throw new Error('Settings have not been initialized');
+        const saved = {
+          ...current,
+          lang: settings.lang,
+          darkMode: settings.darkMode,
+          colorTheme: settings.colorTheme
+        };
+        await put(this.db.settings, saved);
+        return saved;
+      });
     }
 
     async getAllRecipes() {

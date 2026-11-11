@@ -816,6 +816,8 @@ window.MacroChef.TRANSLATIONS = {
     goalsSaving: 'Saving goals locally...',
     goalsLoadError: 'Could not load saved goals. Check browser storage and reload the app.',
     goalsSaveError: 'Could not save your goals locally. Your changes are not saved.',
+    settingsSaveError: 'Could not save settings locally. Your changes are not saved.',
+    settingsSaving: 'Saving settings locally...',
     retry: 'Retry',
     userGoal: 'Your goal',
     selectUserGoal: '-- Select your goal --',
@@ -964,6 +966,8 @@ window.MacroChef.TRANSLATIONS = {
     goalsSaving: 'Zapisywanie celów lokalnie...',
     goalsLoadError: 'Nie udało się wczytać celów. Sprawdź pamięć przeglądarki i odśwież aplikację.',
     goalsSaveError: 'Nie udało się zapisać celów lokalnie. Twoje zmiany nie zostały zapisane.',
+    settingsSaveError: 'Nie udało się zapisać ustawień lokalnie. Twoje zmiany nie zostały zapisane.',
+    settingsSaving: 'Zapisywanie ustawień lokalnie...',
     retry: 'Spróbuj ponownie',
     userGoal: 'Twój cel',
     selectUserGoal: '-- Wybierz swój cel --',
@@ -1083,23 +1087,122 @@ window.MacroChef.DAYS_TRANSLATED = {
 window.MacroChef = window.MacroChef || {};
 
 (function () {
-  const { createContext, createElement, useContext, useEffect, useMemo, useState } = React;
+  const { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState } = React;
   const I18nContext = createContext(null);
 
-  function I18nProvider({ children }) {
-    const [lang, setLang] = useState(() => localStorage.getItem('macrochef_lang') || 'pl');
+  function I18nProvider({ children, repository = window.MacroChef.repositories }) {
+    const [settings, setSettings] = useState(null);
+    const [loadError, setLoadError] = useState(false);
+    const [saveError, setSaveError] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [attempt, setAttempt] = useState(0);
+    const settingsRef = useRef(null);
+    const queueRef = useRef(Promise.resolve());
+    const versionRef = useRef(0);
+    const pendingRef = useRef(false);
+
+    useEffect(() => {
+      let active = true;
+      let subscription;
+      async function load() {
+        try {
+          const defaults = {
+            lang: localStorage.getItem('macrochef_lang') || 'pl',
+            darkMode: localStorage.getItem('macrochef_dark') === 'true',
+            colorTheme: localStorage.getItem('macrochef_color_theme') || 'emerald'
+          };
+          const initial = await repository.initializeSettings(defaults);
+          if (!active) return;
+          settingsRef.current = initial;
+          setSettings(initial);
+          setLoadError(false);
+          subscription = repository.watchSettings().subscribe({
+            next(value) {
+              if (!active || pendingRef.current) return;
+              if (!value) {
+                console.error('Settings record is missing');
+                setLoadError(true);
+                return;
+              }
+              settingsRef.current = value;
+              setSettings(value);
+            },
+            error(error) {
+              console.error('Settings subscription error:', error);
+              if (active) setLoadError(true);
+            }
+          });
+        } catch (error) {
+          console.error('Settings initialization error:', error);
+          if (active) setLoadError(true);
+        }
+      }
+      load();
+      return () => {
+        active = false;
+        if (subscription) subscription.unsubscribe();
+      };
+    }, [repository, attempt]);
+
+    const saveChanges = useCallback((changes) => {
+      const next = { ...settingsRef.current, ...changes };
+      settingsRef.current = next;
+      setSettings(next);
+      setSaveError(false);
+      setSaving(true);
+      pendingRef.current = true;
+      const version = ++versionRef.current;
+      queueRef.current = queueRef.current.then(async () => {
+        try {
+          const saved = await repository.saveSettings(next);
+          if (version === versionRef.current) {
+            settingsRef.current = saved;
+            pendingRef.current = false;
+            setSettings(saved);
+            setSaving(false);
+          }
+        } catch (error) {
+          console.error('Settings save error:', error);
+          if (version === versionRef.current) {
+            setSaveError(true);
+            setSaving(false);
+          }
+        }
+      });
+    }, [repository]);
+    const setLang = useCallback((lang) => saveChanges({ lang }), [saveChanges]);
+    const setDarkMode = useCallback((darkMode) => saveChanges({ darkMode }), [saveChanges]);
+    const setColorTheme = useCallback((colorTheme) => saveChanges({ colorTheme }), [saveChanges]);
+    const lang = settings ? settings.lang : 'pl';
     const value = useMemo(() => ({
       lang,
       setLang,
+      darkMode: settings && settings.darkMode,
+      setDarkMode,
+      colorTheme: settings && settings.colorTheme,
+      setColorTheme,
       t: window.MacroChef.TRANSLATIONS[lang] || window.MacroChef.TRANSLATIONS.en,
       daysList: window.MacroChef.DAYS_TRANSLATED[lang] || window.MacroChef.DAYS_TRANSLATED.en
-    }), [lang]);
+    }), [lang, setLang, settings && settings.darkMode, setDarkMode,
+      settings && settings.colorTheme, setColorTheme]);
 
-    useEffect(() => {
-      localStorage.setItem('macrochef_lang', lang);
-    }, [lang]);
-
-    return createElement(I18nContext.Provider, { value }, children);
+    if (loadError) {
+      return createElement('div', { role: 'alert' },
+        'Nie udało się wczytać ustawień / Could not load settings. ',
+        createElement('button', { type: 'button', onClick: () => setAttempt((n) => n + 1) },
+          'Spróbuj ponownie / Retry'));
+    }
+    if (!settings) return createElement('div', { role: 'status' }, 'Wczytywanie ustawień / Loading settings...');
+    return createElement(I18nContext.Provider, { value },
+      saving && createElement('div', { role: 'status', className: 'p-3 text-slate-500' },
+        value.t.settingsSaving),
+      saveError && createElement('div', {
+        role: 'alert',
+        className: 'p-3 text-red-600 dark:text-red-400'
+      }, value.t.settingsSaveError, ' ',
+      createElement('button', { type: 'button', className: 'underline', onClick: () => saveChanges({}) },
+        value.t.retry)),
+      children);
   }
 
   function useI18n() {
@@ -1372,6 +1475,9 @@ window.MacroChef = window.MacroChef || {};
     initialize() { throw new Error('initialize() must be implemented'); }
     watchAppData() { throw new Error('watchAppData() must be implemented'); }
     watchProducts() { throw new Error('watchProducts() must be implemented'); }
+    watchSettings() { throw new Error('watchSettings() must be implemented'); }
+    initializeSettings(defaults) { throw new Error('initializeSettings() must be implemented'); }
+    saveSettings(settings) { throw new Error('saveSettings() must be implemented'); }
     getAllRecipes() { throw new Error('getAllRecipes() must be implemented'); }
     saveRecipe(recipeData) { throw new Error('saveRecipe() must be implemented'); }
     deleteRecipe(id) { throw new Error('deleteRecipe() must be implemented'); }
@@ -1458,6 +1564,7 @@ window.MacroChef = window.MacroChef || {};
       super();
       this.db = new Dexie(databaseName);
       this.seedDefaults = options.seedDefaults !== false;
+      this.userId = options.userId || 'guest';
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -1508,6 +1615,7 @@ window.MacroChef = window.MacroChef || {};
         }
       });
       this.db.version(4).stores({ planner: null });
+      this.db.version(5).stores({ settings: 'id, userId' });
       this.mutations = new OfflineMutationDecorator(this.db);
 
       this.db.on('populate', async () => {
@@ -1584,6 +1692,35 @@ window.MacroChef = window.MacroChef || {};
 
     watchProducts() {
       return Dexie.liveQuery(() => this.db.products.toArray());
+    }
+
+    watchSettings() {
+      return Dexie.liveQuery(() => this.db.settings.where('userId').equals(this.userId).first());
+    }
+
+    async initializeSettings(defaults) {
+      return await this.db.transaction('rw', this.db.settings, async () => {
+        const current = await this.db.settings.where('userId').equals(this.userId).first();
+        if (current) return current;
+        const settings = { ...defaults, id: window.crypto.randomUUID(), userId: this.userId };
+        await this.db.settings.add(settings);
+        return settings;
+      });
+    }
+
+    async saveSettings(settings) {
+      return await this.mutations.transaction([this.db.settings], async ({ put }) => {
+        const current = await this.db.settings.where('userId').equals(this.userId).first();
+        if (!current) throw new Error('Settings have not been initialized');
+        const saved = {
+          ...current,
+          lang: settings.lang,
+          darkMode: settings.darkMode,
+          colorTheme: settings.colorTheme
+        };
+        await put(this.db.settings, saved);
+        return saved;
+      });
     }
 
     async getAllRecipes() {
@@ -1709,7 +1846,7 @@ window.MacroChef = window.MacroChef || {};
     const suffix = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
     const databaseName = `MacroChef-account-${suffix}`;
     return {
-      repository: new window.MacroChef.DexieCalorieRepository(databaseName, { seedDefaults: false }),
+      repository: new window.MacroChef.DexieCalorieRepository(databaseName, { seedDefaults: false, userId: scope.userId }),
       shoppingStorageKey: `macrochef_checked_${suffix}`
     };
   }
@@ -4414,13 +4551,7 @@ window.MacroChef = window.MacroChef || {};
 
   function App() {
     const [activeTab, setActiveTab] = useState('planner');
-    const [darkMode, setDarkMode] = useState(() => {
-      return localStorage.getItem('macrochef_dark') === 'true';
-    });
-    const { lang, t } = window.MacroChef.useI18n();
-    const [colorTheme, setColorTheme] = useState(() => {
-      return localStorage.getItem('macrochef_color_theme') || 'emerald';
-    });
+    const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
 
     const appData = useRepositoryQuery(
       () => repositories.watchAppData(),
@@ -4464,11 +4595,6 @@ window.MacroChef = window.MacroChef || {};
     const [editingRecipe, setEditingRecipe] = useState(null);
 
     useEffect(() => {
-      localStorage.setItem('macrochef_dark', String(darkMode));
-    }, [darkMode]);
-
-    useEffect(() => {
-      localStorage.setItem('macrochef_color_theme', colorTheme);
       document.documentElement.setAttribute('data-color-theme', colorTheme);
 
       // Update mobile status bar theme-color

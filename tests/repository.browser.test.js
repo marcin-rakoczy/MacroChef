@@ -64,6 +64,46 @@
     }
   }));
 
+  test('Settings migrate once, persist after reopening and remain user-scoped', () => withRepository(async (repository) => {
+    const defaults = { lang: 'en', colorTheme: 'violet', darkMode: true };
+    const [first, concurrent] = await Promise.all([
+      repository.initializeSettings(defaults),
+      repository.initializeSettings({ lang: 'pl', colorTheme: 'emerald', darkMode: false })
+    ]);
+    equal(first.id, concurrent.id, 'Concurrent initialization created duplicate settings');
+    const changed = { lang: 'pl', colorTheme: 'mono', darkMode: false };
+    await repository.saveSettings(changed);
+    await repository.initializeSettings(defaults);
+    const other = new window.MacroChef.DexieCalorieRepository(repository.db.name, {
+      seedDefaults: false, userId: 'other-user'
+    });
+    try {
+      await other.initializeSettings(defaults);
+      repository.db.close();
+      await repository.db.open();
+      const restored = await repository.initializeSettings(defaults);
+      Object.keys(changed).forEach((key) => equal(restored[key], changed[key], `Restored ${key}`));
+      equal((await other.db.settings.where('userId').equals('other-user').first()).lang, 'en',
+        'Other user settings changed');
+      equal(await other.db.settings.count(), 2, 'Settings record count');
+    } finally {
+      other.db.close();
+    }
+  }));
+
+  test('Offline settings changes are journaled', () => withRepository(async (repository) => {
+    await repository.initializeSettings({ lang: 'pl', colorTheme: 'emerald', darkMode: false });
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    try {
+      await repository.saveSettings({ lang: 'en', colorTheme: 'violet', darkMode: true });
+      const entry = (await repository.db.OutboxQueue.toArray())[0];
+      assert(entry && entry.table === 'settings' && entry.action === 'update' &&
+        entry.payload.value.lang === 'en', 'Settings update was not journaled');
+    } finally {
+      delete navigator.onLine;
+    }
+  }));
+
   test('Delete recipe and clear only its planner references', () => withRepository(async (repository) => {
     const deleted = await repository.saveRecipe({ name: 'Delete' });
     const kept = await repository.saveRecipe({ name: 'Keep' });

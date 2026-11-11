@@ -21,13 +21,7 @@ window.MacroChef = window.MacroChef || {};
 
   function App() {
     const [activeTab, setActiveTab] = useState('planner');
-    const [darkMode, setDarkMode] = useState(() => {
-      return localStorage.getItem('macrochef_dark') === 'true';
-    });
-    const { lang, t } = window.MacroChef.useI18n();
-    const [colorTheme, setColorTheme] = useState(() => {
-      return localStorage.getItem('macrochef_color_theme') || 'emerald';
-    });
+    const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
 
     const appData = useRepositoryQuery(
       () => repositories.watchAppData(),
@@ -71,11 +65,6 @@ window.MacroChef = window.MacroChef || {};
     const [editingRecipe, setEditingRecipe] = useState(null);
 
     useEffect(() => {
-      localStorage.setItem('macrochef_dark', String(darkMode));
-    }, [darkMode]);
-
-    useEffect(() => {
-      localStorage.setItem('macrochef_color_theme', colorTheme);
       document.documentElement.setAttribute('data-color-theme', colorTheme);
 
       // Update mobile status bar theme-color

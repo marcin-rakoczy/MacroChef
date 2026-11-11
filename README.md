@@ -125,6 +125,8 @@ If saving fails, the goals screen displays an error and offers a retry.
 - English & Polish translations
 - All labels, descriptions, and goal explanations in both languages
 - Language toggle in header
+- Language, color palette and light/dark mode are saved in IndexedDB and restored on reopening.
+  Existing localStorage preferences are imported on first use; settings stay on this browser and device.
 
 ---
 
