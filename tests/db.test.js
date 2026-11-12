@@ -49,6 +49,19 @@
       entry.payload.changes.Lunch === undefined), 'Missing removed field in journal');
     assert(entries.every((entry) => typeof entry.id === 'string' && typeof entry.timestamp === 'number'), 'Invalid journal metadata');
 
+    const imported = await repository.saveRecipes([
+      { name: { en: 'Imported one', pl: 'Importowany jeden' } },
+      { name: { en: 'Imported two', pl: 'Importowany dwa' } }
+    ]);
+    assert(imported.length === 2 && imported[0].id !== imported[1].id, 'Batch import IDs were not unique');
+    assert(imported.every((item) => typeof item.updatedAt === 'string'), 'Batch import timestamps missing');
+    const importedEntries = (await db.OutboxQueue.toArray()).filter(
+      (entry) => entry.table === 'recipes' && entry.action === 'create' &&
+        entry.payload.name && typeof entry.payload.name.en === 'string' &&
+        entry.payload.name.en.startsWith('Imported ')
+    );
+    assert(importedEntries.length === 2, 'Batch import was not journaled');
+
     await repository.saveRecipe({ ...recipe, name: 'Updated recipe' });
     const replacement = (await db.OutboxQueue.toArray()).find(
       (entry) => entry.action === 'update' && entry.table === 'recipes'
@@ -60,6 +73,14 @@
     const failQueue = () => { throw new Error('Queue write failed'); };
     db.OutboxQueue.hook('creating', failQueue);
     let failed = false;
+    const recipeCountBeforeFailedImport = await db.recipes.count();
+    try {
+      await repository.saveRecipes([{ name: 'Must roll back 1' }, { name: 'Must roll back 2' }]);
+    } catch (error) {
+      failed = true;
+    }
+    assert(failed && await db.recipes.count() === recipeCountBeforeFailedImport, 'Failed batch import was not rolled back');
+    failed = false;
     try {
       await repository.saveProduct({ name: 'Must roll back' });
     } catch (error) {

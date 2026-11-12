@@ -6,19 +6,259 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
 
+  const normalizeHeader = (value) => value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  const parseCsvRows = (text) => {
+    let delimiter;
+    const separatorLine = text.match(/^sep=(,|;|\t)\r?\n/i);
+    if (separatorLine) {
+      delimiter = separatorLine[1];
+      text = text.slice(separatorLine[0].length);
+    } else {
+      const firstLine = text.split(/\r?\n/, 1)[0] || '';
+      delimiter = [',', ';', '\t'].reduce((selected, candidate) => {
+        const count = (firstLine.match(new RegExp(candidate === '\t' ? '\\t' : `\\${candidate}`, 'g')) || []).length;
+        const selectedCount = (firstLine.match(new RegExp(selected === '\t' ? '\\t' : `\\${selected}`, 'g')) || []).length;
+        return count > selectedCount ? candidate : selected;
+      }, ',');
+    }
+
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const character = text[i];
+      if (inQuotes) {
+        if (character === '"' && text[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else if (character === '"') {
+          inQuotes = false;
+        } else {
+          field += character;
+        }
+      } else if (character === '"' && field.length === 0) {
+        inQuotes = true;
+      } else if (character === delimiter) {
+        row.push(field);
+        field = '';
+      } else if (character === '\n' || character === '\r') {
+        if (character === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(field);
+        if (row.some((cell) => cell.trim())) rows.push(row);
+        row = [];
+        field = '';
+      } else {
+        field += character;
+      }
+    }
+    if (inQuotes) throw new Error('The CSV file contains an unclosed quoted field.');
+    row.push(field);
+    if (row.some((cell) => cell.trim())) rows.push(row);
+    return rows;
+  };
+
+  const parseRecipeCsv = (text) => {
+    const rows = parseCsvRows(text.replace(/^\uFEFF/, ''));
+    if (rows.length < 2) throw new Error('The CSV file must contain a header and at least one recipe.');
+
+    const fields = {
+      name: ['name', 'nazwa'],
+      category: ['category', 'kategoria'],
+      prepTime: ['preptime', 'preparationtime', 'czasprzygotowania'],
+      servings: ['servings', 'portions', 'porcje', 'liczbaporcji'],
+      calories: ['calories', 'kcal', 'kalorie', 'caloriesperserving', 'kalorienaporcje'],
+      protein: ['protein', 'bialko', 'proteinperserving', 'bialkonaporcje'],
+      carbs: ['carbs', 'carbohydrates', 'weglowodany', 'carbsperserving', 'weglowodanynaporcje'],
+      fats: ['fats', 'fat', 'tluszcze', 'fatsperserving', 'tluszczenaporcje'],
+      steps: ['steps', 'instructions', 'kroki']
+    };
+    const headerIndexes = new Map();
+    const ingredientColumns = new Map();
+    rows[0].forEach((header, index) => {
+      const normalized = normalizeHeader(header);
+      let field = Object.keys(fields).find((key) => fields[key].includes(normalized));
+      const englishIngredient = normalized.match(/^ingredient(\d+)(name|amount|unit|packagesize|packageunit)$/);
+      const polishIngredient = normalized.match(/^skladnik(\d+)(nazwa|ilosc|jednostka|rozmiaropakowania|jednostkaopakowania)$/);
+      const match = englishIngredient || polishIngredient;
+      if (match) {
+        const ingredientField = englishIngredient
+          ? { name: 'name', amount: 'amount', unit: 'unit', packagesize: 'packageSize', packageunit: 'packageUnit' }[match[2]]
+          : { nazwa: 'name', ilosc: 'amount', jednostka: 'unit', rozmiaropakowania: 'packageSize', jednostkaopakowania: 'packageUnit' }[match[2]];
+        const key = `${match[1]}-${ingredientField}`;
+        if (ingredientColumns.has(key)) throw new Error(`Duplicate CSV column: ${header}`);
+        ingredientColumns.set(key, index);
+      } else if (field) {
+        if (headerIndexes.has(field)) throw new Error(`Duplicate CSV column: ${header}`);
+        headerIndexes.set(field, index);
+      }
+    });
+
+    const requiredFields = ['name', 'category', 'prepTime', 'servings', 'calories', 'protein', 'carbs', 'fats', 'steps'];
+    const missingFields = requiredFields.filter((field) => !headerIndexes.has(field));
+    if (missingFields.length) {
+      throw new Error(`Missing required CSV columns: ${missingFields.join(', ')}.`);
+    }
+    if (![...ingredientColumns.keys()].some((key) => key.endsWith('-name'))) {
+      throw new Error('Add ingredient columns such as ingredient1Name, ingredient1Amount, and ingredient1Unit.');
+    }
+
+    const cell = (row, key) => {
+      const index = headerIndexes.get(key);
+      return index === undefined ? '' : (row[index] || '').trim();
+    };
+    const numberCell = (value, label, rowNumber, minimum = 0) => {
+      const normalized = value.includes(',') && !value.includes('.')
+        ? value.replace(',', '.')
+        : value;
+      const number = Number(normalized);
+      if (!value || !Number.isFinite(number) || number < minimum) {
+        throw new Error(`Row ${rowNumber}: "${label}" must be a number${minimum ? ` greater than or equal to ${minimum}` : ''}.`);
+      }
+      return number;
+    };
+    const categories = {
+      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
+      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
+      lunch: { en: 'Lunch', pl: 'Obiad' },
+      obiad: { en: 'Lunch', pl: 'Obiad' },
+      dinner: { en: 'Dinner', pl: 'Kolacja' },
+      kolacja: { en: 'Dinner', pl: 'Kolacja' },
+      snack: { en: 'Snack', pl: 'Przekąska' },
+      przekaska: { en: 'Snack', pl: 'Przekąska' }
+    };
+    const unitValue = (value, label, rowNumber) => {
+      const normalized = normalizeHeader(value);
+      const unit = { g: 'g', ml: 'ml', pcs: 'pcs', szt: 'pcs', porcja: 'porcja', portion: 'porcja' }[normalized];
+      if (!unit) throw new Error(`Row ${rowNumber}: "${label}" must be g, ml, pcs, or porcja.`);
+      return unit;
+    };
+
+    return rows.slice(1).map((row, rowIndex) => {
+      const rowNumber = rowIndex + 2;
+      if (row.length > rows[0].length && row.slice(rows[0].length).some((value) => value.trim())) {
+        throw new Error(`Row ${rowNumber}: there are more values than CSV headers.`);
+      }
+      if (row.length < rows[0].length) row.length = rows[0].length;
+
+      const name = cell(row, 'name');
+      if (!name) throw new Error(`Row ${rowNumber}: recipe name is required.`);
+      const categoryKey = normalizeHeader(cell(row, 'category'));
+      const category = categories[categoryKey];
+      if (!category) {
+        throw new Error(`Row ${rowNumber}: category must be Breakfast, Lunch, Dinner, or Snack.`);
+      }
+      const ingredients = [];
+      const ingredientNumbers = [...new Set(
+        [...ingredientColumns.keys()].map((key) => key.split('-')[0])
+      )].sort((a, b) => Number(a) - Number(b));
+      ingredientNumbers.forEach((ingredientNumber) => {
+        const getIngredientCell = (field) => {
+          const index = ingredientColumns.get(`${ingredientNumber}-${field}`);
+          return index === undefined ? '' : (row[index] || '').trim();
+        };
+        const ingredientName = getIngredientCell('name');
+        const ingredientAmount = getIngredientCell('amount');
+        const ingredientUnitValue = getIngredientCell('unit');
+        const packageSize = getIngredientCell('packageSize');
+        const packageUnitValue = getIngredientCell('packageUnit');
+        if (!ingredientName) {
+          if ([ingredientAmount, ingredientUnitValue, packageSize, packageUnitValue].some(Boolean)) {
+            throw new Error(`Row ${rowNumber}: ingredient ${ingredientNumber} needs a name.`);
+          }
+          return;
+        }
+        if (!ingredientUnitValue || !packageUnitValue) {
+          throw new Error(`Row ${rowNumber}: ingredient ${ingredientNumber} needs both unit and package unit.`);
+        }
+        const ingredientUnit = unitValue(ingredientUnitValue, `ingredient ${ingredientNumber} unit`, rowNumber);
+        const packageUnit = unitValue(packageUnitValue, `ingredient ${ingredientNumber} package unit`, rowNumber);
+        if (packageUnit !== ingredientUnit) {
+          throw new Error(`Row ${rowNumber}: ingredient ${ingredientNumber} package unit must match its unit.`);
+        }
+        const amount = numberCell(ingredientAmount, `ingredient ${ingredientNumber} amount`, rowNumber);
+        ingredients.push({
+          name: { en: ingredientName, pl: ingredientName },
+          amount,
+          unit: ingredientUnit,
+          packageSize: numberCell(packageSize, `ingredient ${ingredientNumber} package size`, rowNumber),
+          packageUnit: ingredientUnit
+        });
+      });
+      if (ingredients.length === 0) {
+        throw new Error(`Row ${rowNumber}: add at least one ingredient.`);
+      }
+
+      const stepsText = cell(row, 'steps');
+      const steps = stepsText
+        ? stepsText.split(/\|[\s]*|\r?\n/).map((step) => step.trim()).filter(Boolean)
+        : [];
+      if (steps.length === 0) throw new Error(`Row ${rowNumber}: add at least one cooking step.`);
+      return {
+        name: { en: name, pl: name },
+        category,
+        prepTime: cell(row, 'prepTime'),
+        servings: numberCell(cell(row, 'servings'), 'servings', rowNumber, 1),
+        calories: numberCell(cell(row, 'calories'), 'calories', rowNumber),
+        protein: numberCell(cell(row, 'protein'), 'protein', rowNumber),
+        carbs: numberCell(cell(row, 'carbs'), 'carbs', rowNumber),
+        fats: numberCell(cell(row, 'fats'), 'fats', rowNumber),
+        ingredients,
+        steps: { en: steps, pl: steps }
+      };
+    });
+  };
+  window.MacroChef.recipeCsv.parse = parseRecipeCsv;
+
   function RecipeLibrary({
     recipes,
     onCreateRecipe,
     onEditRecipe,
     onDeleteRecipe,
+    onImportRecipes,
     onStartBatchCooking
   }) {
     const { t, lang } = window.MacroChef.useI18n();
+    const importInputRef = React.useRef(null);
+
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
       if (window.confirm(`${t.confirmDelete} (${name})`)) {
         onDeleteRecipe(recipe.id);
       }
+    };
+
+    const handleImportFile = async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const importedRecipes = window.MacroChef.recipeCsv.parse(await file.text(), lang);
+        await onImportRecipes(importedRecipes);
+        window.alert(t.recipeImportSuccess.replace('{count}', importedRecipes.length));
+      } catch (error) {
+        console.error('Failed to import recipes from CSV:', error);
+        window.alert(`${t.recipeImportError} ${error.message}`);
+      } finally {
+        event.target.value = '';
+      }
+    };
+
+    const handleDownloadTemplate = () => {
+      const csv = window.MacroChef.recipeCsv.createTemplate(lang);
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'macrochef-recipes-template.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     return (
@@ -34,13 +274,42 @@ window.MacroChef.components = window.MacroChef.components || {};
             </p>
           </div>
 
-          <button
-            onClick={onCreateRecipe}
-            className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
-          >
-            <Icon name="plus" className="w-4 h-4" />
-            <span>{t.createRecipe}</span>
-          </button>
+          <div className="flex flex-col items-stretch sm:items-end gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => importInputRef.current && importInputRef.current.click()}
+                className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
+              >
+                <Icon name="upload" className="w-4 h-4" />
+                <span>{t.importRecipes}</span>
+              </button>
+              <button
+                onClick={onCreateRecipe}
+                className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+              >
+                <Icon name="plus" className="w-4 h-4" />
+                <span>{t.createRecipe}</span>
+              </button>
+            </div>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="self-end text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
+            >
+              {t.downloadRecipeCsvTemplate}
+            </button>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-right">
+              {t.recipeImportHint}
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

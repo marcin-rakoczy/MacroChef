@@ -11,6 +11,7 @@ window.MacroChef = window.MacroChef || {};
     saveSettings(settings) { throw new Error('saveSettings() must be implemented'); }
     getAllRecipes() { throw new Error('getAllRecipes() must be implemented'); }
     saveRecipe(recipeData) { throw new Error('saveRecipe() must be implemented'); }
+    saveRecipes(recipes) { throw new Error('saveRecipes() must be implemented'); }
     deleteRecipe(id) { throw new Error('deleteRecipe() must be implemented'); }
     savePlannerSlot(dayKey, currentDayPlan, mealType, recipeId) {
       throw new Error('savePlannerSlot() must be implemented');
@@ -267,6 +268,23 @@ window.MacroChef = window.MacroChef || {};
         return put(this.db.recipes, recipe);
       });
       return recipe;
+    }
+
+    async saveRecipes(recipeData) {
+      if (!Array.isArray(recipeData) || recipeData.length === 0) {
+        throw new TypeError('At least one recipe is required');
+      }
+      const recipes = recipeData.map((data) => ({
+        ...data,
+        id: createId('rec'),
+        updatedAt: new Date().toISOString()
+      }));
+      await this.mutations.transaction([this.db.recipes], async ({ put }) => {
+        for (const recipe of recipes) {
+          await put(this.db.recipes, recipe);
+        }
+      });
+      return recipes;
     }
 
     async deleteRecipe(id) {

@@ -140,6 +140,10 @@ window.MacroChef = window.MacroChef || {};
       setEditingRecipe(null);
     };
 
+    const handleImportRecipes = async (recipeData) => {
+      await repositories.saveRecipes(recipeData);
+    };
+
     const handleDeleteRecipe = async (id) => {
       await repositories.deleteRecipe(id);
       if (selectedBatchRecipe && selectedBatchRecipe.id === id) {
@@ -233,6 +237,7 @@ window.MacroChef = window.MacroChef || {};
                   setShowRecipeModal(true);
                 }}
                 onDeleteRecipe={handleDeleteRecipe}
+                onImportRecipes={handleImportRecipes}
                 onStartBatchCooking={handleStartBatchCooking}
               />
             )}
