@@ -16,6 +16,7 @@ const filesToBundle = [
   'i18n/context.js',
   'utils/helpers.js',
   'utils/recipeCsv.js',
+  'utils/productCatalogCsv.js',
   '../src/core/nutrition/calculations.js',
   'utils/shoppingAggregator.js',
   'db.js',

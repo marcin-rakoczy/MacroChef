@@ -184,11 +184,46 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async seedProducts() {
-      if (window.MacroChef.LIDL_PRODUCTS) {
-        await this.db.products.bulkAdd(window.MacroChef.LIDL_PRODUCTS.map(
-          (product) => ({ ...product, id: createId('product') })
-        ));
-      }
+      const catalog = window.MacroChef.LIDL_PRODUCTS || [];
+      await this.db.transaction('rw', this.db.products, async () => {
+        const existing = await this.db.products.toArray();
+        const managedProducts = existing.filter((product) =>
+          product.catalogSource === 'lidl-pl-official' ||
+          (product.categoryName && typeof product.categoryName === 'object')
+        );
+        const managedBySourceId = new Map(
+          managedProducts
+            .filter((product) => product.sourceProductId)
+            .map((product) => [product.sourceProductId, product])
+        );
+        const retainedIds = new Set();
+
+        for (const product of managedProducts) {
+          if (product.catalogSource !== 'lidl-pl-official' || !product.sourceProductId) {
+            await this.db.products.delete(product.id);
+          }
+        }
+
+        for (const product of catalog) {
+          const current = managedBySourceId.get(product.id);
+          const updated = {
+            ...product,
+            id: current ? current.id : createId('product'),
+            catalogSource: 'lidl-pl-official',
+            sourceProductId: product.id
+          };
+          retainedIds.add(updated.id);
+          if (!current || JSON.stringify(current) !== JSON.stringify(updated)) {
+            await this.db.products.put(updated);
+          }
+        }
+
+        const currentManaged = (await this.db.products.toArray())
+          .filter((product) => product.catalogSource === 'lidl-pl-official');
+        for (const product of currentManaged) {
+          if (!retainedIds.has(product.id)) await this.db.products.delete(product.id);
+        }
+      });
     }
 
     async initialize() {
@@ -197,9 +232,7 @@ window.MacroChef = window.MacroChef || {};
       if (await this.db.recipes.count() === 0) {
         await this.db.transaction('rw', this.db.recipes, this.db.plannerEntries, this.db.goals, () => this.seedInitialData());
       }
-      if (await this.db.products.count() === 0) {
-        await this.seedProducts();
-      }
+      await this.seedProducts();
     }
 
     watchAppData() {

@@ -2,6 +2,7 @@
   const result = document.getElementById('result');
   const name = `MacroChef-test-${crypto.randomUUID()}`;
   const freshName = `${name}-fresh`;
+  const catalogName = `${name}-catalog`;
   const assert = (condition, message) => {
     if (!condition) throw new Error(message);
   };
@@ -109,6 +110,40 @@
       fresh.db.close();
     }
 
+    const oldCatalog = new window.MacroChef.DexieCalorieRepository(catalogName, { seedDefaults: false });
+    await oldCatalog.db.open();
+    await oldCatalog.db.products.bulkAdd([
+      {
+        id: 'legacy-default',
+        name: { pl: 'Old default item', en: 'Old default item' },
+        category: 'dairy',
+        categoryName: { pl: 'Nabiał i Jaja', en: 'Dairy & Eggs' },
+        unit: 'g',
+        packageSize: 250
+      },
+      {
+        id: 'user-product',
+        name: { pl: 'Mój produkt', en: 'My product' },
+        category: 'other',
+        unit: 'g',
+        packageSize: 123
+      }
+    ]);
+    oldCatalog.db.close();
+    const updatedCatalog = new window.MacroChef.DexieCalorieRepository(catalogName);
+    try {
+      await updatedCatalog.initialize();
+      const savedProducts = await updatedCatalog.db.products.toArray();
+      assert(!savedProducts.some((item) => item.id === 'legacy-default'), 'Unverified legacy default was retained');
+      assert(savedProducts.some((item) => item.id === 'user-product'), 'User product was removed during catalog update');
+      const officialProducts = savedProducts.filter((item) => item.catalogSource === 'lidl-pl-official');
+      assert(officialProducts.length === 3, 'Verified Lidl catalog was not seeded');
+      assert(officialProducts.every((item) => item.sourceUrl && item.sourceVerifiedAt),
+        'Verified products must retain source provenance');
+    } finally {
+      updatedCatalog.db.close();
+    }
+
     const identity = { issuer: 'test-issuer', tenantId: name, userId: 'account-a' };
     const a = await window.MacroChef.createScopedRepository(identity);
     const aAgain = await window.MacroChef.createScopedRepository({ ...identity });
@@ -149,5 +184,6 @@
     for (const databaseName of scopedDatabases) await Dexie.delete(databaseName);
     await Dexie.delete(name);
     await Dexie.delete(freshName);
+    await Dexie.delete(catalogName);
   }
 })();

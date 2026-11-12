@@ -71,6 +71,27 @@ window.MacroChef.components = window.MacroChef.components || {};
     // Reference to scroll to newly added ingredient
     const ingredientsEndRef = React.useRef(null);
 
+    const handleExportProductCatalog = () => {
+      try {
+        if (products.length === 0) {
+          window.alert(t.productCatalogEmpty);
+          return;
+        }
+        const csv = window.MacroChef.productCatalogCsv.toCsv(products);
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'macrochef-product-catalog.csv';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (error) {
+        console.error('Failed to export product catalog:', error);
+        window.alert(`${t.productCatalogExportError || 'Could not export product catalog:'} ${error.message}`);
+      }
+    };
+
     React.useEffect(() => {
       if (productQuery.error) {
         console.error('Product repository subscription error:', productQuery.error);
@@ -412,7 +433,16 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportProductCatalog}
+                    disabled={products.length === 0}
+                    className="flex items-center gap-1.5 text-xs font-bold bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-xl transition-colors"
+                  >
+                    <Icon name="download" className="w-3.5 h-3.5" />
+                    <span>{t.exportProductCatalog}</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowNewProductModal(true)}

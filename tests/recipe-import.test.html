@@ -6,9 +6,15 @@
   <script>
     window.MacroChef = { components: { Icon: function () {} }, helpers: { getLocalized: function () {} } };
   </script>
+  <script src="../js/data/lidlProducts.js"></script>
+  <script src="../js/data/starterRecipes.js"></script>
+  <script src="../js/data/defaultPlan.js"></script>
+  <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="../js/utils/recipeCsv.js"></script>
+  <script src="../js/utils/productCatalogCsv.js"></script>
+  <script src="../js/db.js"></script>
   <script src="browser-runner.js"></script>
   <script type="text/babel" src="../js/components/RecipeLibrary.js"></script>
   <script type="text/babel" src="recipe-import.test.js"></script>
