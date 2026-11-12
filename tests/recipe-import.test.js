@@ -128,7 +128,7 @@
     const products = window.MacroChef.LIDL_PRODUCTS;
     const rows = productCatalogCsv.toCsv(products).split('\r\n');
     equal(rows.length, products.length + 1, 'Exported rows including header');
-    equal(products.length, 3, 'Unexpected number of Lidl products seeded');
+    equal(products.length, 500, 'Unexpected number of Lidl products seeded');
     assert(products.every((product) => !('sourceUrl' in product) && !('sourceVerifiedAt' in product)),
       'Seeded products must not contain source metadata');
   });

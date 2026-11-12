@@ -149,7 +149,7 @@
       assert(!savedProducts.some((item) => item.id === 'legacy-default'), 'Unverified legacy default was retained');
       assert(savedProducts.some((item) => item.id === 'user-product'), 'User product was removed during catalog update');
       const officialProducts = savedProducts.filter((item) => item.catalogSource === 'lidl-pl-official');
-      assert(officialProducts.length === 3, 'Lidl catalog was not seeded');
+      assert(officialProducts.length === 500, 'Lidl catalog was not seeded');
       assert(officialProducts.every((item) => !('sourceUrl' in item) && !('sourceVerifiedAt' in item)),
         'Catalog sync must remove old source metadata from stored products');
     } finally {

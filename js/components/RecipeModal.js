@@ -274,6 +274,14 @@ window.MacroChef.components = window.MacroChef.components || {};
       { key: 'all', label: lang === 'pl' ? 'Wszystkie' : 'All' },
       { key: 'meat', label: lang === 'pl' ? 'Mięso i Ryby' : 'Meat & Fish' },
       { key: 'dairy', label: lang === 'pl' ? 'Nabiał i Jaja' : 'Dairy & Eggs' },
+      { key: 'produce', label: lang === 'pl' ? 'Owoce i Warzywa' : 'Fruits & Vegetables' },
+      { key: 'bakery', label: lang === 'pl' ? 'Pieczywo' : 'Bakery' },
+      { key: 'pantry', label: lang === 'pl' ? 'Spiżarnia' : 'Pantry' },
+      { key: 'snacks', label: lang === 'pl' ? 'Przekąski' : 'Snacks' },
+      { key: 'beverages', label: lang === 'pl' ? 'Napoje' : 'Beverages' },
+      { key: 'frozen', label: lang === 'pl' ? 'Mrożonki' : 'Frozen' },
+      { key: 'vegan', label: lang === 'pl' ? 'Roślinne' : 'Plant-based' },
+      { key: 'spices', label: lang === 'pl' ? 'Przyprawy i Sosy' : 'Spices & Sauces' },
       { key: 'grains', label: lang === 'pl' ? 'Zbożowe i Kasze' : 'Grains & Pasta' },
       { key: 'veggies', label: lang === 'pl' ? 'Warzywa i Owoce' : 'Vegetables & Fruits' },
       { key: 'fats', label: lang === 'pl' ? 'Tłuszcze i Dodatki' : 'Fats & Extras' }
@@ -810,6 +818,14 @@ window.MacroChef.components = window.MacroChef.components || {};
                       <option value="grains">{lang === 'pl' ? 'Produkty Zbożowe i Kasze' : 'Grains & Pasta'}</option>
                       <option value="veggies">{lang === 'pl' ? 'Warzywa i Owoce' : 'Vegetables & Fruits'}</option>
                       <option value="fats">{lang === 'pl' ? 'Tłuszcze i Dodatki' : 'Fats & Extras'}</option>
+                      <option value="bakery">{lang === 'pl' ? 'Pieczywo' : 'Bakery'}</option>
+                      <option value="pantry">{lang === 'pl' ? 'Spiżarnia' : 'Pantry'}</option>
+                      <option value="snacks">{lang === 'pl' ? 'Przekąski' : 'Snacks'}</option>
+                      <option value="beverages">{lang === 'pl' ? 'Napoje' : 'Beverages'}</option>
+                      <option value="frozen">{lang === 'pl' ? 'Mrożonki' : 'Frozen'}</option>
+                      <option value="vegan">{lang === 'pl' ? 'Produkty roślinne' : 'Plant-based'}</option>
+                      <option value="spices">{lang === 'pl' ? 'Przyprawy, sosy i oleje' : 'Spices, sauces & oils'}</option>
+                      <option value="produce">{lang === 'pl' ? 'Owoce i Warzywa' : 'Fruits & Vegetables'}</option>
                     </select>
                   </div>
 

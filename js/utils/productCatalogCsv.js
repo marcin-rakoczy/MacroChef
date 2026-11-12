@@ -7,6 +7,14 @@ window.MacroChef = window.MacroChef || {};
     grains: { pl: 'Produkty Zbożowe', en: 'Grains & Pasta' },
     veggies: { pl: 'Warzywa i Owoce', en: 'Vegetables & Fruits' },
     fats: { pl: 'Tłuszcze i Dodatki', en: 'Fats & Extras' },
+    produce: { pl: 'Owoce i Warzywa', en: 'Fruits & Vegetables' },
+    bakery: { pl: 'Pieczywo', en: 'Bakery' },
+    pantry: { pl: 'Produkty Sypkie i Przetwory', en: 'Pantry & Dry Goods' },
+    snacks: { pl: 'Orzechy, Bakalie i Przekąski', en: 'Nuts, Dried Fruit & Snacks' },
+    beverages: { pl: 'Napoje, Kawa i Herbata', en: 'Beverages, Coffee & Tea' },
+    frozen: { pl: 'Mrożonki', en: 'Frozen Foods' },
+    vegan: { pl: 'Produkty Roślinne (Vemondo)', en: 'Plant-Based (Vemondo)' },
+    spices: { pl: 'Przyprawy, Sosy i Oleje', en: 'Spices, Sauces & Oils' },
     other: { pl: 'Inne', en: 'Other' }
   };
 
