@@ -419,7 +419,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
                   >
                     <Icon name="plus" className="w-3.5 h-3.5" />
-                    <span>{t.addNewProductToDb || '+ Dodaj Nowy Składnik'}</span>
+                    <span>{t.addNewProductToDb || 'Dodaj Nowy Składnik'}</span>
                   </button>
                 </div>
               </div>
