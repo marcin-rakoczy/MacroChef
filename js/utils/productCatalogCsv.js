@@ -16,8 +16,7 @@ window.MacroChef = window.MacroChef || {};
     }
 
     const rows = [[
-      'id', 'name_pl', 'name_en', 'category', 'category_pl', 'category_en', 'unit', 'package_size',
-      'source_url', 'source_verified_at'
+      'id', 'name_pl', 'name_en', 'category', 'category_pl', 'category_en', 'unit', 'package_size'
     ]];
     products.forEach((product) => {
       if (!product || typeof product !== 'object' || typeof product.id !== 'string' || !product.id) {
@@ -35,9 +34,7 @@ window.MacroChef = window.MacroChef || {};
         categoryName.pl || product.category || '',
         categoryName.en || product.category || '',
         product.unit || '',
-        product.packageSize === undefined || product.packageSize === null ? '' : product.packageSize,
-        product.sourceUrl || '',
-        product.sourceVerifiedAt || ''
+        product.packageSize === undefined || product.packageSize === null ? '' : product.packageSize
       ]);
     });
 

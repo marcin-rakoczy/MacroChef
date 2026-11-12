@@ -95,9 +95,7 @@
         category: 'dairy',
         categoryName: { pl: 'Nabiał i Jaja', en: 'Dairy & Eggs' },
         unit: 'g',
-        packageSize: 200,
-        sourceUrl: 'https://www.lidl.pl/p/test',
-        sourceVerifiedAt: '2026-11-12'
+        packageSize: 200
       },
       {
         id: 'product-2',
@@ -112,10 +110,11 @@
     assert(rows[0].includes('"name_pl";"name_en"'), 'CSV must contain both language names');
     assert(rows[0].includes('"category";"category_pl";"category_en"'), 'CSV must contain categories');
     assert(rows[0].includes('"unit";"package_size"'), 'CSV must contain unit and package size');
-    assert(rows[0].includes('"source_url";"source_verified_at"'), 'CSV must contain source provenance');
+    assert(!rows[0].includes('source_url') && !rows[0].includes('source_verified_at'),
+      'CSV must not contain source metadata');
     assert(rows[1].includes('"Serek ""Pilos"""'), 'CSV must escape quotes in product names');
     assert(rows[1].includes('"Dairy & Eggs"'), 'Missing English category name');
-    assert(rows[1].includes('"https://www.lidl.pl/p/test";"2026-11-12"'), 'Missing source provenance');
+    equal(rows[1].split(';').length, 8, 'CSV must export only catalog product fields');
     assert(rows[2].includes('"Mleko";"Mleko"'), 'Missing fallback for untranslated product name');
   });
 
@@ -129,9 +128,9 @@
     const products = window.MacroChef.LIDL_PRODUCTS;
     const rows = productCatalogCsv.toCsv(products).split('\r\n');
     equal(rows.length, products.length + 1, 'Exported rows including header');
-    equal(products.length, 3, 'Only explicitly verified Lidl products should be seeded');
-    assert(products.every((product) => product.sourceUrl && product.sourceVerifiedAt),
-      'Every default catalog item must cite its official source and verification date');
+    equal(products.length, 3, 'Unexpected number of Lidl products seeded');
+    assert(products.every((product) => !('sourceUrl' in product) && !('sourceVerifiedAt' in product)),
+      'Seeded products must not contain source metadata');
   });
 
   run();

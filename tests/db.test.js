@@ -122,6 +122,18 @@
         packageSize: 250
       },
       {
+        id: 'old-lidl-product',
+        name: { pl: 'Masło, Mleczna Krowa, 82% (Pilos)', en: 'Mleczna Krowa Butter, 82% (Pilos)' },
+        category: 'dairy',
+        categoryName: { pl: 'Nabiał i Jaja', en: 'Dairy & Eggs' },
+        unit: 'g',
+        packageSize: 200,
+        catalogSource: 'lidl-pl-official',
+        sourceProductId: 'lidl-verified-1',
+        sourceUrl: 'https://www.lidl.pl/p/test',
+        sourceVerifiedAt: '2026-11-12'
+      },
+      {
         id: 'user-product',
         name: { pl: 'Mój produkt', en: 'My product' },
         category: 'other',
@@ -137,9 +149,9 @@
       assert(!savedProducts.some((item) => item.id === 'legacy-default'), 'Unverified legacy default was retained');
       assert(savedProducts.some((item) => item.id === 'user-product'), 'User product was removed during catalog update');
       const officialProducts = savedProducts.filter((item) => item.catalogSource === 'lidl-pl-official');
-      assert(officialProducts.length === 3, 'Verified Lidl catalog was not seeded');
-      assert(officialProducts.every((item) => item.sourceUrl && item.sourceVerifiedAt),
-        'Verified products must retain source provenance');
+      assert(officialProducts.length === 3, 'Lidl catalog was not seeded');
+      assert(officialProducts.every((item) => !('sourceUrl' in item) && !('sourceVerifiedAt' in item)),
+        'Catalog sync must remove old source metadata from stored products');
     } finally {
       updatedCatalog.db.close();
     }

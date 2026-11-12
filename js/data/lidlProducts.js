@@ -1,4 +1,4 @@
-// Lidl Poland products with package sizes verified on official product pages.
+// Lidl Poland products included in the local catalog.
 window.MacroChef = window.MacroChef || {};
 
 window.MacroChef.LIDL_PRODUCTS = [
@@ -8,9 +8,7 @@ window.MacroChef.LIDL_PRODUCTS = [
     category: 'dairy',
     categoryName: { pl: 'Nabiał i Jaja', en: 'Dairy & Eggs' },
     unit: 'g',
-    packageSize: 200,
-    sourceUrl: 'https://www.lidl.pl/p/pilos-maslo-mleczna-krowa-82/p11676840',
-    sourceVerifiedAt: '2026-11-12'
+    packageSize: 200
   },
   {
     id: 'lidl-verified-2',
@@ -18,9 +16,7 @@ window.MacroChef.LIDL_PRODUCTS = [
     category: 'dairy',
     categoryName: { pl: 'Nabiał i Jaja', en: 'Dairy & Eggs' },
     unit: 'g',
-    packageSize: 1000,
-    sourceUrl: 'https://www.lidl.pl/p/mlekovita-ser-gouda-w-plastrach-xxl/p11405635',
-    sourceVerifiedAt: '2026-11-12'
+    packageSize: 1000
   },
   {
     id: 'lidl-verified-3',
@@ -28,8 +24,6 @@ window.MacroChef.LIDL_PRODUCTS = [
     category: 'meat',
     categoryName: { pl: 'Mięso i Ryby', en: 'Meat & Fish' },
     unit: 'pcs',
-    packageSize: 16,
-    sourceUrl: 'https://www.lidl.pl/p/pikok-kielbasa-slaska-xxl/p11437091',
-    sourceVerifiedAt: '2026-11-12'
+    packageSize: 16
   }
 ];
