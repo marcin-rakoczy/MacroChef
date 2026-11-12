@@ -524,6 +524,14 @@ You can directly open [macrochef_calorie_meal_planner_pwa.html](file:///c:/Repo/
 npm run build
 ```
 
+### Publish a new GitHub Pages version
+```bash
+# Increment the patch version and Service Worker cache version before each release
+node scripts/bump-version.js
+npm run build
+```
+The current app version is shown at the bottom of the hamburger menu.
+
 ### Development Server
 ```bash
 # Starts local dev server with hot reload

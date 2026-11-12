@@ -4,6 +4,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const origin = 'https://macrochef.test/';
+const appVersion = fs.readFileSync(path.join(__dirname, '..', 'js', 'data', 'appVersion.js'), 'utf8')
+  .match(/APP_VERSION = '([^']+)'/)[1];
+const cacheName = `macrochef-v${appVersion}`;
 const handlers = {};
 const stores = new Map();
 let privateResponse = false;
@@ -103,7 +106,7 @@ function request(url, headers = {}) {
   const revalidated = request('/index.html');
   assert.ok(await revalidated.result);
   await revalidated.background;
-  assert.equal(stores.get('macrochef-v10').has(key('/index.html')), false);
+  assert.equal(stores.get(cacheName).has(key('/index.html')), false);
   console.log('PASS: static and CDN allowlists, offline cache, quota handling, cache ownership');
 })().catch((error) => {
   console.error(error);

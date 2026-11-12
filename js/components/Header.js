@@ -79,7 +79,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
             {/* DROPDOWN MENU */}
             {isMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl z-50 p-3.5 space-y-3.5 animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl z-50 p-3.5 space-y-3.5 animate-in fade-in zoom-in-95">
                 {/* 1. COLOR TONE / PALETTE SELECTION */}
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-1">
@@ -230,6 +230,11 @@ window.MacroChef.components = window.MacroChef.components || {};
                       <span>{t.english}</span>
                     </button>
                   </div>
+                </div>
+
+                <div className="h-px bg-slate-200/80 dark:bg-slate-700/80" />
+                <div className="text-center text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  MacroChef v{window.MacroChef.APP_VERSION || '0.0.0'}
                 </div>
               </div>
             )}
