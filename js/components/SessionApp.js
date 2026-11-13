@@ -41,6 +41,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         if (event === 'changing') {
           sequence.current++;
           wantedRef.current = null;
+          if (activeRef.current && activeRef.current.syncManager) activeRef.current.syncManager.stop();
           setActive(null);
           setTarget({ suspended: true });
         } else {
@@ -63,8 +64,10 @@ window.MacroChef.components = window.MacroChef.components || {};
       async function open() {
         try {
           if (activeRef.current) {
-            activeRef.current.repository.close();
+            const previous = activeRef.current;
             activeRef.current = null;
+            if (previous.syncManager) await previous.syncManager.stop();
+            previous.repository.close();
           }
           if (target.suspended) return;
           next = target.session
@@ -113,6 +116,14 @@ window.MacroChef.components = window.MacroChef.components || {};
             next.repository.close();
             return;
           }
+          if (target.session) {
+            next.syncManager = new window.MacroChef.AppSyncManager();
+            next.syncManager.start({
+              repository: next.repository,
+              userId: target.session.userId,
+              client: window.MacroChef.supabaseClient
+            });
+          }
           activeRef.current = next;
           setActive({ ...next, key: target.key, session: latestSession.current });
         } catch (err) {
@@ -129,12 +140,19 @@ window.MacroChef.components = window.MacroChef.components || {};
       open();
       return () => {
         cancelled = true;
-        if (next && activeRef.current !== next) next.repository.close();
+        if (next && activeRef.current !== next) {
+          if (next.syncManager) next.syncManager.stop().then(() => next.repository.close());
+          else next.repository.close();
+        }
       };
     }, [target]);
 
     useEffect(() => () => {
-      if (activeRef.current) activeRef.current.repository.close();
+      if (activeRef.current) {
+        const previous = activeRef.current;
+        if (previous.syncManager) previous.syncManager.stop().then(() => previous.repository.close());
+        else previous.repository.close();
+      }
     }, []);
 
     if (!active) {
@@ -157,7 +175,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     return (
       <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
         {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
-        <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} />
+        <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} />
       </window.MacroChef.I18nProvider>
     );
   }

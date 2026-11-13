@@ -10,7 +10,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     setDarkMode,
     colorTheme,
     setColorTheme,
-    onOpenAuth
+    onOpenAuth,
+    syncStatus
   }) {
     const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -59,6 +60,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <Icon name="database" className="w-3 h-3 text-emerald-500" />
                   <span>{t.dbStatus}</span>
                 </span>
+                {syncStatus && <span role="status" title={syncStatus.message || ''} aria-label={[t[`sync_${syncStatus.state}`], syncStatus.message].filter(Boolean).join(': ')} className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                  {t[`sync_${syncStatus.state}`]}
+                </span>}
               </div>
             </div>
           </div>

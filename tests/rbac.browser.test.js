@@ -27,6 +27,23 @@
     }
   });
 
+  test('Header displays the localized sync status and conflict detail', async () => {
+    const root = ReactDOM.createRoot(rootElement);
+    try {
+      root.render(<components.Header syncStatus={{ state: 'conflict', message: 'Plan conflict' }} />);
+      await waitFor(() => rootElement.querySelector('[role="status"]'));
+      equal(rootElement.querySelector('[role="status"]').textContent, TRANSLATIONS.en.sync_conflict, 'Sync status');
+      assert(rootElement.querySelector('[role="status"]').getAttribute('aria-label').includes('Plan conflict'),
+        'Conflict detail is not accessible');
+      language = 'pl';
+      root.render(<components.Header syncStatus={{ state: 'synced' }} />);
+      await waitFor(() => rootElement.textContent.includes(TRANSLATIONS.pl.sync_synced));
+    } finally {
+      root.unmount();
+      language = 'en';
+    }
+  });
+
   test('Library only exposes recipe actions to Admin and Guest', async () => {
     const root = ReactDOM.createRoot(rootElement);
     try {

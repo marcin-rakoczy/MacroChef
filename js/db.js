@@ -47,29 +47,35 @@ window.MacroChef = window.MacroChef || {};
     }
   };
 
-  // Repository writes and their offline journal entries share one transaction.
   class OfflineMutationDecorator {
-    constructor(db) {
+    constructor(db, userId) {
       this.db = db;
+      this.userId = userId;
+      this.onChange = null;
     }
 
     transaction(tables, mutate) {
-      const offline = navigator.onLine === false;
-      return this.db.transaction('rw', ...tables, this.db.OutboxQueue, () => mutate({
+      const journal = this.userId !== 'guest' || navigator.onLine === false;
+      let changed = false;
+      const shouldJournal = (table) => journal && table.name !== 'migrationState' &&
+        (table.name !== 'settings' || this.userId === 'guest');
+      return this.db.transaction('rw', ...tables, this.db.OutboxQueue, this.db.SyncState, () => mutate({
         put: async (table, value) => {
           assertStringKey(value.id, table.name);
           const exists = await table.get(value.id);
           await table.put(value);
-          if (offline) {
+          if (shouldJournal(table)) {
             await this.enqueue(table.name, exists ? 'update' : 'create',
-              exists ? { id: value.id, value } : value);
+              exists ? { id: value.id, value } : value, value);
+            changed = true;
           }
         },
         update: async (table, id, changes) => {
           assertStringKey(id, table.name);
           const count = await table.update(id, changes);
-          if (count && offline) {
-            await this.enqueue(table.name, 'update', { id, changes });
+          if (count && shouldJournal(table)) {
+            await this.enqueue(table.name, 'update', { id, changes }, await table.get(id));
+            changed = true;
           }
         },
         delete: async (table, id) => {
@@ -77,19 +83,37 @@ window.MacroChef = window.MacroChef || {};
           const exists = await table.get(id);
           if (exists === undefined) return;
           await table.delete(id);
-          if (offline) {
+          if (shouldJournal(table)) {
             await this.enqueue(table.name, 'delete', { id });
+            changed = true;
           }
         }
-      }));
+      })).then((result) => {
+        if (changed && this.onChange) {
+          try {
+            this.onChange();
+          } catch (error) {
+            console.error('Could not schedule synchronization:', error);
+          }
+        }
+        return result;
+      });
     }
 
-    enqueue(table, action, payload) {
+    async enqueue(table, action, payload, snapshot) {
+      const id = payload.id;
+      const baseline = await this.db.SyncState.get(`${table}:${id}`);
+      const counter = await this.db.SyncState.get('@outbox-sequence');
+      const sequence = counter ? counter.sequence + 1 : 1;
+      await this.db.SyncState.put({ id: '@outbox-sequence', sequence });
       return this.db.OutboxQueue.add({
         id: createId('outbox'),
         table,
         action,
         payload: Dexie.deepClone(payload),
+        snapshot: snapshot === undefined ? undefined : Dexie.deepClone(snapshot),
+        baseUpdatedAt: baseline ? baseline.updatedAt : null,
+        sequence,
         timestamp: Date.now()
       });
     }
@@ -101,6 +125,7 @@ window.MacroChef = window.MacroChef || {};
       this.db = new Dexie(databaseName);
       this.seedDefaults = options.seedDefaults !== false;
       this.userId = options.userId || 'guest';
+      this.role = options.role;
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -153,7 +178,8 @@ window.MacroChef = window.MacroChef || {};
       this.db.version(4).stores({ planner: null });
       this.db.version(5).stores({ settings: 'id, userId' });
       this.db.version(6).stores({ migrationState: 'id, userId' });
-      this.mutations = new OfflineMutationDecorator(this.db);
+      this.db.version(7).stores({ SyncState: 'id' });
+      this.mutations = new OfflineMutationDecorator(this.db, this.userId);
 
       this.db.on('populate', async () => {
         if (this.seedDefaults) {
@@ -190,11 +216,14 @@ window.MacroChef = window.MacroChef || {};
 
     async seedProducts() {
       const catalog = window.MacroChef.LIDL_PRODUCTS || [];
-      await this.db.transaction('rw', this.db.products, async () => {
+      await this.db.transaction('rw', this.db.products, this.db.SyncState, async () => {
         const existing = await this.db.products.toArray();
+        const syncedIds = new Set((await this.db.SyncState.toArray())
+          .filter((state) => state.table === 'products')
+          .map((state) => state.recordId));
         const managedProducts = existing.filter((product) =>
-          product.catalogSource === 'lidl-pl-official' ||
-          (product.categoryName && typeof product.categoryName === 'object')
+          !syncedIds.has(product.id) && (product.catalogSource === 'lidl-pl-official' ||
+          (product.categoryName && typeof product.categoryName === 'object'))
         );
         const managedBySourceId = new Map(
           managedProducts
@@ -224,7 +253,7 @@ window.MacroChef = window.MacroChef || {};
         }
 
         const currentManaged = (await this.db.products.toArray())
-          .filter((product) => product.catalogSource === 'lidl-pl-official');
+          .filter((product) => product.catalogSource === 'lidl-pl-official' && !syncedIds.has(product.id));
         for (const product of currentManaged) {
           if (!retainedIds.has(product.id)) await this.db.products.delete(product.id);
         }
@@ -326,7 +355,11 @@ window.MacroChef = window.MacroChef || {};
             for (const recipe of data.recipes) {
               const copied = { ...recipe, id: createId('rec') };
               ids.set(recipe.id, copied.id);
-              await put(this.db.recipes, copied);
+              if (this.role === 'Tester' || this.role === 'UserWithAdvertisement') {
+                await this.db.recipes.put(copied);
+              } else {
+                await put(this.db.recipes, copied);
+              }
             }
             for (const source of data.plans) {
               const current = await this.db.plannerEntries.where('dayKey').equals(source.dayKey).first();

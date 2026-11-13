@@ -20,13 +20,23 @@ window.MacroChef = window.MacroChef || {};
   const { DAYS_KEYS } = window.MacroChef;
   const { useRepositoryQuery } = window.MacroChef;
 
-  function App({ repositories, shoppingStorageKey, session }) {
+  function App({ repositories, shoppingStorageKey, session, syncManager }) {
     const [activeTab, setActiveTab] = useState('planner');
     const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
     const role = session ? session.role : 'Guest';
     const roleRef = useRef(role);
     roleRef.current = role;
     const canManageRecipes = window.MacroChef.permissions.canManageRecipes(role);
+    const [syncStatus, setSyncStatus] = useState(() => syncManager ? syncManager.getStatus() : { state: 'local' });
+
+    useEffect(() => {
+      if (!syncManager) {
+        setSyncStatus({ state: 'local' });
+        return;
+      }
+      setSyncStatus(syncManager.getStatus());
+      return syncManager.subscribe(setSyncStatus);
+    }, [syncManager]);
 
     const appData = useRepositoryQuery(
       () => repositories.watchAppData(),
@@ -227,6 +237,7 @@ window.MacroChef = window.MacroChef || {};
             colorTheme={colorTheme}
             setColorTheme={setColorTheme}
             onOpenAuth={() => setShowAuthModal(true)}
+            syncStatus={syncStatus}
           />
           <AdBanner role={role} />
 

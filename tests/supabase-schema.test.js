@@ -97,4 +97,10 @@ assert.match(policy('recipes_select_own_or_admin_library'), /auth\.uid\(\)\) = u
 // Admin lookup must bypass RLS and be hardened
 assert.match(sql, /FUNCTION public\.is_admin[\s\S]*?SECURITY DEFINER\s+SET search_path = public/);
 
+const singletonMigration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations',
+  '20261113220000_sync_singletons.sql'), 'utf8');
+assert.match(singletonMigration, /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON public\.planner \(user_id, day_key\)/);
+assert.match(singletonMigration, /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON public\.goals \(user_id\)/);
+assert.doesNotMatch(singletonMigration, /\bDELETE\b/i);
+
 console.log('supabase schema tests passed');

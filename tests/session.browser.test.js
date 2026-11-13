@@ -31,6 +31,11 @@
     if (scope.userId === 'slow') await new Promise((resolve) => { delayed = resolve; });
     return { repository: repository(scope.userId), shoppingStorageKey: `shopping-${scope.userId}` };
   };
+  window.MacroChef.supabaseClient = {};
+  window.MacroChef.AppSyncManager = class {
+    start(scope) { events.push(`sync-start:${scope.userId}`); }
+    async stop() { events.push('sync-stop'); }
+  };
   window.MacroChef.auth = {
     async getSessionAndRole() { return session; },
     subscribe(callback) { listener = callback; return () => { listener = null; }; }
@@ -72,6 +77,7 @@
       switchAccount({ issuer: 'issuer', tenantId: 'tenant', userId: 'bob', role: 'Tester' });
       await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('bob:'));
       assert(events.indexOf('unmount:alice') < events.indexOf('close:alice'), 'Alice closed before unmount');
+      assert(events.indexOf('sync-stop') < events.indexOf('close:alice'), 'Sync was not stopped before closing Alice');
       switchAccount(null);
       await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('guest:'));
       assert(events.indexOf('unmount:bob') < events.indexOf('close:bob'), 'Bob closed before unmount');

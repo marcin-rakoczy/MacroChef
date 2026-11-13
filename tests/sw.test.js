@@ -85,6 +85,7 @@ function request(url, headers = {}) {
   await lifecycle('activate');
   assert.equal(stores.has('macrochef-v6'), false);
   assert.equal(stores.has('other-app-cache'), true);
+  const beforeSensitiveRequests = new Map(stores.get(cacheName));
   assert.equal(request('/api/profile').result, undefined);
   assert.equal(request('/index.html?token=secret').result, undefined);
   assert.equal(request('/index.html', { Authorization: 'Bearer test' }).result, undefined);
@@ -94,6 +95,10 @@ function request(url, headers = {}) {
   assert.equal(request('https://abc.supabase.co/auth/v1/token').result, undefined);
   assert.equal(request('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js',
     { Authorization: 'Bearer x' }).result, undefined);
+  const cachedKeys = [...stores.get(cacheName).keys()];
+  assert.deepEqual(stores.get(cacheName), beforeSensitiveRequests, 'Sensitive requests must not modify the cache');
+  assert.equal(cachedKeys.some((url) => new URL(url).hostname.endsWith('.supabase.co')), false);
+  assert.equal(cachedKeys.some((url) => url.includes('/rest/v1/') || url.includes('/auth/v1/')), false);
   assert.ok(stores.get(cacheName).has('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js'));
   offline = true;
   const cached = request('/index.html');

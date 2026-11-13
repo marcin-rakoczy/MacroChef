@@ -20,7 +20,9 @@ window.MacroChef = window.MacroChef || {};
     const suffix = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
     const databaseName = `MacroChef-account-${suffix}`;
     return {
-      repository: new window.MacroChef.DexieCalorieRepository(databaseName, { seedDefaults: false, userId: scope.userId }),
+      repository: new window.MacroChef.DexieCalorieRepository(databaseName, {
+        seedDefaults: false, userId: scope.userId, role: scope.role
+      }),
       shoppingStorageKey: `macrochef_checked_${suffix}`
     };
   }

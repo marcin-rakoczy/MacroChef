@@ -181,11 +181,231 @@
     try { await window.MacroChef.createScopedRepository({ issuer: 'test', tenantId: '', userId: 'a' }); }
     catch (error) { invalidScopeRejected = error instanceof TypeError; }
     assert(invalidScopeRejected, 'Invalid scope was accepted');
-    const contract = new window.MacroChef.AppSyncManager();
-    let abstractRejected = false;
-    try { contract.requestSync(); } catch (error) { abstractRejected = /must be implemented/.test(error.message); }
-    assert(abstractRejected, 'Abstract sync contract silently succeeded');
-    result.textContent = 'PASS: migration, offline CRUD, rollback, scoped accounts, sync contract';
+    delete navigator.onLine;
+    const syncRepo = new window.MacroChef.DexieCalorieRepository(`${name}-sync`, {
+      seedDefaults: false, userId: 'account-sync', role: 'Admin'
+    });
+    scopedRepositories.push(syncRepo);
+    scopedDatabases.add(syncRepo.db.name);
+    await syncRepo.initialize();
+    const tables = { products: [], recipes: [], planner: [], goals: [] };
+    const requests = [];
+    let version = 0;
+    let rejectWrites = false;
+    let emptyWrites = false;
+    let omitProductFromList = false;
+    const originalFetch = window.fetch;
+    window.fetch = async (input, options) => {
+      const url = new URL(input);
+      const table = url.pathname.split('/').pop();
+      const rows = tables[table];
+      assert(rows, `Unexpected remote table: ${table}`);
+      const method = options.method;
+      const payload = options.body && JSON.parse(options.body);
+      requests.push({ table, method, payload });
+      assert(options.headers.Authorization.startsWith('Bearer '), 'Missing authorization header');
+      if (method === 'GET') {
+        const owner = url.searchParams.get('user_id');
+        const idFilter = url.searchParams.get('id');
+        const visible = rows.filter((row) => (!owner || `eq.${row.user_id}` === owner) &&
+          (!idFilter || `eq.${row.id}` === idFilter) &&
+          !(table === 'products' && omitProductFromList && !idFilter));
+        return new Response(JSON.stringify(visible), {
+          status: 200, headers: { 'Content-Range': `0-${Math.max(0, visible.length - 1)}/${visible.length}` }
+        });
+      }
+      if (rejectWrites) return new Response('forbidden', { status: 403 });
+      if (emptyWrites) return new Response('[]', { status: 200 });
+      const id = method === 'POST' ? payload.id : url.searchParams.get('id').slice(3);
+      const index = rows.findIndex((item) => item.id === id);
+      const expectedVersion = url.searchParams.get('updated_at');
+      if (method !== 'POST' && (index < 0 || `eq.${rows[index].updated_at}` !== expectedVersion)) {
+        return new Response('[]', { status: 200 });
+      }
+      let saved;
+      if (method === 'DELETE') {
+        saved = rows.splice(index, 1)[0];
+      } else {
+        saved = { ...payload, updated_at: `2026-01-01T00:00:${String(++version).padStart(2, '0')}Z` };
+        if (index >= 0) rows[index] = saved;
+        else rows.push(saved);
+      }
+      return new Response(JSON.stringify([saved]), { status: method === 'POST' ? 201 : 200 });
+    };
+    const client = {
+      supabaseUrl: 'https://test.supabase.co', supabaseKey: 'public',
+      auth: { async getSession() {
+        return { data: { session: { access_token: 'test-token', user: { id: 'account-sync' } } }, error: null };
+      }, async getUser() {
+        return { data: { user: { id: 'account-sync' } }, error: null };
+      } }
+    };
+    const manager = new window.MacroChef.AppSyncManager();
+    try {
+      tables.products.push({
+        id: 'shared-product', name_pl: 'Produkt', name_en: 'Product', category: 'other',
+        category_pl: 'Inne', category_en: 'Other', unit: 'g', package_size: 100,
+        source_url: null, source_verified_at: null, updated_at: '2025-01-01T00:00:00Z'
+      });
+      tables.recipes.push({
+        id: 'admin-global', user_id: 'other-admin', data: { id: 'admin-global', name: 'Global' },
+        updated_at: '2025-01-01T00:00:00Z'
+      });
+      await syncRepo.initializeSettings({ lang: 'en', darkMode: false, colorTheme: 'emerald' });
+      await syncRepo.saveSettings({ lang: 'pl', darkMode: false, colorTheme: 'emerald' });
+      assert(await syncRepo.db.OutboxQueue.count() === 0, 'Settings must remain local');
+      syncRepo.mutations.onChange = () => { throw new Error('Simulated notification failure'); };
+      const remoteRecipe = await syncRepo.saveRecipe({ name: 'Online recipe' });
+      syncRepo.mutations.onChange = null;
+      assert(await syncRepo.db.recipes.get(remoteRecipe.id), 'A scheduling failure hid a committed local write');
+      await syncRepo.savePlannerSlot('Monday', {}, 'Lunch', remoteRecipe.id);
+      assert(await syncRepo.db.OutboxQueue.count() === 2, 'Online account writes were not queued');
+      manager.start({ repository: syncRepo, userId: 'account-sync', client });
+      await manager.sync();
+      assert(manager.getStatus().state === 'synced', 'Initial sync failed');
+      assert(await syncRepo.db.OutboxQueue.count() === 0, 'Acknowledged entries were not removed');
+      assert(tables.recipes.length === 2 && tables.planner.length === 1, 'Remote records were not created');
+      assert((await syncRepo.db.products.get('shared-product')).name.pl === 'Produkt' &&
+        await syncRepo.db.recipes.get('admin-global'), 'Shared products or global recipes were not pulled');
+      await syncRepo.seedProducts();
+      assert(await syncRepo.db.products.get('shared-product'), 'Catalog seeding removed a synchronized product');
+      omitProductFromList = true;
+      await manager.sync();
+      assert(await syncRepo.db.products.get('shared-product'), 'A paginated omission was treated as a deletion');
+      omitProductFromList = false;
+      tables.products.length = 0;
+      await manager.sync();
+      assert(!await syncRepo.db.products.get('shared-product'), 'Previously observed server deletion was not pulled');
+      await syncRepo.savePlannerSlot('Monday', {}, 'Breakfast', remoteRecipe.id);
+      await syncRepo.savePlannerSlot('Monday', {}, 'Dinner', remoteRecipe.id);
+      await manager.sync();
+      assert(await syncRepo.db.OutboxQueue.count() === 0 && tables.planner[0].data.Dinner === remoteRecipe.id,
+        'Consecutive queued changes were not rebased after acknowledgement');
+      await syncRepo.deleteRecipe(remoteRecipe.id);
+      await manager.sync();
+      const planWrite = requests.filter((item) => item.table === 'planner' && item.method === 'PATCH').pop();
+      assert(planWrite && planWrite.payload.data.Lunch === null, 'Undefined was not sent as JSON null');
+      assert(!('Lunch' in (await syncRepo.db.plannerEntries.toCollection().first())),
+        'Pulled planner clearing did not preserve local deletion semantics');
+      assert(await syncRepo.db.OutboxQueue.count() === 0, 'Deletion and update were not acknowledged');
+      await syncRepo.saveGoals({ calories: 2200 });
+      rejectWrites = true;
+      await manager.sync();
+      assert(manager.getStatus().state === 'conflict' && await syncRepo.db.OutboxQueue.count() === 1,
+        'Rejected writes must remain queued');
+      rejectWrites = false;
+      emptyWrites = true;
+      await manager.sync();
+      assert(await syncRepo.db.OutboxQueue.count() === 1, 'A response without an affected row was acknowledged');
+      emptyWrites = false;
+      await manager.sync();
+      assert(await syncRepo.db.OutboxQueue.count() === 0, 'Retry did not clear the acknowledged entry');
+      tables.goals[0].updated_at = '2026-01-02T00:00:00Z';
+      tables.goals[0].data.calories = 2250;
+      await manager.sync();
+      assert((await syncRepo.db.goals.toCollection().first()).calories === 2250,
+        'A newer server version was not pulled');
+      await syncRepo.saveGoals({ calories: 2300 });
+      tables.goals[0].updated_at = '2026-02-01T00:00:00Z';
+      tables.goals[0].data.calories = 2500;
+      await manager.sync();
+      assert(manager.getStatus().state === 'conflict' && await syncRepo.db.OutboxQueue.count() === 1,
+        'Server conflict must preserve the queued local change');
+      assert((await syncRepo.db.goals.toCollection().first()).calories === 2300,
+        'Server conflict overwrote the pending local change');
+
+      const localOnly = new window.MacroChef.DexieCalorieRepository(`${name}-local-only`, {
+        seedDefaults: false, userId: 'tester', role: 'Tester'
+      });
+      scopedRepositories.push(localOnly);
+      scopedDatabases.add(localOnly.db.name);
+      await localOnly.initialize();
+      await localOnly.finishGuestMigration({
+        recipes: [{ id: 'guest-recipe', name: 'Local recipe' }],
+        plans: [{ dayKey: 'Monday', Lunch: 'guest-recipe' }]
+      }, true);
+      assert((await localOnly.db.OutboxQueue.toArray()).every((item) => item.table !== 'recipes'),
+        'Guest recipes for Tester must remain local');
+      const testerClient = { ...client, auth: { async getSession() {
+        return { data: { session: { access_token: 'tester-token', user: { id: 'tester' } } }, error: null };
+      }, async getUser() {
+        return { data: { user: { id: 'tester' } }, error: null };
+      } } };
+      const testerSync = new window.MacroChef.AppSyncManager();
+      try {
+        testerSync.start({ repository: localOnly, userId: 'tester', client: testerClient });
+        await testerSync.sync();
+        assert(testerSync.getStatus().state === 'conflict' && await localOnly.db.OutboxQueue.count() === 1,
+          'Plan referring to local-only recipe must stay queued');
+        assert(!tables.planner.some((row) => row.user_id === 'tester'), 'Invalid plan was uploaded');
+      } finally {
+        await testerSync.stop();
+      }
+
+      let resolveSession;
+      const delayedClient = { ...client, auth: { getSession: () => new Promise((resolve) => { resolveSession = resolve; }) } };
+      const stoppedSync = new window.MacroChef.AppSyncManager();
+      stoppedSync.start({ repository: localOnly, userId: 'tester', client: delayedClient });
+      const callsBeforeStop = requests.length;
+      stoppedSync.running = stoppedSync.sync().catch(() => {});
+      await stoppedSync.stop();
+      resolveSession({ data: { session: { access_token: 'late', user: { id: 'tester' } } }, error: null });
+      await stoppedSync.running;
+      assert(requests.length === callsBeforeStop, 'Stopped session sent a late request');
+
+      await manager.stop();
+      const mismatchedSync = new window.MacroChef.AppSyncManager();
+      const mismatchedClient = { ...client, auth: { ...client.auth, async getUser() {
+        return { data: { user: { id: 'another-account' } }, error: null };
+      } } };
+      try {
+        mismatchedSync.start({ repository: syncRepo, userId: 'account-sync', client: mismatchedClient });
+        const beforeMismatch = requests.length;
+        let rejected = false;
+        try { await mismatchedSync.sync(); } catch (error) { rejected = /Verified token/.test(error.message); }
+        assert(rejected && requests.length === beforeMismatch, 'A mismatched verified account was synchronized');
+      } finally {
+        await mismatchedSync.stop();
+      }
+      const debounceRepo = new window.MacroChef.DexieCalorieRepository(`${name}-debounce`, {
+        seedDefaults: false, userId: 'debounce'
+      });
+      scopedRepositories.push(debounceRepo);
+      scopedDatabases.add(debounceRepo.db.name);
+      await debounceRepo.initialize();
+      const debounceClient = { ...client, auth: { async getSession() {
+        return { data: { session: { access_token: 'debounce-token', user: { id: 'debounce' } } }, error: null };
+      }, async getUser() {
+        return { data: { user: { id: 'debounce' } }, error: null };
+      } } };
+      const debounceSync = new window.MacroChef.AppSyncManager();
+      const waitForSync = async () => {
+        for (let i = 0; i < 250; i++) {
+          if (debounceSync.getStatus().state === 'synced') return;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        throw new Error('Timed out waiting for debounced synchronization');
+      };
+      try {
+        debounceSync.start({ repository: debounceRepo, userId: 'debounce', client: debounceClient });
+        assert(debounceSync.getStatus().state === 'pending', 'Session start did not schedule sync');
+        await waitForSync();
+        await debounceRepo.saveGoals({ calories: 1800 });
+        assert(debounceSync.getStatus().state === 'pending', 'Local write did not schedule sync');
+        await waitForSync();
+        assert(await debounceRepo.db.OutboxQueue.count() === 0, 'Debounced write was not synchronized');
+        window.dispatchEvent(new Event('online'));
+        assert(debounceSync.getStatus().state === 'pending', 'Reconnect did not schedule sync');
+        await waitForSync();
+      } finally {
+        await debounceSync.stop();
+      }
+    } finally {
+      await manager.stop();
+      window.fetch = originalFetch;
+    }
+
+    result.textContent = 'PASS: migration, offline CRUD, rollback, scoped accounts, Supabase sync';
   } catch (error) {
     console.error(error);
     result.textContent = `FAIL: ${error.stack || error}`;
