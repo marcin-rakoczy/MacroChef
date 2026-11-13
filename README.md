@@ -531,8 +531,11 @@ npm run build
 ```
 
 ### Publish a new GitHub Pages version
+Pushes to `main` and manual runs on `main` run `.github/workflows/deploy.yml`. The workflow tests the app, bumps the package, app and service-worker versions, builds the standalone files, commits them with `[skip ci]`, and publishes the repository root including `CNAME`. Configure the repository's Pages source as GitHub Actions and allow GitHub Actions to write to `main`; branch protection must permit the bot's version commit. A newer push can cause an older workflow's version push to fail rather than overwrite changes.
+
+For a manual local version bump:
 ```bash
-# Increment the patch version and Service Worker cache version before each release
+# Increment the matching package, app and Service Worker versions
 node scripts/bump-version.js
 npm run build
 ```
