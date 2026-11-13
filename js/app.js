@@ -12,7 +12,8 @@ window.MacroChef = window.MacroChef || {};
     ShoppingList,
     MacroTracker,
     RecipeModal,
-    AuthModal
+    AuthModal,
+    AdBanner
   } = window.MacroChef.components;
 
   const { shoppingAggregator } = window.MacroChef;
@@ -22,6 +23,10 @@ window.MacroChef = window.MacroChef || {};
   function App({ repositories, shoppingStorageKey, session }) {
     const [activeTab, setActiveTab] = useState('planner');
     const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
+    const role = session ? session.role : 'Guest';
+    const roleRef = useRef(role);
+    roleRef.current = role;
+    const canManageRecipes = window.MacroChef.permissions.canManageRecipes(role);
 
     const appData = useRepositoryQuery(
       () => repositories.watchAppData(),
@@ -65,6 +70,13 @@ window.MacroChef = window.MacroChef || {};
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
+
+    useEffect(() => {
+      if (!canManageRecipes) {
+        setShowRecipeModal(false);
+        setEditingRecipe(null);
+      }
+    }, [canManageRecipes]);
 
     useEffect(() => {
       document.documentElement.setAttribute('data-color-theme', colorTheme);
@@ -130,17 +142,38 @@ window.MacroChef = window.MacroChef || {};
       await repositories.clearPlanner();
     };
 
+    const requireRecipePermission = () => {
+      if (!window.MacroChef.permissions.canManageRecipes(roleRef.current)) {
+        throw new Error(t.recipesReadOnly);
+      }
+    };
+
+    const handleCreateRecipe = () => {
+      requireRecipePermission();
+      setEditingRecipe(null);
+      setShowRecipeModal(true);
+    };
+
+    const handleEditRecipe = (recipe) => {
+      requireRecipePermission();
+      setEditingRecipe(recipe);
+      setShowRecipeModal(true);
+    };
+
     const handleSaveRecipe = async (recipeData) => {
+      requireRecipePermission();
       await repositories.saveRecipe(recipeData);
       setShowRecipeModal(false);
       setEditingRecipe(null);
     };
 
     const handleImportRecipes = async (recipeData) => {
+      requireRecipePermission();
       await repositories.saveRecipes(recipeData);
     };
 
     const handleDeleteRecipe = async (id) => {
+      requireRecipePermission();
       await repositories.deleteRecipe(id);
       if (selectedBatchRecipe && selectedBatchRecipe.id === id) {
         setSelectedBatchRecipe(null);
@@ -195,6 +228,7 @@ window.MacroChef = window.MacroChef || {};
             setColorTheme={setColorTheme}
             onOpenAuth={() => setShowAuthModal(true)}
           />
+          <AdBanner role={role} />
 
           {/* Main Layout Container */}
           <main className="max-w-7xl mx-auto px-4 pt-6">
@@ -214,10 +248,7 @@ window.MacroChef = window.MacroChef || {};
                 goals={goals}
                 onAssignMeal={handleAssignMeal}
                 onClearWeek={handleClearWeek}
-                onCreateRecipe={() => {
-                  setEditingRecipe(null);
-                  setShowRecipeModal(true);
-                }}
+                onCreateRecipe={canManageRecipes ? handleCreateRecipe : undefined}
               />
             )}
 
@@ -225,14 +256,9 @@ window.MacroChef = window.MacroChef || {};
             {activeTab === 'recipes' && (
               <RecipeLibrary
                 recipes={recipes}
-                onCreateRecipe={() => {
-                  setEditingRecipe(null);
-                  setShowRecipeModal(true);
-                }}
-                onEditRecipe={(rec) => {
-                  setEditingRecipe(rec);
-                  setShowRecipeModal(true);
-                }}
+                canManageRecipes={canManageRecipes}
+                onCreateRecipe={handleCreateRecipe}
+                onEditRecipe={handleEditRecipe}
                 onDeleteRecipe={handleDeleteRecipe}
                 onImportRecipes={handleImportRecipes}
                 onStartBatchCooking={handleStartBatchCooking}
@@ -291,7 +317,7 @@ window.MacroChef = window.MacroChef || {};
           </main>
 
           {/* Modal Dialog */}
-          {showRecipeModal && (
+          {showRecipeModal && canManageRecipes && (
             <RecipeModal
               repository={repositories}
               editingRecipe={editingRecipe}

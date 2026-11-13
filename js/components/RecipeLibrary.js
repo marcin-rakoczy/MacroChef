@@ -222,7 +222,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     onEditRecipe,
     onDeleteRecipe,
     onImportRecipes,
-    onStartBatchCooking
+    onStartBatchCooking,
+    canManageRecipes
   }) {
     const { t, lang } = window.MacroChef.useI18n();
     const importInputRef = React.useRef(null);
@@ -274,6 +275,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             </p>
           </div>
 
+          {canManageRecipes ? (
           <div className="flex flex-col items-stretch sm:items-end gap-2">
             <div className="flex flex-wrap gap-2">
               <button
@@ -310,6 +312,9 @@ window.MacroChef.components = window.MacroChef.components || {};
               {t.recipeImportHint}
             </p>
           </div>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t.recipesReadOnly}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -372,21 +377,25 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <span>{t.cookBatch}</span>
                 </button>
 
-                <button
-                  onClick={() => onEditRecipe(rec)}
-                  className="p-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl"
-                  title={t.editRecipe}
-                >
-                  {t.editRecipe}
-                </button>
+                {canManageRecipes && (
+                  <>
+                    <button
+                      onClick={() => onEditRecipe(rec)}
+                      className="p-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl"
+                      title={t.editRecipe}
+                    >
+                      {t.editRecipe}
+                    </button>
 
-                <button
-                  onClick={() => handleDelete(rec)}
-                  className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl"
-                  title={t.deleteRecipe}
-                >
-                  <Icon name="trash-2" className="w-4 h-4" />
-                </button>
+                    <button
+                      onClick={() => handleDelete(rec)}
+                      className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl"
+                      title={t.deleteRecipe}
+                    >
+                      <Icon name="trash-2" className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

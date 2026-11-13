@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>MacroChef permissions tests</title></head>
+<body>
+  <pre id="result">Running...</pre>
+  <div id="test-root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    window.MacroChef = {
+      components: { Icon: function () { return null; } },
+      helpers: { getLocalized: function (value, lang) {
+        return value && typeof value === 'object' ? value[lang] : value;
+      } },
+      recipeCsv: {},
+      DEFAULT_GOALS: {},
+      DAYS_KEYS: [],
+      shoppingAggregator: { calculateShoppingList: function () { return []; } }
+    };
+  </script>
+  <script src="../js/permissions.js"></script>
+  <script src="../js/i18n/translations.js"></script>
+  <script src="browser-runner.js"></script>
+  <script>
+    const components = window.MacroChef.components;
+    components.Header = function () { return null; };
+    components.Navigation = function (props) {
+      return React.createElement('button', { type: 'button', onClick: function () { props.setActiveTab('recipes'); } }, 'Open library');
+    };
+    components.MealPlanner = function (props) {
+      return props.onCreateRecipe
+        ? React.createElement('button', { 'data-testid': 'planner-create', onClick: props.onCreateRecipe }, 'Planner create')
+        : React.createElement('div', { 'data-testid': 'planner-readonly' }, 'Planner');
+    };
+    components.RecipeModal = function (props) {
+      window.rbacSaveRecipe = props.onSave;
+      return React.createElement('div', { 'data-testid': 'recipe-modal' }, 'Recipe modal');
+    };
+    components.BatchCooking = components.ShoppingList = components.MacroTracker = components.AuthModal = function () { return null; };
+    window.MacroChef.useRepositoryQuery = function () {
+      return { data: { recipes: window.rbacRecipes || [], plan: {}, goals: {} }, error: null };
+    };
+  </script>
+  <script type="text/babel" src="../js/components/AdBanner.js"></script>
+  <script type="text/babel" src="../js/components/RecipeLibrary.js"></script>
+  <script type="text/babel" src="../js/app.js"></script>
+  <script type="text/babel" src="rbac.browser.test.js"></script>
+</body>
+</html>

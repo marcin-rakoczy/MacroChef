@@ -102,6 +102,11 @@ function request(url, headers = {}) {
   const cachedReact = request('https://unpkg.com/react@18/umd/react.production.min.js');
   assert.ok(await cachedReact.result);
   await cachedReact.background;
+  for (const asset of ['/js/permissions.js', '/js/components/AdBanner.js']) {
+    const cachedAsset = request(asset);
+    assert.ok(await cachedAsset.result, `${asset} is available offline`);
+    await cachedAsset.background;
+  }
   offline = false;
   failCachePut = true;
   const quota = request('/index.html');
