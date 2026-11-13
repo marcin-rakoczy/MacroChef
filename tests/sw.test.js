@@ -47,7 +47,8 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'),
   fetch: async (request, options) => {
     if (offline) throw new Error('offline');
     const url = key(request);
-    if (url.startsWith('https://unpkg.com/') || url.startsWith('https://cdn.tailwindcss.com/')) {
+    if (url.startsWith('https://unpkg.com/') || url.startsWith('https://cdn.tailwindcss.com/') ||
+        url.startsWith('https://cdn.jsdelivr.net/')) {
       return response(options && options.mode === 'cors' ? 'cors' : 'opaque');
     }
     return response();
@@ -89,6 +90,11 @@ function request(url, headers = {}) {
   assert.equal(request('/index.html', { Authorization: 'Bearer test' }).result, undefined);
   assert.equal(request('/index.html', { 'Cache-Control': 'no-store' }).result, undefined);
   assert.equal(request('https://unpkg.com/other-script.js').result, undefined);
+  assert.equal(request('https://abc.supabase.co/rest/v1/recipes').result, undefined);
+  assert.equal(request('https://abc.supabase.co/auth/v1/token').result, undefined);
+  assert.equal(request('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js',
+    { Authorization: 'Bearer x' }).result, undefined);
+  assert.ok(stores.get(cacheName).has('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js'));
   offline = true;
   const cached = request('/index.html');
   assert.ok(await cached.result);

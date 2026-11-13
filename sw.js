@@ -19,6 +19,7 @@ const STATIC_ASSETS = [
   './js/utils/helpers.js',
   './src/core/nutrition/calculations.js',
   './js/utils/shoppingAggregator.js',
+  './js/supabaseClient.js',
   './js/db.js',
   './js/session/repositoryScope.js',
   './js/sync/AppSyncManager.js',
@@ -43,11 +44,16 @@ const CDN_ASSETS = [
   { url: 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', mode: 'cors' },
   { url: 'https://unpkg.com/@babel/standalone/babel.min.js', mode: 'no-cors' },
   { url: 'https://unpkg.com/dexie@3.2.4/dist/dexie.js', mode: 'no-cors' },
+  { url: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js', mode: 'cors' },
   { url: 'https://unpkg.com/lucide@latest', mode: 'no-cors' }
 ];
 
 const STATIC_URLS = new Set(STATIC_ASSETS.map((asset) => new URL(asset, self.registration.scope).href));
 const CDN_URLS = new Set(CDN_ASSETS.map((asset) => asset.url));
+const isSupabaseApi = (url) => {
+  const host = new URL(url).hostname;
+  return host === 'supabase.co' || host.endsWith('.supabase.co');
+};
 const canCache = (response) => response.ok && response.type === 'basic' &&
   !/\b(no-store|private)\b/i.test(response.headers.get('Cache-Control') || '') &&
   response.headers.get('Vary') !== '*';
@@ -100,6 +106,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const isCdn = CDN_URLS.has(request.url);
+  // Network-Only: Supabase API and authenticated requests are never intercepted or cached.
+  if (isSupabaseApi(request.url) || request.headers.has('Authorization')) return;
   if (request.method !== 'GET' || (!STATIC_URLS.has(request.url) && !isCdn) ||
       request.headers.has('Authorization') ||
       /\bno-store\b/i.test(request.headers.get('Cache-Control') || '')) return;

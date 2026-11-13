@@ -20,6 +20,7 @@ const filesToBundle = [
   'utils/productCatalogCsv.js',
   '../src/core/nutrition/calculations.js',
   'utils/shoppingAggregator.js',
+  'supabaseClient.js',
   'db.js',
   'session/repositoryScope.js',
   'sync/AppSyncManager.js',
