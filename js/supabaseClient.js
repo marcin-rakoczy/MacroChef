@@ -17,7 +17,7 @@ window.MacroChef = window.MacroChef || {};
     }
     try {
       const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true }
+        auth: { persistSession: true, autoRefreshToken: true, storageKey: 'macrochef-supabase-session' }
       });
       return { client, enabled: true, mode: 'online', reason: null };
     } catch (error) {

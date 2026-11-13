@@ -1,12 +1,12 @@
 // Application Bootstrapper & Service Worker Registration
 (function () {
-  const { App, I18nProvider } = window.MacroChef;
+  const { SessionApp } = window.MacroChef.components;
 
   // Mount React App
   const rootElement = document.getElementById('root');
-  if (rootElement && App) {
+  if (rootElement && SessionApp) {
     const root = ReactDOM.createRoot(rootElement);
-    root.render(React.createElement(I18nProvider, null, React.createElement(App)));
+    root.render(React.createElement(SessionApp));
   }
 
   // Register PWA Service Worker for offline capability

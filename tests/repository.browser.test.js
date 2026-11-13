@@ -145,6 +145,63 @@
     }
   });
 
+  test('Guest import is transactional, preserves occupied slots and runs once', () => withRepository(async (repository) => {
+    const existing = await repository.saveRecipe({ name: 'Existing' });
+    await repository.savePlannerSlot('Monday', {}, 'Breakfast', existing.id);
+    const guest = {
+      recipes: [{ id: 'guest-1', name: 'Guest' }],
+      plans: [{ dayKey: 'Monday', Breakfast: 'guest-1', Lunch: 'guest-1' }]
+    };
+    await repository.finishGuestMigration(guest, true);
+    const recipes = await repository.getAllRecipes();
+    const copied = recipes.find((item) => item.name === 'Guest');
+    const monday = await repository.db.plannerEntries.where('dayKey').equals('Monday').first();
+    assert(copied && copied.id !== 'guest-1', 'Guest recipe was not copied with a new ID');
+    equal(monday.Breakfast, existing.id, 'Existing meal was overwritten');
+    equal(monday.Lunch, copied.id, 'Guest meal reference was not remapped');
+    await repository.finishGuestMigration(guest, true);
+    equal((await repository.getAllRecipes()).length, 2, 'Guest import ran twice');
+    assert(await repository.hasGuestMigrationDecision(), 'Import decision not persisted');
+  }));
+
+  test('Declining guest import persists without copying', () => withRepository(async (repository) => {
+    await repository.finishGuestMigration({ recipes: [{ id: 'guest', name: 'Guest' }], plans: [] }, false);
+    await repository.finishGuestMigration({ recipes: [{ id: 'guest', name: 'Guest' }], plans: [] }, true);
+    equal((await repository.getAllRecipes()).length, 0, 'Declined data was copied');
+    assert(await repository.hasGuestMigrationDecision(), 'Decline was not persisted');
+  }));
+
+  test('Failed guest import rolls back recipes and decision', () => withRepository(async (repository) => {
+    const fail = () => { throw new Error('Simulated migration failure'); };
+    repository.db.migrationState.hook('creating', fail);
+    let failed = false;
+    try {
+      await repository.finishGuestMigration({ recipes: [{ id: 'guest', name: 'Guest' }], plans: [] }, true);
+    } catch (error) {
+      failed = true;
+    } finally {
+      repository.db.migrationState.hook('creating').unsubscribe(fail);
+    }
+    assert(failed, 'Migration failure was not surfaced');
+    equal((await repository.getAllRecipes()).length, 0, 'Failed migration left recipes');
+    assert(!await repository.hasGuestMigrationDecision(), 'Failed migration marked complete');
+  }));
+
+  test('Guest import rejects a plan referencing a missing recipe', () => withRepository(async (repository) => {
+    let failed = false;
+    try {
+      await repository.finishGuestMigration({
+        recipes: [{ id: 'guest', name: 'Guest' }],
+        plans: [{ dayKey: 'Monday', Breakfast: 'missing' }]
+      }, true);
+    } catch (error) {
+      failed = error.message.includes('missing recipe');
+    }
+    assert(failed, 'Missing recipe reference was not surfaced');
+    equal((await repository.getAllRecipes()).length, 0, 'Invalid import left recipes');
+    assert(!await repository.hasGuestMigrationDecision(), 'Invalid import marked complete');
+  }));
+
   test('Recipe updatedAt exists and advances on update', () => withRepository(async (repository) => {
     const created = await repository.saveRecipe({ name: 'Original' });
     const before = Date.parse(created.updatedAt);

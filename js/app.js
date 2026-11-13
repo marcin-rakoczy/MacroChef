@@ -11,15 +11,15 @@ window.MacroChef = window.MacroChef || {};
     BatchCooking,
     ShoppingList,
     MacroTracker,
-    RecipeModal
+    RecipeModal,
+    AuthModal
   } = window.MacroChef.components;
 
-  const { repositories } = window.MacroChef;
   const { shoppingAggregator } = window.MacroChef;
   const { DAYS_KEYS } = window.MacroChef;
   const { useRepositoryQuery } = window.MacroChef;
 
-  function App() {
+  function App({ repositories, shoppingStorageKey, session }) {
     const [activeTab, setActiveTab] = useState('planner');
     const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
 
@@ -52,9 +52,10 @@ window.MacroChef = window.MacroChef || {};
     const goals = goalsDraft || storedGoals;
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
-        const saved = localStorage.getItem('macrochef_checked');
+        const saved = localStorage.getItem(shoppingStorageKey);
         return saved ? JSON.parse(saved) : {};
       } catch (e) {
+        console.error('Could not load shopping checks:', e);
         return {};
       }
     });
@@ -63,6 +64,7 @@ window.MacroChef = window.MacroChef || {};
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     useEffect(() => {
       document.documentElement.setAttribute('data-color-theme', colorTheme);
@@ -89,14 +91,8 @@ window.MacroChef = window.MacroChef || {};
     }, [darkMode]);
 
     useEffect(() => {
-      localStorage.setItem('macrochef_checked', JSON.stringify(checkedShopping));
-    }, [checkedShopping]);
-
-    useEffect(() => {
-      repositories.initialize().catch((err) => {
-        console.error('Data repository initialization error:', err);
-      });
-    }, []);
+      localStorage.setItem(shoppingStorageKey, JSON.stringify(checkedShopping));
+    }, [checkedShopping, shoppingStorageKey]);
 
     useEffect(() => {
       if (appData.error) {
@@ -197,6 +193,7 @@ window.MacroChef = window.MacroChef || {};
             setDarkMode={setDarkMode}
             colorTheme={colorTheme}
             setColorTheme={setColorTheme}
+            onOpenAuth={() => setShowAuthModal(true)}
           />
 
           {/* Main Layout Container */}
@@ -296,6 +293,7 @@ window.MacroChef = window.MacroChef || {};
           {/* Modal Dialog */}
           {showRecipeModal && (
             <RecipeModal
+              repository={repositories}
               editingRecipe={editingRecipe}
               onClose={() => {
                 setShowRecipeModal(false);
@@ -304,6 +302,7 @@ window.MacroChef = window.MacroChef || {};
               onSave={handleSaveRecipe}
             />
           )}
+          {showAuthModal && <AuthModal session={session} onClose={() => setShowAuthModal(false)} />}
 
           {/* Mobile Bottom Navigation */}
           <Navigation

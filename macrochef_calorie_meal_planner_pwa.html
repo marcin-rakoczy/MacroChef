@@ -93,7 +93,7 @@
 // File: data/appVersion.js
 // ==========================================
 window.MacroChef = window.MacroChef || {};
-window.MacroChef.APP_VERSION = '1.0.2';
+window.MacroChef.APP_VERSION = '1.0.3';
 
 
 // ==========================================
@@ -7285,6 +7285,32 @@ window.MacroChef = window.MacroChef || {};
 window.MacroChef.TRANSLATIONS = {
   en: {
     appTitle: 'MacroChef',
+    authTitle: 'Account',
+    authClose: 'Close',
+    authEmail: 'Email',
+    authPassword: 'Password (at least 6 characters)',
+    authRole: 'Role',
+    authRoleAdmin: 'Administrator',
+    authRoleTester: 'Tester',
+    authRoleUserWithAdvertisement: 'User with advertisements',
+    authSignIn: 'Sign in',
+    authSignUp: 'Sign up',
+    authSignOut: 'Sign out',
+    authSwitchSignIn: 'Already have an account? Sign in',
+    authSwitchSignUp: 'Need an account? Sign up',
+    authConfirmEmail: 'Check your email to confirm your account before signing in.',
+    authError: 'Could not sign in or register. Check your details and try again.',
+    authUnavailable: 'Online accounts are unavailable in this environment.',
+    authInvalidCredentials: 'Incorrect email or password.',
+    authAlreadyRegistered: 'An account with this email already exists.',
+    authOfflineError: 'An internet connection is required to sign in or register.',
+    authSignOutError: 'Could not sign out. Please try again.',
+    authOfflineSession: 'Offline session. Your role will be checked when you reconnect. Signing out offline does not revoke the server session.',
+    authLoading: 'Loading account...',
+    authLoadError: 'Could not load the account. Check your connection and try again.',
+    authDataError: 'Could not open account data or copy guest data. Check browser storage and try again.',
+    authGuestDataError: 'The guest plan references a missing recipe. Fix the guest plan before copying it.',
+    authMigrationPrompt: 'Copy guest recipes and meal plan to this account? This includes starter data. Existing plan slots will not be overwritten.',
     appSubtitle: 'Meal Prep, Macro Control & Zero Waste',
     dbStatus: 'IndexedDB Offline Ready',
     planner: 'Meal Planner',
@@ -7443,6 +7469,32 @@ window.MacroChef.TRANSLATIONS = {
   },
   pl: {
     appTitle: 'MacroChef',
+    authTitle: 'Konto',
+    authClose: 'Zamknij',
+    authEmail: 'E-mail',
+    authPassword: 'Hasło (co najmniej 6 znaków)',
+    authRole: 'Rola',
+    authRoleAdmin: 'Administrator',
+    authRoleTester: 'Tester',
+    authRoleUserWithAdvertisement: 'Użytkownik z reklamami',
+    authSignIn: 'Zaloguj się',
+    authSignUp: 'Zarejestruj się',
+    authSignOut: 'Wyloguj się',
+    authSwitchSignIn: 'Masz konto? Zaloguj się',
+    authSwitchSignUp: 'Nie masz konta? Zarejestruj się',
+    authConfirmEmail: 'Sprawdź pocztę i potwierdź konto przed zalogowaniem.',
+    authError: 'Nie udało się zalogować lub zarejestrować. Sprawdź dane i spróbuj ponownie.',
+    authUnavailable: 'Konta online nie są dostępne w tym środowisku.',
+    authInvalidCredentials: 'Nieprawidłowy e-mail lub hasło.',
+    authAlreadyRegistered: 'Konto z tym adresem e-mail już istnieje.',
+    authOfflineError: 'Logowanie i rejestracja wymagają połączenia z internetem.',
+    authSignOutError: 'Nie udało się wylogować. Spróbuj ponownie.',
+    authOfflineSession: 'Sesja offline. Rola zostanie sprawdzona po przywróceniu połączenia. Wylogowanie offline nie unieważnia sesji na serwerze.',
+    authLoading: 'Wczytywanie konta...',
+    authLoadError: 'Nie udało się wczytać konta. Sprawdź połączenie i spróbuj ponownie.',
+    authDataError: 'Nie udało się otworzyć danych konta ani skopiować danych gościa. Sprawdź pamięć przeglądarki i spróbuj ponownie.',
+    authGuestDataError: 'Plan gościa odwołuje się do brakującego przepisu. Popraw plan gościa przed kopiowaniem.',
+    authMigrationPrompt: 'Skopiować przepisy i plan gościa do tego konta? Obejmuje to dane startowe. Zajęte pola planu nie zostaną nadpisane.',
     appSubtitle: 'Planowanie posiłków, kontrola makro i zero waste',
     dbStatus: 'IndexedDB Gotowe Offline',
     planner: 'Planer Posiłków',
@@ -8110,7 +8162,7 @@ window.MacroChef = window.MacroChef || {};
     }
     try {
       const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true }
+        auth: { persistSession: true, autoRefreshToken: true, storageKey: 'macrochef-supabase-session' }
       });
       return { client, enabled: true, mode: 'online', reason: null };
     } catch (error) {
@@ -8131,6 +8183,190 @@ window.MacroChef = window.MacroChef || {};
 
 
 // ==========================================
+// File: auth.js
+// ==========================================
+window.MacroChef = window.MacroChef || {};
+
+(function () {
+  const client = window.MacroChef.supabaseClient;
+  const cacheKey = 'macrochef-verified-session';
+  const sessionKey = 'macrochef-supabase-session';
+  const logoutKey = 'macrochef-local-signout';
+  const roles = ['Admin', 'Tester', 'UserWithAdvertisement'];
+  const listeners = new Set();
+  let generation = 0;
+  let autoRefreshStopped = false;
+
+  async function stopRefresh() {
+    autoRefreshStopped = true;
+    await client.auth.stopAutoRefresh();
+  }
+
+  async function resumeRefresh() {
+    if (!autoRefreshStopped) return;
+    await client.auth.startAutoRefresh();
+    autoRefreshStopped = false;
+  }
+
+  function reportRefreshError(error) {
+    console.error('Supabase session refresh configuration failed:', error);
+  }
+
+  function notify(event = 'refresh') {
+    listeners.forEach((listener) => listener(event));
+  }
+
+  function readCache() {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    let value;
+    try {
+      value = JSON.parse(raw);
+    } catch (error) {
+      throw new Error('Invalid cached account data', { cause: error });
+    }
+    if (!value || typeof value.userId !== 'string' || typeof value.email !== 'string' ||
+        value.issuer !== client.supabaseUrl || value.tenantId !== client.supabaseUrl ||
+        !roles.includes(value.role)) {
+      throw new Error('Invalid cached account data');
+    }
+    return value;
+  }
+
+  async function getSessionAndRole() {
+    if (!client) return null;
+    if (localStorage.getItem(logoutKey)) return null;
+    if (navigator.onLine === false) {
+      const cached = readCache();
+      return cached ? { ...cached, offline: true } : null;
+    }
+    const started = generation;
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (started !== generation) throw new Error('Session changed during verification');
+    if (!sessionData.session) {
+      if (started === generation) localStorage.removeItem(cacheKey);
+      return null;
+    }
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) {
+      if (started === generation && (userError.status === 401 || userError.status === 403)) {
+        localStorage.removeItem(cacheKey);
+        return null;
+      }
+      throw userError;
+    }
+    if (!userData.user || !userData.user.id || !userData.user.email) {
+      throw new Error('Verified user is missing an ID or email');
+    }
+    const { data: profile, error: profileError } = await client.from('user_profiles')
+      .select('role').eq('user_id', userData.user.id).single();
+    if (profileError) throw profileError;
+    if (!profile || !roles.includes(profile.role)) throw new Error('Invalid account role');
+    if (started !== generation) throw new Error('Session changed during verification');
+    const result = {
+      userId: userData.user.id,
+      email: userData.user.email,
+      role: profile.role,
+      issuer: client.supabaseUrl,
+      tenantId: client.supabaseUrl
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(result));
+    return { ...result, offline: false };
+  }
+
+  function requireClient() {
+    if (!client) throw new Error('Online accounts are unavailable');
+    if (navigator.onLine === false) throw new Error('Internet connection required');
+  }
+
+  async function signUp(email, password) {
+    requireClient();
+    const { data, error } = await client.auth.signUp({ email, password });
+    if (error) throw error;
+    if (data.session) {
+      localStorage.removeItem(logoutKey);
+      await resumeRefresh();
+      await getSessionAndRole();
+      notify();
+    }
+    return data;
+  }
+
+  async function signIn(email, password) {
+    requireClient();
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    localStorage.removeItem(logoutKey);
+    await resumeRefresh();
+    await getSessionAndRole();
+    notify();
+    return data;
+  }
+
+  async function signOut() {
+    if (!client) return;
+    if (navigator.onLine === false) {
+      await stopRefresh();
+      localStorage.removeItem(sessionKey);
+      localStorage.removeItem(`${sessionKey}-code-verifier`);
+    } else {
+      const { error } = await client.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    }
+    generation++;
+    localStorage.setItem(logoutKey, '1');
+    localStorage.removeItem(cacheKey);
+    notify('changing');
+    notify();
+  }
+
+  function subscribe(listener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
+
+  if (client) {
+    if (localStorage.getItem(logoutKey)) stopRefresh().catch(reportRefreshError);
+    client.auth.onAuthStateChange((event) => {
+      if (event === 'INITIAL_SESSION') return;
+      if (event === 'SIGNED_OUT' && navigator.onLine === false) return;
+      if (event === 'TOKEN_REFRESHED') return;
+      generation++;
+      if (event === 'SIGNED_OUT') {
+        localStorage.setItem(logoutKey, '1');
+        localStorage.removeItem(cacheKey);
+        stopRefresh().catch(reportRefreshError);
+      }
+      notify('changing');
+      window.setTimeout(notify, 0);
+    });
+    window.addEventListener('online', () => {
+      if (!localStorage.getItem(logoutKey)) resumeRefresh().catch(reportRefreshError);
+      notify();
+    });
+    window.addEventListener('storage', (event) => {
+      if (event.key === cacheKey || event.key === sessionKey || event.key === logoutKey) {
+        generation++;
+        if ((event.key === sessionKey && event.newValue === null) ||
+            (event.key === logoutKey && event.newValue)) {
+          stopRefresh().catch(reportRefreshError);
+          localStorage.removeItem(cacheKey);
+        }
+        if (event.key === logoutKey && event.newValue === null && navigator.onLine !== false) {
+          resumeRefresh().catch(reportRefreshError);
+        }
+        notify('changing');
+        notify();
+      }
+    });
+  }
+
+  window.MacroChef.auth = { signUp, signIn, signOut, getSessionAndRole, subscribe };
+})();
+
+
+// ==========================================
 // File: db.js
 // ==========================================
 // Dexie-backed implementation of MacroChef's data repository contract
@@ -8139,12 +8375,16 @@ window.MacroChef = window.MacroChef || {};
 (function () {
   class ICalorieRepository {
     initialize() { throw new Error('initialize() must be implemented'); }
+    close() { throw new Error('close() must be implemented'); }
     watchAppData() { throw new Error('watchAppData() must be implemented'); }
     watchProducts() { throw new Error('watchProducts() must be implemented'); }
     watchSettings() { throw new Error('watchSettings() must be implemented'); }
     initializeSettings(defaults) { throw new Error('initializeSettings() must be implemented'); }
     saveSettings(settings) { throw new Error('saveSettings() must be implemented'); }
     getAllRecipes() { throw new Error('getAllRecipes() must be implemented'); }
+    getGuestMigrationData() { throw new Error('getGuestMigrationData() must be implemented'); }
+    hasGuestMigrationDecision() { throw new Error('hasGuestMigrationDecision() must be implemented'); }
+    finishGuestMigration(data, accepted) { throw new Error('finishGuestMigration() must be implemented'); }
     saveRecipe(recipeData) { throw new Error('saveRecipe() must be implemented'); }
     saveRecipes(recipes) { throw new Error('saveRecipes() must be implemented'); }
     deleteRecipe(id) { throw new Error('deleteRecipe() must be implemented'); }
@@ -8283,6 +8523,7 @@ window.MacroChef = window.MacroChef || {};
       });
       this.db.version(4).stores({ planner: null });
       this.db.version(5).stores({ settings: 'id, userId' });
+      this.db.version(6).stores({ migrationState: 'id, userId' });
       this.mutations = new OfflineMutationDecorator(this.db);
 
       this.db.on('populate', async () => {
@@ -8370,6 +8611,10 @@ window.MacroChef = window.MacroChef || {};
       await this.seedProducts();
     }
 
+    close() {
+      this.db.close();
+    }
+
     watchAppData() {
       return Dexie.liveQuery(async () => {
         const [recipes, plannerRows, storedGoals] = await Promise.all([
@@ -8425,6 +8670,57 @@ window.MacroChef = window.MacroChef || {};
 
     async getAllRecipes() {
       return await this.db.recipes.toArray();
+    }
+
+    async getGuestMigrationData() {
+      return this.db.transaction('r', this.db.recipes, this.db.plannerEntries, this.db.settings, async () => {
+        const [recipes, plans, settings] = await Promise.all([
+          this.db.recipes.toArray(),
+          this.db.plannerEntries.toArray(),
+          this.db.settings.where('userId').equals(this.userId).first()
+        ]);
+        return { recipes, plans, lang: settings && settings.lang };
+      });
+    }
+
+    async hasGuestMigrationDecision() {
+      return Boolean(await this.db.migrationState.get('guest-import'));
+    }
+
+    async finishGuestMigration(data, accepted) {
+      return this.mutations.transaction(
+        [this.db.recipes, this.db.plannerEntries, this.db.migrationState],
+        async ({ put, update }) => {
+          if (await this.db.migrationState.get('guest-import')) return;
+          if (accepted) {
+            const ids = new Map();
+            for (const recipe of data.recipes) {
+              const copied = { ...recipe, id: createId('rec') };
+              ids.set(recipe.id, copied.id);
+              await put(this.db.recipes, copied);
+            }
+            for (const source of data.plans) {
+              const current = await this.db.plannerEntries.where('dayKey').equals(source.dayKey).first();
+              const changes = {};
+              slots.forEach((slot) => {
+                if ((!current || !current[slot]) && source[slot] && !ids.has(source[slot])) {
+                  throw new Error('Guest plan references a missing recipe');
+                }
+                if ((!current || !current[slot]) && ids.has(source[slot])) {
+                  changes[slot] = ids.get(source[slot]);
+                }
+              });
+              if (!Object.keys(changes).length) continue;
+              if (current) {
+                await update(this.db.plannerEntries, current.id, changes);
+              } else {
+                await put(this.db.plannerEntries, { id: createId('plan'), dayKey: source.dayKey, ...changes });
+              }
+            }
+          }
+          await this.db.migrationState.add({ id: 'guest-import', userId: this.userId });
+        }
+      );
     }
 
     async saveRecipe(recipeData) {
@@ -8534,6 +8830,7 @@ window.MacroChef = window.MacroChef || {};
 
   window.MacroChef.ICalorieRepository = ICalorieRepository;
   window.MacroChef.DexieCalorieRepository = DexieCalorieRepository;
+  window.MacroChef.guestDatabaseExists = () => Dexie.exists('MacroChefDB');
   window.MacroChef.repositories = new DexieCalorieRepository();
 })();
 
@@ -8702,6 +8999,97 @@ window.MacroChef.components = window.MacroChef.components || {};
 
 
 // ==========================================
+// File: components/AuthModal.js
+// ==========================================
+window.MacroChef = window.MacroChef || {};
+window.MacroChef.components = window.MacroChef.components || {};
+
+(function () {
+  function AuthModal({ session, onClose }) {
+    const { t } = window.MacroChef.useI18n();
+    const [register, setRegister] = React.useState(false);
+    const [email, setEmail] = React.useState('');
+    const [password, setPassword] = React.useState('');
+    const [error, setError] = React.useState('');
+    const [message, setMessage] = React.useState('');
+    const [busy, setBusy] = React.useState(false);
+
+    async function submit(event) {
+      event.preventDefault();
+      setBusy(true);
+      setError('');
+      setMessage('');
+      try {
+        const result = register
+          ? await window.MacroChef.auth.signUp(email.trim(), password)
+          : await window.MacroChef.auth.signIn(email.trim(), password);
+        setPassword('');
+        if (register && !result.session) setMessage(t.authConfirmEmail);
+      } catch (err) {
+        console.error('Authentication failed:', err);
+        if (!window.MacroChef.supabaseClient) setError(t.authUnavailable);
+        else if (navigator.onLine === false) setError(t.authOfflineError);
+        else if (err.code === 'invalid_credentials') setError(t.authInvalidCredentials);
+        else if (err.code === 'user_already_exists') setError(t.authAlreadyRegistered);
+        else if (err.code === 'email_not_confirmed') setError(t.authConfirmEmail);
+        else setError(t.authError);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function signOut() {
+      setBusy(true);
+      setError('');
+      try {
+        await window.MacroChef.auth.signOut();
+      } catch (err) {
+        console.error('Sign-out failed:', err);
+        setError(t.authSignOutError);
+        setBusy(false);
+      }
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="auth-title" className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 id="auth-title" className="text-xl font-bold">{t.authTitle}</h2>
+            <button type="button" onClick={onClose} aria-label={t.authClose}>✕</button>
+          </div>
+          {session ? (
+            <div className="space-y-4">
+              <p>{t.authEmail}: {session.email}</p>
+              <p>{t.authRole}: {t[`authRole${session.role}`]}</p>
+              {session.offline && <p role="status">{t.authOfflineSession}</p>}
+              <button type="button" disabled={busy} onClick={signOut} className="rounded-lg bg-emerald-600 px-4 py-2 text-white disabled:opacity-50">{t.authSignOut}</button>
+            </div>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <label className="block">{t.authEmail}
+                <input className="block w-full rounded-lg border p-2 text-slate-900" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+              </label>
+              <label className="block">{t.authPassword}
+                <input className="block w-full rounded-lg border p-2 text-slate-900" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength="6" required value={password} onChange={(event) => setPassword(event.target.value)} />
+              </label>
+              <button type="submit" disabled={busy} className="rounded-lg bg-emerald-600 px-4 py-2 text-white disabled:opacity-50">{register ? t.authSignUp : t.authSignIn}</button>
+              <button type="button" disabled={busy} className="block underline" onClick={() => { setRegister(!register); setError(''); setMessage(''); }}>
+                {register ? t.authSwitchSignIn : t.authSwitchSignUp}
+              </button>
+            </form>
+          )}
+          {error && <p role="alert" className="mt-4 text-red-600">{error}</p>}
+          {message && <p role="status" className="mt-4">{message}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  window.MacroChef.components.AuthModal = AuthModal;
+})();
+
+
+// ==========================================
 // File: components/Header.js
 // ==========================================
 // Header Component with Dropdown Hamburger Menu & Color Tone Selector
@@ -8715,7 +9103,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     darkMode,
     setDarkMode,
     colorTheme,
-    setColorTheme
+    setColorTheme,
+    onOpenAuth
   }) {
     const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -8769,6 +9158,10 @@ window.MacroChef.components = window.MacroChef.components || {};
           </div>
 
           {/* HAMBURGER SETTINGS MENU IN TOP RIGHT CORNER */}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onOpenAuth} className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700" aria-label={t.authTitle} title={t.authTitle}>
+              <Icon name="user" className="w-5 h-5" />
+            </button>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setIsMenuOpen((prev) => !prev)}
@@ -8944,6 +9337,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       </header>
@@ -10704,7 +11098,7 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
 
-  function RecipeModal({ editingRecipe, onClose, onSave }) {
+  function RecipeModal({ editingRecipe, onClose, onSave, repository = window.MacroChef.repositories }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
       if (editingRecipe) {
@@ -10748,8 +11142,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Lidl Products Catalog State
     const productQuery = window.MacroChef.useRepositoryQuery(
-      () => window.MacroChef.repositories.watchProducts(),
-      [window.MacroChef.repositories],
+      () => repository.watchProducts(),
+      [repository],
       null
     );
     const products = productQuery.data || [];
@@ -10887,7 +11281,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
       try {
         let saved = newProductObj;
-        saved = await window.MacroChef.repositories.saveProduct(newProductObj);
+        saved = await repository.saveProduct(newProductObj);
         if (andAddToRecipe) {
           handleSelectProduct(saved);
         }
@@ -11578,15 +11972,15 @@ window.MacroChef = window.MacroChef || {};
     BatchCooking,
     ShoppingList,
     MacroTracker,
-    RecipeModal
+    RecipeModal,
+    AuthModal
   } = window.MacroChef.components;
 
-  const { repositories } = window.MacroChef;
   const { shoppingAggregator } = window.MacroChef;
   const { DAYS_KEYS } = window.MacroChef;
   const { useRepositoryQuery } = window.MacroChef;
 
-  function App() {
+  function App({ repositories, shoppingStorageKey, session }) {
     const [activeTab, setActiveTab] = useState('planner');
     const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
 
@@ -11619,9 +12013,10 @@ window.MacroChef = window.MacroChef || {};
     const goals = goalsDraft || storedGoals;
     const [checkedShopping, setCheckedShopping] = useState(() => {
       try {
-        const saved = localStorage.getItem('macrochef_checked');
+        const saved = localStorage.getItem(shoppingStorageKey);
         return saved ? JSON.parse(saved) : {};
       } catch (e) {
+        console.error('Could not load shopping checks:', e);
         return {};
       }
     });
@@ -11630,6 +12025,7 @@ window.MacroChef = window.MacroChef || {};
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
+    const [showAuthModal, setShowAuthModal] = useState(false);
 
     useEffect(() => {
       document.documentElement.setAttribute('data-color-theme', colorTheme);
@@ -11656,14 +12052,8 @@ window.MacroChef = window.MacroChef || {};
     }, [darkMode]);
 
     useEffect(() => {
-      localStorage.setItem('macrochef_checked', JSON.stringify(checkedShopping));
-    }, [checkedShopping]);
-
-    useEffect(() => {
-      repositories.initialize().catch((err) => {
-        console.error('Data repository initialization error:', err);
-      });
-    }, []);
+      localStorage.setItem(shoppingStorageKey, JSON.stringify(checkedShopping));
+    }, [checkedShopping, shoppingStorageKey]);
 
     useEffect(() => {
       if (appData.error) {
@@ -11764,6 +12154,7 @@ window.MacroChef = window.MacroChef || {};
             setDarkMode={setDarkMode}
             colorTheme={colorTheme}
             setColorTheme={setColorTheme}
+            onOpenAuth={() => setShowAuthModal(true)}
           />
 
           {/* Main Layout Container */}
@@ -11863,6 +12254,7 @@ window.MacroChef = window.MacroChef || {};
           {/* Modal Dialog */}
           {showRecipeModal && (
             <RecipeModal
+              repository={repositories}
               editingRecipe={editingRecipe}
               onClose={() => {
                 setShowRecipeModal(false);
@@ -11871,6 +12263,7 @@ window.MacroChef = window.MacroChef || {};
               onSave={handleSaveRecipe}
             />
           )}
+          {showAuthModal && <AuthModal session={session} onClose={() => setShowAuthModal(false)} />}
 
           {/* Mobile Bottom Navigation */}
           <Navigation
@@ -11888,17 +12281,188 @@ window.MacroChef = window.MacroChef || {};
 
 
 // ==========================================
+// File: components/SessionApp.js
+// ==========================================
+window.MacroChef = window.MacroChef || {};
+window.MacroChef.components = window.MacroChef.components || {};
+
+(function () {
+  const { useEffect, useRef, useState } = React;
+
+  function SessionApp() {
+    const [active, setActive] = useState(null);
+    const [target, setTarget] = useState(null);
+    const [error, setError] = useState(null);
+    const [attempt, setAttempt] = useState(0);
+    const activeRef = useRef(null);
+    const wantedRef = useRef(null);
+    const latestSession = useRef(null);
+    const sequence = useRef(0);
+
+    useEffect(() => {
+      let disposed = false;
+      async function refresh() {
+        const request = ++sequence.current;
+        try {
+          const session = await window.MacroChef.auth.getSessionAndRole();
+          if (disposed || request !== sequence.current) return;
+          latestSession.current = session;
+          setError(null);
+          const key = session ? JSON.stringify([session.issuer, session.tenantId, session.userId]) : 'guest';
+          if (wantedRef.current === key) {
+            setActive((previous) => previous ? { ...previous, session } : previous);
+            return;
+          }
+          wantedRef.current = key;
+          setActive(null);
+          setTarget({ key, session });
+        } catch (err) {
+          if (disposed || request !== sequence.current) return;
+          console.error('Account verification failed:', err);
+          setError('authLoadError');
+        }
+      }
+      const unsubscribe = window.MacroChef.auth.subscribe((event) => {
+        if (event === 'changing') {
+          sequence.current++;
+          wantedRef.current = null;
+          setActive(null);
+          setTarget({ suspended: true });
+        } else {
+          refresh();
+        }
+      });
+      refresh();
+      return () => {
+        disposed = true;
+        sequence.current++;
+        unsubscribe();
+      };
+    }, [attempt]);
+
+    useEffect(() => {
+      if (!target) return;
+      let cancelled = false;
+      let next;
+      const stale = () => cancelled || wantedRef.current !== target.key;
+      async function open() {
+        try {
+          if (activeRef.current) {
+            activeRef.current.repository.close();
+            activeRef.current = null;
+          }
+          if (target.suspended) return;
+          next = target.session
+            ? await window.MacroChef.createScopedRepository(target.session)
+            : { repository: new window.MacroChef.DexieCalorieRepository(), shoppingStorageKey: 'macrochef_checked' };
+          if (stale()) {
+            next.repository.close();
+            return;
+          }
+          await next.repository.initialize();
+          if (stale()) {
+            next.repository.close();
+            return;
+          }
+          if (target.session) await next.repository.seedProducts();
+          if (stale()) {
+            next.repository.close();
+            return;
+          }
+          if (target.session && !await next.repository.hasGuestMigrationDecision()) {
+            if (stale()) {
+              next.repository.close();
+              return;
+            }
+            let data = { recipes: [], plans: [] };
+            if (await window.MacroChef.guestDatabaseExists()) {
+              const guest = new window.MacroChef.DexieCalorieRepository('MacroChefDB', { seedDefaults: false });
+              try {
+                await guest.initialize();
+                data = await guest.getGuestMigrationData();
+              } finally {
+                guest.close();
+              }
+            }
+            if (stale()) {
+              next.repository.close();
+              return;
+            }
+            const hasData = data.recipes.length > 0 || data.plans.some((plan) =>
+              ['Breakfast', 'Lunch', 'Dinner', 'Snack'].some((slot) => plan[slot]));
+            const lang = (data.lang || localStorage.getItem('macrochef_lang')) === 'en' ? 'en' : 'pl';
+            const accepted = hasData && window.confirm(window.MacroChef.TRANSLATIONS[lang].authMigrationPrompt);
+            await next.repository.finishGuestMigration(data, accepted);
+          }
+          if (stale()) {
+            next.repository.close();
+            return;
+          }
+          activeRef.current = next;
+          setActive({ ...next, key: target.key, session: latestSession.current });
+        } catch (err) {
+          if (next) next.repository.close();
+          if (!stale()) {
+            console.error('Account repository initialization failed:', err);
+            wantedRef.current = null;
+            setError(err.message === 'Guest plan references a missing recipe'
+              ? 'authGuestDataError'
+              : 'authDataError');
+          }
+        }
+      }
+      open();
+      return () => {
+        cancelled = true;
+        if (next && activeRef.current !== next) next.repository.close();
+      };
+    }, [target]);
+
+    useEffect(() => () => {
+      if (activeRef.current) activeRef.current.repository.close();
+    }, []);
+
+    if (!active) {
+      const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
+      return error
+        ? <p role="alert">
+            {t[error]} <button type="button" onClick={() => setAttempt((n) => n + 1)}>{t.retry}</button>
+            {window.MacroChef.supabaseClient && <button type="button" onClick={async () => {
+              try {
+                await window.MacroChef.auth.signOut();
+              } catch (err) {
+                console.error('Sign-out failed:', err);
+                setError('authSignOutError');
+              }
+            }}>{t.authSignOut}</button>}
+          </p>
+        : <p role="status">{t.authLoading}</p>;
+    }
+
+    return (
+      <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
+        {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
+        <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} />
+      </window.MacroChef.I18nProvider>
+    );
+  }
+
+  window.MacroChef.components.SessionApp = SessionApp;
+})();
+
+
+// ==========================================
 // File: main.js
 // ==========================================
 // Application Bootstrapper & Service Worker Registration
 (function () {
-  const { App, I18nProvider } = window.MacroChef;
+  const { SessionApp } = window.MacroChef.components;
 
   // Mount React App
   const rootElement = document.getElementById('root');
-  if (rootElement && App) {
+  if (rootElement && SessionApp) {
     const root = ReactDOM.createRoot(rootElement);
-    root.render(React.createElement(I18nProvider, null, React.createElement(App)));
+    root.render(React.createElement(SessionApp));
   }
 
   // Register PWA Service Worker for offline capability

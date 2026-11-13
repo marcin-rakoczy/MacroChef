@@ -4,12 +4,16 @@ window.MacroChef = window.MacroChef || {};
 (function () {
   class ICalorieRepository {
     initialize() { throw new Error('initialize() must be implemented'); }
+    close() { throw new Error('close() must be implemented'); }
     watchAppData() { throw new Error('watchAppData() must be implemented'); }
     watchProducts() { throw new Error('watchProducts() must be implemented'); }
     watchSettings() { throw new Error('watchSettings() must be implemented'); }
     initializeSettings(defaults) { throw new Error('initializeSettings() must be implemented'); }
     saveSettings(settings) { throw new Error('saveSettings() must be implemented'); }
     getAllRecipes() { throw new Error('getAllRecipes() must be implemented'); }
+    getGuestMigrationData() { throw new Error('getGuestMigrationData() must be implemented'); }
+    hasGuestMigrationDecision() { throw new Error('hasGuestMigrationDecision() must be implemented'); }
+    finishGuestMigration(data, accepted) { throw new Error('finishGuestMigration() must be implemented'); }
     saveRecipe(recipeData) { throw new Error('saveRecipe() must be implemented'); }
     saveRecipes(recipes) { throw new Error('saveRecipes() must be implemented'); }
     deleteRecipe(id) { throw new Error('deleteRecipe() must be implemented'); }
@@ -148,6 +152,7 @@ window.MacroChef = window.MacroChef || {};
       });
       this.db.version(4).stores({ planner: null });
       this.db.version(5).stores({ settings: 'id, userId' });
+      this.db.version(6).stores({ migrationState: 'id, userId' });
       this.mutations = new OfflineMutationDecorator(this.db);
 
       this.db.on('populate', async () => {
@@ -235,6 +240,10 @@ window.MacroChef = window.MacroChef || {};
       await this.seedProducts();
     }
 
+    close() {
+      this.db.close();
+    }
+
     watchAppData() {
       return Dexie.liveQuery(async () => {
         const [recipes, plannerRows, storedGoals] = await Promise.all([
@@ -290,6 +299,57 @@ window.MacroChef = window.MacroChef || {};
 
     async getAllRecipes() {
       return await this.db.recipes.toArray();
+    }
+
+    async getGuestMigrationData() {
+      return this.db.transaction('r', this.db.recipes, this.db.plannerEntries, this.db.settings, async () => {
+        const [recipes, plans, settings] = await Promise.all([
+          this.db.recipes.toArray(),
+          this.db.plannerEntries.toArray(),
+          this.db.settings.where('userId').equals(this.userId).first()
+        ]);
+        return { recipes, plans, lang: settings && settings.lang };
+      });
+    }
+
+    async hasGuestMigrationDecision() {
+      return Boolean(await this.db.migrationState.get('guest-import'));
+    }
+
+    async finishGuestMigration(data, accepted) {
+      return this.mutations.transaction(
+        [this.db.recipes, this.db.plannerEntries, this.db.migrationState],
+        async ({ put, update }) => {
+          if (await this.db.migrationState.get('guest-import')) return;
+          if (accepted) {
+            const ids = new Map();
+            for (const recipe of data.recipes) {
+              const copied = { ...recipe, id: createId('rec') };
+              ids.set(recipe.id, copied.id);
+              await put(this.db.recipes, copied);
+            }
+            for (const source of data.plans) {
+              const current = await this.db.plannerEntries.where('dayKey').equals(source.dayKey).first();
+              const changes = {};
+              slots.forEach((slot) => {
+                if ((!current || !current[slot]) && source[slot] && !ids.has(source[slot])) {
+                  throw new Error('Guest plan references a missing recipe');
+                }
+                if ((!current || !current[slot]) && ids.has(source[slot])) {
+                  changes[slot] = ids.get(source[slot]);
+                }
+              });
+              if (!Object.keys(changes).length) continue;
+              if (current) {
+                await update(this.db.plannerEntries, current.id, changes);
+              } else {
+                await put(this.db.plannerEntries, { id: createId('plan'), dayKey: source.dayKey, ...changes });
+              }
+            }
+          }
+          await this.db.migrationState.add({ id: 'guest-import', userId: this.userId });
+        }
+      );
     }
 
     async saveRecipe(recipeData) {
@@ -399,5 +459,6 @@ window.MacroChef = window.MacroChef || {};
 
   window.MacroChef.ICalorieRepository = ICalorieRepository;
   window.MacroChef.DexieCalorieRepository = DexieCalorieRepository;
+  window.MacroChef.guestDatabaseExists = () => Dexie.exists('MacroChefDB');
   window.MacroChef.repositories = new DexieCalorieRepository();
 })();

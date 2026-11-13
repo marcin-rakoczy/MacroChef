@@ -1,5 +1,5 @@
 // MacroChef PWA Service Worker
-const CACHE_NAME = 'macrochef-v1.0.2';
+const CACHE_NAME = 'macrochef-v1.0.3';
 
 const STATIC_ASSETS = [
   './',
@@ -17,14 +17,18 @@ const STATIC_ASSETS = [
   './js/i18n/days.js',
   './js/i18n/context.js',
   './js/utils/helpers.js',
+  './js/utils/recipeCsv.js',
+  './js/utils/productCatalogCsv.js',
   './src/core/nutrition/calculations.js',
   './js/utils/shoppingAggregator.js',
   './js/supabaseClient.js',
+  './js/auth.js',
   './js/db.js',
   './js/session/repositoryScope.js',
   './js/sync/AppSyncManager.js',
   './js/hooks/useRepositoryQuery.js',
   './js/components/Icon.js',
+  './js/components/AuthModal.js',
   './js/components/Header.js',
   './js/components/Navigation.js',
   './js/components/RecipePickerModal.js',
@@ -35,6 +39,7 @@ const STATIC_ASSETS = [
   './js/components/MacroTracker.js',
   './js/components/RecipeModal.js',
   './js/app.js',
+  './js/components/SessionApp.js',
   './js/main.js'
 ];
 

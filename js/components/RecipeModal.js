@@ -6,7 +6,7 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
 
-  function RecipeModal({ editingRecipe, onClose, onSave }) {
+  function RecipeModal({ editingRecipe, onClose, onSave, repository = window.MacroChef.repositories }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
       if (editingRecipe) {
@@ -50,8 +50,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Lidl Products Catalog State
     const productQuery = window.MacroChef.useRepositoryQuery(
-      () => window.MacroChef.repositories.watchProducts(),
-      [window.MacroChef.repositories],
+      () => repository.watchProducts(),
+      [repository],
       null
     );
     const products = productQuery.data || [];
@@ -189,7 +189,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
       try {
         let saved = newProductObj;
-        saved = await window.MacroChef.repositories.saveProduct(newProductObj);
+        saved = await repository.saveProduct(newProductObj);
         if (andAddToRecipe) {
           handleSelectProduct(saved);
         }

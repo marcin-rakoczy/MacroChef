@@ -21,11 +21,13 @@ const filesToBundle = [
   '../src/core/nutrition/calculations.js',
   'utils/shoppingAggregator.js',
   'supabaseClient.js',
+  'auth.js',
   'db.js',
   'session/repositoryScope.js',
   'sync/AppSyncManager.js',
   'hooks/useRepositoryQuery.js',
   'components/Icon.js',
+  'components/AuthModal.js',
   'components/Header.js',
   'components/Navigation.js',
   'components/RecipePickerModal.js',
@@ -36,6 +38,7 @@ const filesToBundle = [
   'components/MacroTracker.js',
   'components/RecipeModal.js',
   'app.js',
+  'components/SessionApp.js',
   'main.js'
 ];
 

@@ -9,7 +9,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     darkMode,
     setDarkMode,
     colorTheme,
-    setColorTheme
+    setColorTheme,
+    onOpenAuth
   }) {
     const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -63,6 +64,10 @@ window.MacroChef.components = window.MacroChef.components || {};
           </div>
 
           {/* HAMBURGER SETTINGS MENU IN TOP RIGHT CORNER */}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onOpenAuth} className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700" aria-label={t.authTitle} title={t.authTitle}>
+              <Icon name="user" className="w-5 h-5" />
+            </button>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setIsMenuOpen((prev) => !prev)}
@@ -238,6 +243,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       </header>
