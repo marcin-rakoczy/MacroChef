@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MacroChef RLS Policy Tests</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      margin: 0;
+    }
+    pre {
+      background: #0d0d0d;
+      border: 1px solid #333;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    h1 {
+      color: #4ec9b0;
+      margin-bottom: 20px;
+    }
+    .pass { color: #6a9955; font-weight: bold; }
+    .fail { color: #f48771; font-weight: bold; }
+    .info { color: #9cdcfe; }
+    .warning { color: #ce9178; }
+    .section-title {
+      color: #569cd6;
+      font-weight: bold;
+      margin-top: 15px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔐 MacroChef RLS Policy Tests</h1>
+  <p>Tests Row Level Security enforcement on products and recipes tables</p>
+  <pre id="result">Running tests...</pre>
+
+  <script src="rls-policies.test.js"></script>
+</body>
+</html>
