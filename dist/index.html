@@ -13796,18 +13796,46 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { useState, useEffect } = React;
 
   function AdminProducts({ repository, session }) {
-    console.log('[AdminProducts] Component mounting', { repository: !!repository, session: !!session });
     const [products, setProducts] = useState([]);
-    console.log('[AdminProducts] useState products initialized');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [selected, setSelected] = useState(new Set());
     const [editingId, setEditingId] = useState(null);
     const [editValues, setEditValues] = useState({});
-    console.log('[AdminProducts] All useState hooks initialized');
-    const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
-    console.log('[AdminProducts] Translations loaded, t =', typeof t === 'object' ? Object.keys(t).slice(0, 5) : t);
+    
+    // Get translations with fallbacks
+    const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
+    const defaultTranslations = {
+      importProducts: 'Import Products',
+      loading: 'Loading...',
+      noProducts: 'No products',
+      name: 'Name',
+      shop: 'Shop',
+      price: 'Price',
+      calories: 'Calories',
+      protein: 'Protein',
+      carbs: 'Carbs',
+      fat: 'Fat',
+      actions: 'Actions',
+      delete: 'Delete',
+      edit: 'Edit',
+      save: 'Save',
+      cancel: 'Cancel',
+      selectItems: 'Select items',
+      confirmDelete: 'Are you sure?',
+      editSelected: 'Edit Selected',
+      deleteSelected: 'Delete Selected',
+      editProducts: 'Edit Products',
+      productsUpdated: 'Products updated',
+      productsDeleted: 'Products deleted',
+      productsImported: 'Products imported',
+      importProductsHelp: 'CSV format: name, price, calories, protein, carbs, fat, shop',
+      totalProducts: 'Total Products'
+    };
+    
+    const langTranslations = window.MacroChef?.TRANSLATIONS?.[lang];
+    const t = langTranslations || defaultTranslations;
 
     // Load all products
     useEffect(() => {
