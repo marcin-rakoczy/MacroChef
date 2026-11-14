@@ -1,16 +1,45 @@
 -- Add 5 test users to user_profiles table
--- Run this in Supabase SQL editor (as authenticated user with proper permissions)
--- Note: Valid roles are Admin, Tester, UserWithAdvertisement (Guest is not allowed by DB constraint)
+-- ⚠️  IMPORTANT: These users must exist in auth.users table first!
+--
+-- The user_profiles table has a FOREIGN KEY constraint on user_id
+-- that references auth.users(id). You cannot insert a user_id
+-- that doesn't exist in auth.users.
+--
+-- SOLUTION:
+-- 1. First, create these test accounts via MacroChef login/signup OR
+-- 2. Register them via Supabase Auth dashboard, OR
+-- 3. Use the query below which links to existing auth.users by email
 
+-- Query to find existing auth.users and create profiles for them
 INSERT INTO public.user_profiles (user_id, email, role, created_at)
-VALUES
-  ('740100dc-4a1c-4c0e-8dcc-056a33f333c7', 'alice.test@example.com', 'Admin', NOW()),
-  ('beb6d6d6-62f5-4777-b711-808d988abd07', 'bob.tester@example.com', 'Tester', NOW()),
-  ('74ad8edd-13bf-48e6-a9fb-c1495643de77', 'charlie.user@example.com', 'UserWithAdvertisement', NOW()),
-  ('8c1d8d41-1ed0-427d-8961-b008de26249e', 'diana.user@example.com', 'UserWithAdvertisement', NOW()),
-  ('d14ad94b-859b-4ca4-b557-a9c37af22b31', 'eve.admin@example.com', 'Admin', NOW());
+SELECT 
+  u.id,
+  u.email,
+  CASE 
+    WHEN u.email = 'alice.test@example.com' THEN 'Admin'
+    WHEN u.email = 'bob.tester@example.com' THEN 'Tester'
+    WHEN u.email = 'charlie.user@example.com' THEN 'UserWithAdvertisement'
+    WHEN u.email = 'diana.user@example.com' THEN 'UserWithAdvertisement'
+    WHEN u.email = 'eve.admin@example.com' THEN 'Admin'
+  END as role,
+  NOW()
+FROM auth.users u
+WHERE u.email IN (
+  'alice.test@example.com',
+  'bob.tester@example.com', 
+  'charlie.user@example.com',
+  'diana.user@example.com',
+  'eve.admin@example.com'
+)
+ON CONFLICT (user_id) DO NOTHING;
 
 -- Verify insertion
-SELECT user_id, email, role, created_at FROM public.user_profiles 
-WHERE email IN ('alice.test@example.com', 'bob.tester@example.com', 'charlie.user@example.com', 'diana.user@example.com', 'eve.admin@example.com')
-ORDER BY created_at DESC;
+SELECT p.user_id, p.email, p.role, p.created_at 
+FROM public.user_profiles p
+WHERE p.email IN ('alice.test@example.com', 'bob.tester@example.com', 'charlie.user@example.com', 'diana.user@example.com', 'eve.admin@example.com')
+ORDER BY p.created_at DESC;
+
+-- Debug: Show which auth.users exist
+SELECT u.id, u.email
+FROM auth.users u
+WHERE u.email IN ('alice.test@example.com', 'bob.tester@example.com', 'charlie.user@example.com', 'diana.user@example.com', 'eve.admin@example.com');
