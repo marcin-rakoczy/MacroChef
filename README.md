@@ -1,6 +1,10 @@
 # MacroChef 🥗 - Calorie & Meal Planner PWA
 
-**MacroChef** is a Progressive Web Application (PWA) designed for fitness meal prepping, caloric & macro control, batch cooking, and zero-waste shopping list generation. It operates completely offline using IndexedDB (`Dexie.js`) and Service Workers, with personalized macro calculation based on fitness goals and individual profiles.
+🔐 **PROPRIETARY SOFTWARE - ALL RIGHTS RESERVED**
+
+**MacroChef** is a **PROPRIETARY Progressive Web Application (PWA)** designed for fitness meal prepping, caloric & macro control, batch cooking, and zero-waste shopping list generation. It operates completely offline using IndexedDB (`Dexie.js`) and Service Workers, with personalized macro calculation based on fitness goals and individual profiles.
+
+**© 2024-2026 Marcin Rakoczy. This software is proprietary and confidential. See [LICENSE.txt](LICENSE.txt) for restrictions.**
 
 ## 🛠️ Technology Stack
 
@@ -731,8 +735,175 @@ Based on International Society of Sports Nutrition (ISSN) guidelines:
 
 ## 📄 License & Attribution
 
-**MacroChef** is an open-source fitness application built with modern web technologies and nutritional science principles.
+### ⚠️ PROPRIETARY SOFTWARE - ALL RIGHTS RESERVED
 
-Developed with ❤️ for fitness enthusiasts, meal prep planners, and zero-waste advocates.
+**MacroChef** is a **PRIVATE, PROPRIETARY APPLICATION** with restricted intellectual property rights.
 
-**Technologies**: React 18 • Babel • Tailwind CSS • Lucide Icons • Dexie.js • Service Workers • IndexedDB
+```
+© 2024-2026 Marcin Rakoczy. ALL RIGHTS RESERVED.
+
+This software is proprietary and confidential. Unauthorized copying, 
+distribution, modification, or use of this software or its source code 
+is strictly prohibited and subject to civil and criminal penalties.
+```
+
+---
+
+### 📋 Terms & Conditions
+
+1. **NO OPEN SOURCE LICENSE** - This project is NOT open source
+2. **NO REDISTRIBUTION ALLOWED** - Copying or distributing the code is forbidden
+3. **NO MODIFICATION ALLOWED** - Altering the source code without permission is prohibited
+4. **NO DERIVATIVE WORKS** - Creating derivative works from this codebase is not permitted
+5. **NO REVERSE ENGINEERING** - Decompiling, disassembling, or attempting to reverse engineer is illegal
+6. **NO COMMERCIAL USE** - Using this code for commercial purposes without written permission is forbidden
+
+---
+
+### 🔐 Source Code Protection
+
+The source code is **PROTECTED BY COPYRIGHT LAW** under international intellectual property regulations:
+- **Copyright Law** (Digital Millennium Copyright Act - DMCA)
+- **Trade Secret Protection** (Uniform Trade Secrets Act - UTSA)
+- **International Copyright** (Berne Convention, TRIPS Agreement)
+
+Unauthorized access or use may result in:
+- ⚖️ **Civil Litigation** (damages up to $150,000+ per violation)
+- ⚠️ **Criminal Prosecution** (fines and/or imprisonment)
+- 🛑 **Immediate Cease & Desist Orders**
+- 💰 **Attorney Fees & Court Costs**
+
+---
+
+### 👤 Author & Rights Holder
+
+**Marcin Rakoczy**
+- Sole copyright holder and rights owner
+- All proprietary rights reserved
+- Exclusive licensing authority
+
+---
+
+### 🤝 Legal Permission Required
+
+**For any use of this software beyond personal, non-commercial viewing:**
+
+**Contact:** *(Add your contact info)*
+- Email: *(Add email)*
+- License inquiries only
+- All other communications will be declined
+
+**Authorized uses** require:
+- Written permission from copyright holder
+- Signed license agreement
+- Compliance with all terms
+
+---
+
+### 🛡️ Security & Enforcement
+
+This repository implements multiple protection mechanisms:
+
+1. **Source Code Obfuscation** (production builds)
+2. **License Verification** (runtime checks)
+3. **Digital Rights Management** (watermarking)
+4. **Automated Monitoring** (unauthorized use detection)
+5. **Legal Enforcement** (DMCA takedown notices)
+
+---
+
+### ✅ Permitted Uses (Non-Exclusive)
+
+Users MAY:
+- ✅ View this repository on GitHub (read-only)
+- ✅ Run the application for personal, non-commercial use only
+- ✅ Report security vulnerabilities to the author
+- ✅ Use as reference for educational understanding (without copying)
+
+Users MUST NOT:
+- ❌ Clone, fork, or download the source code
+- ❌ Modify any part of the application
+- ❌ Redistribute in any form (source or binary)
+- ❌ Reverse engineer or decompile
+- ❌ Use for commercial purposes
+- ❌ Create derivative products
+- ❌ Remove copyright notices or license headers
+- ❌ Claim ownership or authorship
+
+---
+
+### 📊 Intellectual Property Assets
+
+**Protected Elements:**
+- ✓ Application architecture & design patterns
+- ✓ User interface (UI/UX design)
+- ✓ Algorithm implementations (nutrition calculations)
+- ✓ Database schemas & data structures
+- ✓ CSS styling & design system
+- ✓ Component hierarchy & organization
+- ✓ Business logic & workflows
+- ✓ Configuration systems
+- ✓ All documentation
+
+---
+
+### 🔗 Third-Party Licenses
+
+This application uses open-source libraries under their respective licenses:
+
+| Library | License | Usage |
+|---------|---------|-------|
+| React 18 | MIT | UI framework |
+| Babel | MIT | JSX compilation |
+| Tailwind CSS | MIT | Styling |
+| Lucide Icons | ISC | Icons |
+| Dexie.js | Apache 2.0 | IndexedDB wrapper |
+| Supabase JS | MIT | Backend services |
+
+⚠️ **NOTE:** Third-party library licenses apply ONLY to those libraries, NOT to MacroChef application code.
+
+---
+
+### 📝 Copyright Notice
+
+```
+© 2024-2026 Marcin Rakoczy
+MacroChef - Proprietary Fitness Application
+All Rights Reserved
+
+This software contains proprietary and confidential information
+belonging to Marcin Rakoczy. Unauthorized use is prohibited.
+
+For licensing inquiries, contact the copyright holder.
+```
+
+---
+
+### 🚨 Violation Reporting
+
+**Found unauthorized copies or derivative works?**
+
+Report violations to:
+- GitHub: [Report this repository](https://github.com/github/dmca)
+- Direct: *(Add email for DMCA notices)*
+
+Your help protecting intellectual property is appreciated.
+
+---
+
+### ⚖️ Disclaimer
+
+This software is provided "AS IS" without warranty of any kind. The author disclaims all liability for any damages resulting from unauthorized use, modification, or distribution.
+
+**No warranties are provided** regarding:
+- Fitness for particular purpose
+- Merchantability
+- Non-infringement
+- Accuracy of information
+
+Use at your own risk. By accessing this repository, you agree to comply with all terms and conditions.
+
+---
+
+**Last Updated:** 2026-11-14  
+**Status:** ACTIVE PROTECTION - DO NOT COPY

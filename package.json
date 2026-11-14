@@ -17,6 +17,6 @@
     "react",
     "indexeddb"
   ],
-  "author": "",
-  "license": "MIT"
+  "author": "Marcin Rakoczy",
+  "license": "PROPRIETARY"
 }
