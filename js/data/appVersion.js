@@ -1,2 +1,2 @@
 window.MacroChef = window.MacroChef || {};
-window.MacroChef.APP_VERSION = '1.0.10';
+window.MacroChef.APP_VERSION = '1.0.11';
