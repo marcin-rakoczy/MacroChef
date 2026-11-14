@@ -9,6 +9,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [target, setTarget] = useState(null);
     const [error, setError] = useState(null);
     const [attempt, setAttempt] = useState(0);
+    const [authLoading, setAuthLoading] = useState(false);
+    const [authError, setAuthError] = useState('');
     const activeRef = useRef(null);
     const wantedRef = useRef(null);
     const latestSession = useRef(null);
@@ -155,28 +157,84 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     }, []);
 
-    if (!active) {
-      const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
-      return error
-        ? <p role="alert">
-            {t[error]} <button type="button" onClick={() => setAttempt((n) => n + 1)}>{t.retry}</button>
-            {window.MacroChef.supabaseClient && <button type="button" onClick={async () => {
-              try {
-                await window.MacroChef.auth.signOut();
-              } catch (err) {
-                console.error('Sign-out failed:', err);
-                setError('authSignOutError');
-              }
-            }}>{t.authSignOut}</button>}
-          </p>
-        : <p role="status">{t.authLoading}</p>;
+    const handleSignIn = async (email, password, isSignUp) => {
+      setAuthLoading(true);
+      setAuthError('');
+      try {
+        if (isSignUp) {
+          await window.MacroChef.auth.signUp(email, password);
+        } else {
+          await window.MacroChef.auth.signIn(email, password);
+        }
+      } catch (err) {
+        setAuthError(err.message || (isSignUp ? 'Sign up failed' : 'Sign in failed'));
+        setAuthLoading(false);
+        throw err;
+      }
+    };
+
+    const handleSignOut = async () => {
+      try {
+        await window.MacroChef.auth.signOut();
+      } catch (err) {
+        console.error('Sign-out failed:', err);
+        setError('authSignOutError');
+      }
+    };
+
+    // If unauthenticated, show login screen
+    if (latestSession.current === null && !active) {
+      const { LoginScreen } = window.MacroChef.components;
+      if (LoginScreen) {
+        return (
+          <LoginScreen
+            onSignIn={handleSignIn}
+            error={authError}
+            loading={authLoading}
+          />
+        );
+      }
     }
 
     return (
-      <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
-        {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
-        <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} />
-      </window.MacroChef.I18nProvider>
+      <>
+        {!active && (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">
+            <p role="status" className="text-slate-600 dark:text-slate-400 mb-4">
+              {error
+                ? window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'][error] || 'Error loading'
+                : window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'].authLoading || 'Loading...'
+              }
+            </p>
+            {error && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAttempt((n) => n + 1)}
+                  className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition"
+                >
+                  {window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'].retry || 'Retry'}
+                </button>
+                {window.MacroChef.supabaseClient && (
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                  >
+                    {window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'].authSignOut || 'Sign Out'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {active && (
+          <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
+            {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
+            <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} />
+          </window.MacroChef.I18nProvider>
+        )}
+      </>
     );
   }
 

@@ -28,6 +28,7 @@ const filesToBundle = [
   'sync/AppSyncManager.js',
   'hooks/useRepositoryQuery.js',
   'components/Icon.js',
+  'components/LoginScreen.js',
   'components/AdBanner.js',
   'components/AuthModal.js',
   'components/Header.js',
