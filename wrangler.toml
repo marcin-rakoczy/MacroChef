@@ -1,6 +1,6 @@
 name = "macrochef"
 type = "javascript"
-account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+account_id = "02a49f83e7bd8ddae493a72d41565e77"
 workers_dev = false
 compatibility_date = "2026-11-14"
 
