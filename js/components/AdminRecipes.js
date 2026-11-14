@@ -11,7 +11,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [selected, setSelected] = useState(new Set());
-    const [importedFile, setImportedFile] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [page, setPage] = useState(0);
+    const RECIPES_PER_PAGE = 25;
     const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
 
     // Load all recipes
@@ -39,6 +41,23 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
       loadRecipes();
     }, [repository]);
+
+    // Reset page when search changes
+    useEffect(() => {
+      setPage(0);
+    }, [searchQuery]);
+
+    // Filter recipes based on search query
+    const filteredRecipes = recipes.filter(recipe => {
+      const query = searchQuery.toLowerCase();
+      const recipeName = typeof recipe.name === 'string' ? recipe.name : '';
+      const name = (recipeName || '').toLowerCase();
+      return name.includes(query);
+    });
+
+    const totalPages = Math.ceil(filteredRecipes.length / RECIPES_PER_PAGE);
+    const startIndex = page * RECIPES_PER_PAGE;
+    const paginatedRecipes = filteredRecipes.slice(startIndex, startIndex + RECIPES_PER_PAGE);
 
     // Delete recipe
     const deleteRecipe = async (recipeId) => {
@@ -155,6 +174,15 @@ window.MacroChef.components = window.MacroChef.components || {};
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search Box */}
+          <input
+            type="text"
+            placeholder={t.search || 'Search recipes...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white flex-1"
+          />
+
           {/* Import CSV */}
           <label className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium cursor-pointer transition">
             {t.importRecipes || 'Import Recipes'}
@@ -197,9 +225,9 @@ window.MacroChef.components = window.MacroChef.components || {};
           <div className="text-center py-8 text-slate-600 dark:text-slate-400">
             {t.loading || 'Loading...'}
           </div>
-        ) : recipes.length === 0 ? (
+        ) : filteredRecipes.length === 0 ? (
           <div className="text-center py-8 text-slate-600 dark:text-slate-400">
-            {t.noRecipes || 'No recipes found'}
+            {searchQuery ? (t.noRecipes || 'No recipes found') : (t.noRecipes || 'No recipes found')}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -209,12 +237,16 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selected.size === recipes.length && recipes.length > 0}
+                      checked={paginatedRecipes.length > 0 && paginatedRecipes.every(r => selected.has(r.id))}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelected(new Set(recipes.map(r => r.id)));
+                          const newSet = new Set(selected);
+                          paginatedRecipes.forEach(r => newSet.add(r.id));
+                          setSelected(newSet);
                         } else {
-                          setSelected(new Set());
+                          const newSet = new Set(selected);
+                          paginatedRecipes.forEach(r => newSet.delete(r.id));
+                          setSelected(newSet);
                         }
                       }}
                       className="cursor-pointer"
@@ -229,7 +261,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 </tr>
               </thead>
               <tbody>
-                {recipes.map(recipe => (
+                {paginatedRecipes.map(recipe => (
                   <tr key={recipe.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-4 py-3">
                       <input
@@ -264,6 +296,32 @@ window.MacroChef.components = window.MacroChef.components || {};
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {filteredRecipes.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              {t.showing || 'Showing'}: {startIndex + 1} - {Math.min(startIndex + RECIPES_PER_PAGE, filteredRecipes.length)} {t.of || 'of'} {filteredRecipes.length} {t.recipes || 'recipes'} | {t.page || 'Page'} {page + 1} {t.of || 'of'} {totalPages}
+              {searchQuery && <span className="ml-2 text-slate-700 dark:text-slate-300">({t.found || 'Found'}: {filteredRecipes.length})</span>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white rounded-lg font-medium transition"
+              >
+                ← {t.previous || 'Previous'}
+              </button>
+              <button
+                onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                disabled={page >= totalPages - 1}
+                className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white rounded-lg font-medium transition"
+              >
+                {t.next || 'Next'} →
+              </button>
+            </div>
           </div>
         )}
 
