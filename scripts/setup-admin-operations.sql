@@ -106,11 +106,21 @@ ON public.admin_users
 FOR SELECT
 USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "admin_users_modify"
+CREATE POLICY "admin_users_insert"
 ON public.admin_users
-FOR INSERT, UPDATE, DELETE
+FOR INSERT
+WITH CHECK (is_admin(auth.uid()));
+
+CREATE POLICY "admin_users_update"
+ON public.admin_users
+FOR UPDATE
 USING (is_admin(auth.uid()))
 WITH CHECK (is_admin(auth.uid()));
+
+CREATE POLICY "admin_users_delete"
+ON public.admin_users
+FOR DELETE
+USING (is_admin(auth.uid()));
 
 -- ===== Step 4: Verify setup =====
 SELECT 
