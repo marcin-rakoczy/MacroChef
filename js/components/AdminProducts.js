@@ -6,6 +6,10 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { useState, useEffect } = React;
 
   function AdminProducts({ repository, session }) {
+    // Define constants FIRST, before any hooks
+    const PRODUCTS_PER_PAGE = 25;
+    
+    // All useState hooks MUST come before any non-hook code
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -13,8 +17,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [selected, setSelected] = useState(new Set());
     const [editingId, setEditingId] = useState(null);
     const [editValues, setEditValues] = useState({});
+    const [page, setPage] = useState(0);
     
-    // Get translations with fallbacks
+    // NOW you can do non-hook initialization
     const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
     const defaultTranslations = {
       importProducts: 'Import Products',
@@ -46,9 +51,6 @@ window.MacroChef.components = window.MacroChef.components || {};
     
     const langTranslations = window.MacroChef?.TRANSLATIONS?.[lang];
     const t = langTranslations || defaultTranslations;
-
-    const [page, setPage] = useState(0);
-    const PRODUCTS_PER_PAGE = 25;
 
     // Load all products
     useEffect(() => {
@@ -358,6 +360,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             <p className="text-slate-700 dark:text-slate-300 font-semibold">{t.noProducts || 'No products found'}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Załaduj produkty, aby sie pojawili tutaj</p>
           </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600">
