@@ -182,9 +182,16 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
-    // If unauthenticated, show auth gate
-    if (latestSession.current === null && !active) {
-      const { AuthGate } = window.MacroChef.components;
+    // Loading state - show nothing until we determine auth status
+    if (!target) {
+      return <div style={{ display: 'none' }}></div>;
+    }
+
+    // Get AuthGate component
+    const { AuthGate } = window.MacroChef.components;
+
+    // If unauthenticated, show auth gate (no session)
+    if (!target.session) {
       if (AuthGate) {
         return (
           <AuthGate
@@ -197,9 +204,8 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     }
 
-    // If authenticated, show app wrapped in AuthGate
-    if (active) {
-      const { AuthGate } = window.MacroChef.components;
+    // If authenticated and active repository is ready, show app wrapped in AuthGate
+    if (active && target.session) {
       const appContent = (
         <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
           {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
@@ -219,6 +225,9 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
       return appContent;
     }
+
+    // Loading state while setting up repository
+    return <div style={{ display: 'none' }}></div>;
   }
 
   window.MacroChef.components.SessionApp = SessionApp;
