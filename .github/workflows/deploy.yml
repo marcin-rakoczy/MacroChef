@@ -62,13 +62,11 @@ jobs:
         run: npm run build
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: macrochef-test
-          directory: .
-          branch: ${{ github.ref_name }}
+          command: pages deploy . --project-name=macrochef-test
           # Production branch routes to test.macrochef.pl
           # Other branches route to branch-name.test.macrochef.pl
 
@@ -129,4 +127,3 @@ jobs:
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@v4
-
