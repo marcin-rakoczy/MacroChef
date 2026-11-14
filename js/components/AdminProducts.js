@@ -277,26 +277,20 @@ Jajko,2.50,78,6,0.56,5.30,Lidl,Nabiał`;
           </div>
         )}
 
-        {/* Search Box */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder={t.search || 'Search by name or category...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4 items-center">
-          {/* Import CSV Button */}
+        {/* Search Box & Controls */}
+        <div className="flex gap-2 flex-col sm:flex-row sm:items-center">
+          {/* Import CSV Button - Left Side */}
           <button
             type="button"
             onClick={() => importInputRef.current && importInputRef.current.click()}
             className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
           >
-            <span>↑</span>
+            <div className="flex flex-col items-center gap-0.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+              <div className="w-3 h-0.5 bg-current"></div>
+            </div>
             <span>{t.importProducts || 'Import Products'}</span>
           </button>
           <input
@@ -306,6 +300,19 @@ Jajko,2.50,78,6,0.56,5.30,Lidl,Nabiał`;
             className="hidden"
             onChange={handleImportCSV}
           />
+
+          {/* Search Box */}
+          <input
+            type="text"
+            placeholder={t.search || 'Search by name or category...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+        </div>
+
+        {/* Additional Controls */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
 
           {/* Bulk Edit */}
           {selected.size > 0 && !editingId && (

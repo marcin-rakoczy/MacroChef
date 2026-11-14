@@ -189,22 +189,18 @@ Przykładowy Przepis,Śniadanie,15,1,300,15,50,8,"Krok 1. Przygotuj składniki|K
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-4 items-center">
-          {/* Search Box */}
-          <input
-            type="text"
-            placeholder={t.search || 'Search recipes...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white flex-1"
-          />
-
-          {/* Import CSV Button */}
+          {/* Import CSV Button - Left Side */}
           <button
             type="button"
             onClick={() => importInputRef.current && importInputRef.current.click()}
             className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
           >
-            <span>↑</span>
+            <div className="flex flex-col items-center gap-0.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+              <div className="w-3 h-0.5 bg-current"></div>
+            </div>
             <span>{t.importRecipes || 'Import Recipes'}</span>
           </button>
           <input
@@ -213,6 +209,15 @@ Przykładowy Przepis,Śniadanie,15,1,300,15,50,8,"Krok 1. Przygotuj składniki|K
             accept=".csv,text/csv"
             className="hidden"
             onChange={handleImportCSV}
+          />
+
+          {/* Search Box */}
+          <input
+            type="text"
+            placeholder={t.search || 'Search recipes...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white flex-1"
           />
 
           {/* Bulk Delete */}
