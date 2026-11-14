@@ -1,5 +1,5 @@
 // MacroChef PWA Service Worker
-const CACHE_NAME = 'macrochef-v1.0.26';
+const CACHE_NAME = 'macrochef-v1.0.27';
 
 const STATIC_ASSETS = [
   './',
