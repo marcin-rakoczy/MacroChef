@@ -45,8 +45,10 @@ This adds 5 test users with various roles:
 - `alice.test@example.com` (Admin)
 - `bob.tester@example.com` (Tester)
 - `charlie.user@example.com` (UserWithAdvertisement)
-- `diana.guest@example.com` (Guest)
+- `diana.user@example.com` (UserWithAdvertisement)
 - `eve.admin@example.com` (Admin)
+
+**Note**: Valid roles in the database are: `Admin`, `Tester`, `UserWithAdvertisement`. The `Guest` role is not allowed by the database constraint.
 
 ### Option B: Using Supabase Admin UI
 
