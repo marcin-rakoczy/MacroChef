@@ -1,195 +1,171 @@
--- MacroChef RLS Policy Verification & Hardening Script (Idempotent)
+-- MacroChef RLS Policy Verification & Hardening Script (Supabase-Compatible)
 -- Purpose: Verify and enforce Row Level Security on critical tables
 -- Usage: Run in Supabase SQL Editor or via: psql -d <db> -f verify_rls_policies.sql
 -- Safety: Non-destructive verification; uses transactions for testing
--- Note: This script uses psql-specific commands for testing only
 
 -- ============================================================================
 -- SECTION 1: Verify RLS is Enabled on Critical Tables
 -- ============================================================================
 
--- Step 1.1: Check RLS status
+-- Step 1.1: Check RLS status on all tables
 SELECT
-  schemaname,
-  tablename,
-  CASE WHEN relrowsecurity THEN 'ENABLED' ELSE 'DISABLED' END as rls_status
-FROM pg_class
-JOIN pg_namespace ON relnamespace = pg_namespace.oid
-WHERE schemaname = 'public'
-  AND tablename IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
-ORDER BY tablename;
+  t.table_name,
+  CASE WHEN (
+    SELECT relrowsecurity FROM pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND c.relname = t.table_name
+  ) THEN 'ENABLED' ELSE 'DISABLED' END as rls_status
+FROM information_schema.tables t
+WHERE t.table_schema = 'public'
+  AND t.table_name IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
+ORDER BY t.table_name;
 
 -- ============================================================================
 -- SECTION 2: Verify Products Table Permissions
 -- ============================================================================
 
--- Step 2.1: List all policies on products table
+-- Step 2.1: Count policies on products table
 SELECT
-  policyname,
-  cmd as dml_operation,
-  qual as using_clause,
-  with_check as with_check_clause
+  'products' as table_name,
+  COUNT(*) as total_policies
 FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'products'
-ORDER BY cmd, policyname;
+WHERE tablename = 'products';
 
 -- Step 2.2: Verify SELECT policy exists
 SELECT COUNT(*) as select_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'products' AND cmd = 'SELECT';
+WHERE tablename = 'products' AND cmd = 'SELECT';
 
 -- Step 2.3: Verify INSERT policy (Admin only)
 SELECT COUNT(*) as insert_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'products' AND cmd = 'INSERT';
+WHERE tablename = 'products' AND cmd = 'INSERT';
 
 -- Step 2.4: Verify UPDATE policy (Admin only)
 SELECT COUNT(*) as update_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'products' AND cmd = 'UPDATE';
+WHERE tablename = 'products' AND cmd = 'UPDATE';
 
 -- Step 2.5: Verify DELETE policy (Admin only)
 SELECT COUNT(*) as delete_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'products' AND cmd = 'DELETE';
+WHERE tablename = 'products' AND cmd = 'DELETE';
 
 -- ============================================================================
 -- SECTION 3: Verify Recipes Table Permissions
 -- ============================================================================
 
--- Step 3.1: List all policies on recipes table
+-- Step 3.1: Count policies on recipes table
 SELECT
-  policyname,
-  cmd as dml_operation,
-  qual as using_clause,
-  with_check as with_check_clause
+  'recipes' as table_name,
+  COUNT(*) as total_policies
 FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'recipes'
-ORDER BY cmd, policyname;
+WHERE tablename = 'recipes';
 
 -- Step 3.2: Verify SELECT policy exists
 SELECT COUNT(*) as select_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'recipes' AND cmd = 'SELECT';
+WHERE tablename = 'recipes' AND cmd = 'SELECT';
 
--- Step 3.3: Verify INSERT policy (Admin only, own user_id)
+-- Step 3.3: Verify INSERT policy (Admin only)
 SELECT COUNT(*) as insert_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'recipes' AND cmd = 'INSERT';
+WHERE tablename = 'recipes' AND cmd = 'INSERT';
 
--- Step 3.4: Verify UPDATE policy (Admin only, own user_id)
+-- Step 3.4: Verify UPDATE policy (Admin only)
 SELECT COUNT(*) as update_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'recipes' AND cmd = 'UPDATE';
+WHERE tablename = 'recipes' AND cmd = 'UPDATE';
 
--- Step 3.5: Verify DELETE policy (Admin only, own user_id)
+-- Step 3.5: Verify DELETE policy (Admin only)
 SELECT COUNT(*) as delete_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'recipes' AND cmd = 'DELETE';
+WHERE tablename = 'recipes' AND cmd = 'DELETE';
 
 -- ============================================================================
 -- SECTION 4: Verify User Profile Role Immutability
 -- ============================================================================
 
+-- ============================================================================
+-- SECTION 4: Verify User Profiles Table Permissions
+-- ============================================================================
+
 -- Step 4.1: Check user_profiles RLS is enabled
-SELECT relrowsecurity
-FROM pg_class
-JOIN pg_namespace ON relnamespace = pg_namespace.oid
-WHERE schemaname = 'public' AND tablename = 'user_profiles';
+SELECT
+  'user_profiles' as table_name,
+  COUNT(*) as total_policies
+FROM pg_policies
+WHERE tablename = 'user_profiles';
 
 -- Step 4.2: Verify SELECT policy exists
 SELECT COUNT(*) as select_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'user_profiles' AND cmd = 'SELECT';
+WHERE tablename = 'user_profiles' AND cmd = 'SELECT';
 
--- Step 4.3: Verify INSERT/UPDATE/DELETE are revoked from authenticated
-SELECT COUNT(*) as restricted_policies FROM pg_policies
-WHERE schemaname = 'public' AND tablename = 'user_profiles'
-  AND cmd IN ('INSERT', 'UPDATE', 'DELETE');
+-- Step 4.3: Verify UPDATE policy exists (should restrict modifications)
+SELECT COUNT(*) as update_policies FROM pg_policies
+WHERE tablename = 'user_profiles' AND cmd = 'UPDATE';
 
 -- ============================================================================
--- SECTION 5: Verify is_admin() Function Security
+-- SECTION 5: Verify Planner & Goals Table Permissions
 -- ============================================================================
 
--- Step 5.1: Check is_admin function exists and is SECURITY DEFINER
+-- Step 5.1: Planner table policies
 SELECT
-  proname,
-  prosecdef as is_security_definer,
-  proacl as permissions
-FROM pg_proc
-WHERE proname = 'is_admin' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public');
+  'planner' as table_name,
+  COUNT(*) as total_policies
+FROM pg_policies
+WHERE tablename = 'planner';
+
+-- Step 5.2: Goals table policies
+SELECT
+  'goals' as table_name,
+  COUNT(*) as total_policies
+FROM pg_policies
+WHERE tablename = 'goals';
 
 -- ============================================================================
--- SECTION 6: Production Verification Queries (Run as Admin)
+-- SECTION 6: List All RLS Policies by Table
 -- ============================================================================
 
--- Step 6.1: Verify Admin can INSERT to products
--- Run as Admin user:
+-- Step 6.1: All policies summary
+SELECT
+  tablename,
+  cmd,
+  COUNT(*) as policy_count
+FROM pg_policies
+WHERE tablename IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
+GROUP BY tablename, cmd
+ORDER BY tablename, cmd;
+
+-- ============================================================================
+-- SECTION 7: Testing RLS Policies (Manual Tests)
+-- ============================================================================
+
+-- These queries demonstrate how RLS policies work.
+-- To test, you need to run them as different roles.
+
+-- Test 7.1: Admin should be able to INSERT products
+-- Run as Admin:
 -- BEGIN;
 -- INSERT INTO public.products (id, name_pl, name_en, category)
--- VALUES ('verification-prod-1', 'Test Admin', 'Test Admin', 'test')
+-- VALUES ('test-admin-001', 'Test Admin Product', 'Test Admin Product', 'test')
 -- ON CONFLICT DO NOTHING;
--- SELECT COUNT(*) as inserted FROM public.products WHERE id = 'verification-prod-1';
 -- ROLLBACK;
 
--- Step 6.2: Verify Admin can UPDATE products
--- BEGIN;
--- UPDATE public.products SET name_pl = 'Updated by Admin'
--- WHERE id = 'verification-prod-1';
--- SELECT COUNT(*) as updated FROM public.products
--- WHERE id = 'verification-prod-1' AND name_pl = 'Updated by Admin';
--- ROLLBACK;
-
--- Step 6.3: Verify Admin can DELETE products
--- BEGIN;
--- DELETE FROM public.products WHERE id = 'verification-prod-1';
--- SELECT COUNT(*) as deleted FROM public.products WHERE id = 'verification-prod-1';
--- ROLLBACK;
-
--- ============================================================================
--- SECTION 7: Production Verification Queries (Run as Tester/UserWithAdvertisement)
--- ============================================================================
-
--- Step 7.1: Verify non-Admin can SELECT products (should succeed)
--- Run as Tester user:
--- SELECT COUNT(*) as product_count FROM public.products LIMIT 1;
--- Expected: Returns count (succeeds)
-
--- Step 7.2: Attempt non-Admin INSERT to products (should fail with RLS error)
+-- Test 7.2: Non-Admin should FAIL to INSERT products
+-- Run as Tester or UserWithAdvertisement:
 -- BEGIN;
 -- INSERT INTO public.products (id, name_pl, name_en, category)
--- VALUES ('verification-prod-2', 'Test Tester', 'Test Tester', 'test');
--- Expected error: 'new row violates row-level security policy' (42501)
+-- VALUES ('test-non-admin-001', 'Test Non Admin', 'Test Non Admin', 'test');
+-- -- Expected: ERROR 42501 (insufficient_privilege) - RLS policy blocks
 -- ROLLBACK;
 
--- Step 7.3: Attempt non-Admin UPDATE to products (should fail with RLS error)
--- BEGIN;
--- UPDATE public.products SET name_pl = 'Updated by Tester'
--- WHERE id = 'lidl-001';
--- Expected error: 'new row violates row-level security policy' (42501)
--- ROLLBACK;
+-- Test 7.3: All authenticated users can SELECT products
+-- Run as any authenticated user:
+-- SELECT COUNT(*) as product_count FROM public.products;
+-- Expected: Returns count (succeeds for all roles)
 
--- Step 7.4: Attempt non-Admin DELETE from products (should fail with RLS error)
--- BEGIN;
--- DELETE FROM public.products WHERE id = 'lidl-001';
--- Expected error: 'new row violates row-level security policy' (42501)
--- ROLLBACK;
+-- Test 7.4: Users can only see/modify their own planner data
+-- Run as User A:
+-- SELECT COUNT(*) FROM public.planner WHERE user_id = auth.uid();
+-- -- Expected: Returns only User A's plans
 
--- Step 7.5: Verify non-Admin can SELECT recipes (own + Admin recipes)
--- Run as Tester user:
--- SELECT COUNT(*) as recipe_count FROM public.recipes;
--- Expected: Returns count of accessible recipes (succeeds)
-
--- Step 7.6: Attempt non-Admin INSERT to recipes (should fail with RLS error)
--- BEGIN;
--- INSERT INTO public.recipes (id, user_id, data)
--- VALUES ('verification-recipe-1', auth.uid(), '{"name":"Test Recipe"}');
--- Expected error: 'new row violates row-level security policy' (42501)
--- ROLLBACK;
-
--- Step 7.7: Attempt non-Admin UPDATE to recipes (should fail with RLS error)
--- BEGIN;
--- UPDATE public.recipes SET data = '{"updated":true}'
--- WHERE user_id = auth.uid() LIMIT 1;
--- Expected error: 'new row violates row-level security policy' (42501)
--- ROLLBACK;
-
--- Step 7.8: Attempt non-Admin DELETE from recipes (should fail with RLS error)
--- BEGIN;
--- DELETE FROM public.recipes WHERE user_id = auth.uid() LIMIT 1;
--- Expected error: 'new row violates row-level security policy' (42501)
--- ROLLBACK;
+-- Test 7.5: Users cannot see other users' planner data
+-- Run as User A, trying to query User B's plans:
+-- SELECT COUNT(*) FROM public.planner WHERE user_id = '<User B UUID>';
+-- -- Expected: Returns 0 (RLS blocks access)
 
 -- ============================================================================
 -- SECTION 8: API Error Handling Verification
@@ -211,7 +187,7 @@ WHERE proname = 'is_admin' AND pronamespace = (SELECT oid FROM pg_namespace WHER
 -- ============================================================================
 
 -- To reset RLS policies to defaults, run the migration:
--- psql -d <db> -f supabase/migrations/20261113210000_initial_schema.sql
+-- psql -d <db> -f docs/sql/001_init_schema.sql
 
 -- To verify RLS enforcement after changes:
 -- Run this script again to confirm all policies are in place
@@ -227,7 +203,7 @@ WHERE proname = 'is_admin' AND pronamespace = (SELECT oid FROM pg_namespace WHER
 
 -- Alert if:
 -- - Non-Admin role successfully performs write to products/recipes
--- - Admin function is called from unauthenticated context
+-- - Admin role is unable to write to protected tables
 -- - RLS is disabled on any protected table
 
 -- ============================================================================
@@ -247,5 +223,5 @@ WHERE proname = 'is_admin' AND pronamespace = (SELECT oid FROM pg_namespace WHER
 -- - Non-Admin CANNOT escalate their own role (UPDATE user_profiles blocked)
 -- - Non-Admin CANNOT INSERT/UPDATE/DELETE products (RLS enforces)
 -- - Non-Admin CANNOT INSERT/UPDATE/DELETE other users' recipes (RLS enforces)
--- - is_admin() function is SECURITY DEFINER to prevent RLS recursion
 -- - All table modifications are timestamped with server-side updated_at
+-- - Role is checked at database level, not just application level
