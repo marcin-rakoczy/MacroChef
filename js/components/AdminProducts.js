@@ -18,6 +18,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [editingId, setEditingId] = useState(null);
     const [editValues, setEditValues] = useState({});
     const [page, setPage] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
     
     // NOW you can do non-hook initialization
     const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
@@ -28,6 +29,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       name: 'Name',
       shop: 'Shop',
       price: 'Price',
+      category: 'Category',
       calories: 'Calories',
       protein: 'Protein',
       carbs: 'Carbs',
@@ -45,8 +47,10 @@ window.MacroChef.components = window.MacroChef.components || {};
       productsUpdated: 'Products updated',
       productsDeleted: 'Products deleted',
       productsImported: 'Products imported',
-      importProductsHelp: 'CSV format: name, price, calories, protein, carbs, fat, shop',
-      totalProducts: 'Total Products'
+      importProductsHelp: 'CSV format: name, price, calories, protein, carbs, fat, shop, category',
+      totalProducts: 'Total Products',
+      search: 'Search by name or category...',
+      page: 'Page'
     };
     
     const langTranslations = window.MacroChef?.TRANSLATIONS?.[lang];
@@ -179,6 +183,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         const carbsIdx = headers.indexOf('carbs');
         const fatIdx = headers.indexOf('fat');
         const shopIdx = headers.indexOf('shop');
+        const categoryIdx = headers.indexOf('category');
 
         if (nameIdx === -1) throw new Error('CSV must have "name" column');
 
@@ -197,6 +202,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             carbs: parseFloat(cells[carbsIdx]) || 0,
             fat: parseFloat(cells[fatIdx]) || 0,
             shop: cells[shopIdx] || 'Unknown',
+            category: cells[categoryIdx] || 'Other',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
@@ -216,6 +222,31 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
+    // Filter products based on search query
+    const filteredProducts = products.filter(product => {
+      const query = searchQuery.toLowerCase();
+      const productName = typeof product.name === 'object' 
+        ? (product.name[lang] || product.name.pl || '').toLowerCase()
+        : (product.name || '').toLowerCase();
+      const productCategory = (product.category || '').toLowerCase();
+      const productShop = (product.shop || '').toLowerCase();
+      
+      return query === '' || productName.includes(query) || 
+             productCategory.includes(query) || 
+             productShop.includes(query);
+    });
+
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
+    const startIdx = page * PRODUCTS_PER_PAGE;
+    const paginatedProducts = filteredProducts.slice(startIdx, startIdx + PRODUCTS_PER_PAGE);
+
+    // Reset to page 0 when search query changes
+    useEffect(() => {
+      setPage(0);
+      setSelected(new Set());
+    }, [searchQuery]);
+
     return (
       <div className="space-y-4" role="region" aria-label="Products Management">
         {error && (
@@ -229,6 +260,17 @@ window.MacroChef.components = window.MacroChef.components || {};
             <p className="text-green-700 dark:text-green-400 text-sm">{success}</p>
           </div>
         )}
+
+        {/* Search Box */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder={t.search || 'Search by name or category...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-4">
@@ -381,7 +423,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.name || 'Name'}</th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.shop || 'Shop'}</th>
-                  <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.price || 'Price'}</th>
+                  <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.category || 'Category'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.calories || 'Kcal'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.protein || 'P'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.carbs || 'C'}</th>
@@ -390,7 +432,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 </tr>
               </thead>
               <tbody>
-                {products.slice(0, PRODUCTS_PER_PAGE).map(product => (
+                {paginatedProducts.map(product => (
                   <tr key={product.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-4 py-3">
                       <input
@@ -408,13 +450,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                         className="cursor-pointer"
                       />
                     </td>
-                    <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{product.name}</td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{product.shop}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.price?.toFixed(2)} zł</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(product.calories)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.protein?.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.carbs?.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.fat?.toFixed(1)}</td>
+                    <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{typeof product.name === 'object' ? (product.name[lang] || product.name.pl || '') : product.name}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{product.shop || ''}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{product.category || 'Other'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.calories ? Math.round(product.calories) : '—'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.protein ? product.protein.toFixed(1) : '—'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.carbs ? product.carbs.toFixed(1) : '—'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.fat ? product.fat.toFixed(1) : '—'}</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => deleteProduct(product.id)}
@@ -430,14 +472,37 @@ window.MacroChef.components = window.MacroChef.components || {};
           </div>
         )}
 
-        {/* Summary */}
-        <div className="text-sm text-slate-600 dark:text-slate-400 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-2">
+        {/* Summary & Pagination */}
+        <div className="text-sm text-slate-600 dark:text-slate-400 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-4">
           <div>
             {t.totalProducts || 'Total Products'}: <span className="font-semibold text-slate-900 dark:text-white">{products.length}</span>
+            {searchQuery && (
+              <span className="ml-4">
+                (Znaleziono: <span className="font-semibold text-slate-900 dark:text-white">{filteredProducts.length}</span>)
+              </span>
+            )}
           </div>
-          {products.length > PRODUCTS_PER_PAGE && (
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Showing: {Math.min(PRODUCTS_PER_PAGE, products.length)} of {products.length} products
+          {filteredProducts.length > PRODUCTS_PER_PAGE && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Showing: {startIdx + 1} - {Math.min(startIdx + PRODUCTS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} products | {t.page || 'Page'} {page + 1} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage(Math.max(0, page - 1))}
+                  disabled={page === 0}
+                  className="px-3 py-1 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white rounded text-xs font-medium transition"
+                >
+                  ← Poprzednia
+                </button>
+                <button
+                  onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="px-3 py-1 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white rounded text-xs font-medium transition"
+                >
+                  Następna →
+                </button>
+              </div>
             </div>
           )}
         </div>
