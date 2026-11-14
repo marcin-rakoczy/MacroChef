@@ -196,7 +196,13 @@ window.MacroChef.TRANSLATIONS = {
     packageSize: 'Package',
     browseCatalog: 'Browse Lidl Catalog',
     newProductModalTitle: 'Add New Ingredient to Catalog (Lidl)',
-    customProduct: 'Custom Product'
+    customProduct: 'Custom Product',
+    authInfo: 'Your data is encrypted and stored securely.',
+    authEmailRequired: 'Email is required',
+    authEmailInvalid: 'Invalid email format',
+    authPasswordRequired: 'Password is required',
+    authPasswordMinLength: 'Password must be at least 6 characters',
+    authPasswordMinSix: 'Min 6 characters'
   },
   pl: {
     appTitle: 'MacroChef',
@@ -392,6 +398,12 @@ window.MacroChef.TRANSLATIONS = {
     packageSize: 'Opakowanie',
     browseCatalog: 'Przeglądaj bazę produktów',
     newProductModalTitle: 'Dodaj Nowy Składnik do Bazy (Lidl)',
-    customProduct: 'Własny produkt'
+    customProduct: 'Własny produkt',
+    authInfo: 'Twoje dane są szyfrowane i bezpiecznie przechowywane.',
+    authEmailRequired: 'E-mail jest wymagany',
+    authEmailInvalid: 'Nieprawidłowy format e-maila',
+    authPasswordRequired: 'Hasło jest wymagane',
+    authPasswordMinLength: 'Hasło musi mieć co najmniej 6 znaków',
+    authPasswordMinSix: 'Min 6 znaków'
   }
 };

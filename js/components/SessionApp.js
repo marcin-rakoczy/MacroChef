@@ -182,60 +182,43 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
-    // If unauthenticated, show login screen
+    // If unauthenticated, show auth gate
     if (latestSession.current === null && !active) {
-      const { LoginScreen } = window.MacroChef.components;
-      if (LoginScreen) {
+      const { AuthGate } = window.MacroChef.components;
+      if (AuthGate) {
         return (
-          <LoginScreen
-            onSignIn={handleSignIn}
-            error={authError}
-            loading={authLoading}
+          <AuthGate
+            isAuthenticated={false}
+            session={null}
+            onSignOut={handleSignOut}
+            authenticatedContent={null}
           />
         );
       }
     }
 
-    return (
-      <>
-        {!active && (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900">
-            <p role="status" className="text-slate-600 dark:text-slate-400 mb-4">
-              {error
-                ? window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'][error] || 'Error loading'
-                : window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'].authLoading || 'Loading...'
-              }
-            </p>
-            {error && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAttempt((n) => n + 1)}
-                  className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition"
-                >
-                  {window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'].retry || 'Retry'}
-                </button>
-                {window.MacroChef.supabaseClient && (
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
-                  >
-                    {window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'].authSignOut || 'Sign Out'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        {active && (
-          <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
-            {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
-            <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} />
-          </window.MacroChef.I18nProvider>
-        )}
-      </>
-    );
+    // If authenticated, show app wrapped in AuthGate
+    if (active) {
+      const { AuthGate } = window.MacroChef.components;
+      const appContent = (
+        <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
+          {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
+          <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} />
+        </window.MacroChef.I18nProvider>
+      );
+
+      if (AuthGate) {
+        return (
+          <AuthGate
+            isAuthenticated={true}
+            session={active.session}
+            onSignOut={handleSignOut}
+            authenticatedContent={appContent}
+          />
+        );
+      }
+      return appContent;
+    }
   }
 
   window.MacroChef.components.SessionApp = SessionApp;
