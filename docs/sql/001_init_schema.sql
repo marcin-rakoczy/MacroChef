@@ -560,8 +560,7 @@ SELECT
   schemaname,
   tablename,
   policyname,
-  cmd as dml_operation,
-  CASE WHEN permissive THEN 'PERMISSIVE' ELSE 'RESTRICTIVE' END as policy_type
+  cmd as dml_operation
 FROM pg_policies
 WHERE schemaname = 'public'
 ORDER BY tablename, cmd, policyname;
