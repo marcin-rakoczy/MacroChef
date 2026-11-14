@@ -41,6 +41,10 @@ const filesToBundle = [
   'components/ShoppingList.js',
   'components/MacroTracker.js',
   'components/RecipeModal.js',
+  'components/AdminPanel.js',
+  'components/AdminUsers.js',
+  'components/AdminRecipes.js',
+  'components/AdminProducts.js',
   'app.js',
   'components/SessionApp.js',
   'main.js'

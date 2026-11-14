@@ -5,7 +5,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 (function () {
   const { Icon } = window.MacroChef.components;
 
-  function Navigation({ activeTab, setActiveTab, isMobile = false }) {
+  function Navigation({ activeTab, setActiveTab, isMobile = false, session = null }) {
     const { t } = window.MacroChef.useI18n();
     const tabs = [
       { id: 'planner', label: t.planner, icon: 'calendar' },
@@ -14,6 +14,11 @@ window.MacroChef.components = window.MacroChef.components || {};
       { id: 'shopping', label: t.shopping, icon: 'shopping-bag' },
       { id: 'tracker', label: t.tracker, icon: 'pie-chart' }
     ];
+
+    // Add Admin tab only for Admin role
+    if (session?.role === 'Admin') {
+      tabs.push({ id: 'admin', label: t.adminUsers || 'Admin', icon: 'shield' });
+    }
 
     if (isMobile) {
       return (

@@ -13,7 +13,8 @@ window.MacroChef = window.MacroChef || {};
     MacroTracker,
     RecipeModal,
     AuthModal,
-    AdBanner
+    AdBanner,
+    AdminPanel
   } = window.MacroChef.components;
 
   const { shoppingAggregator } = window.MacroChef;
@@ -248,6 +249,7 @@ window.MacroChef = window.MacroChef || {};
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               isMobile={false}
+              session={session}
             />
 
             {/* Tab 1: Weekly Planner */}
@@ -325,6 +327,14 @@ window.MacroChef = window.MacroChef || {};
                 </>
               )
             )}
+
+            {/* Tab 6: Admin Panel (Admin only) */}
+            {activeTab === 'admin' && session?.role === 'Admin' && (
+              <AdminPanel
+                repository={repositories}
+                session={session}
+              />
+            )}
           </main>
 
           {/* Modal Dialog */}
@@ -346,6 +356,7 @@ window.MacroChef = window.MacroChef || {};
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             isMobile={true}
+            session={session}
           />
         </div>
       </div>
