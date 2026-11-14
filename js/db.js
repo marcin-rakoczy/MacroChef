@@ -11,6 +11,7 @@ window.MacroChef = window.MacroChef || {};
     initializeSettings(defaults) { throw new Error('initializeSettings() must be implemented'); }
     saveSettings(settings) { throw new Error('saveSettings() must be implemented'); }
     getAllRecipes() { throw new Error('getAllRecipes() must be implemented'); }
+    getAllProducts() { throw new Error('getAllProducts() must be implemented'); }
     getGuestMigrationData() { throw new Error('getGuestMigrationData() must be implemented'); }
     hasGuestMigrationDecision() { throw new Error('hasGuestMigrationDecision() must be implemented'); }
     finishGuestMigration(data, accepted) { throw new Error('finishGuestMigration() must be implemented'); }
@@ -328,6 +329,10 @@ window.MacroChef = window.MacroChef || {};
 
     async getAllRecipes() {
       return await this.db.recipes.toArray();
+    }
+
+    async getAllProducts() {
+      return await this.db.products.toArray();
     }
 
     async getGuestMigrationData() {
