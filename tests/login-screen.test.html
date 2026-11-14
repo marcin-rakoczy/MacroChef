@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MacroChef - Login Screen Tests</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f3f4f6;
+      padding: 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .header h1 { font-size: 24px; margin-bottom: 8px; color: #111; }
+    .header p { color: #666; font-size: 14px; }
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .result {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border-left: 4px solid #ccc;
+    }
+    .result.pass { border-left-color: #10b981; background: #f0fdf4; }
+    .result.fail { border-left-color: #ef4444; background: #fef2f2; }
+    .result h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .result.pass h3 { color: #10b981; }
+    .result.fail h3 { color: #ef4444; }
+    .result p { font-size: 13px; color: #666; font-family: monospace; overflow-x: auto; }
+    .summary {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .summary h2 { font-size: 18px; margin-bottom: 12px; color: #111; }
+    .stats { display: flex; gap: 20px; flex-wrap: wrap; }
+    .stat { display: flex; align-items: center; gap: 8px; }
+    .stat-value { font-size: 24px; font-weight: 700; }
+    .stat-label { font-size: 13px; color: #666; }
+    .stat.pass .stat-value { color: #10b981; }
+    .stat.fail .stat-value { color: #ef4444; }
+    .stat.skip .stat-value { color: #f59e0b; }
+    .test-area {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 2px solid #e5e7eb;
+      min-height: 300px;
+    }
+    .test-area h3 {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .loader {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🧪 MacroChef Login Screen Tests</h1>
+      <p>Browser-based component and integration tests for the LoginScreen feature</p>
+    </div>
+
+    <div class="test-area">
+      <h3>Test Runner</h3>
+      <div style="text-align: center; padding: 40px;">
+        <div class="loader"></div>
+        <p style="margin-top: 16px; color: #666;">Running tests...</p>
+      </div>
+    </div>
+
+    <div id="results-container"></div>
+
+    <div class="summary" id="summary-container" style="display: none;">
+      <h2>Test Summary</h2>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+
+  <div id="test-root" style="display: none;"></div>
+
+  <!-- Core Libraries -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- MacroChef Core -->
+  <script src="js/data/appVersion.js"></script>
+  <script src="js/i18n/translations.js"></script>
+  <script src="js/permissions.js"></script>
+
+  <!-- Test Framework -->
+  <script>
+    window.MacroChefTests = {
+      tests: [],
+      results: [],
+      assert(condition, message) {
+        if (!condition) throw new Error(`Assertion failed: ${message}`);
+      },
+      equal(actual, expected, message) {
+        if (actual !== expected) {
+          throw new Error(`Expected ${expected} but got ${actual}: ${message}`);
+        }
+      },
+      test(name, fn) {
+        this.tests.push({ name, fn });
+      },
+      async run() {
+        const resultsContainer = document.getElementById('results-container');
+        resultsContainer.innerHTML = '';
+
+        for (const test of this.tests) {
+          try {
+            await test.fn();
+            this.results.push({ name: test.name, status: 'pass' });
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'result pass';
+            resultDiv.innerHTML = `
+              <h3>✓ ${test.name}</h3>
+              <p>Test passed successfully</p>
+            `;
+            resultsContainer.appendChild(resultDiv);
+          } catch (error) {
+            this.results.push({ name: test.name, status: 'fail', error: error.message });
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'result fail';
+            resultDiv.innerHTML = `
+              <h3>✗ ${test.name}</h3>
+              <p>${error.message}</p>
+            `;
+            resultsContainer.appendChild(resultDiv);
+          }
+        }
+
+        // Display summary
+        const passed = this.results.filter(r => r.status === 'pass').length;
+        const failed = this.results.filter(r => r.status === 'fail').length;
+        const total = this.results.length;
+
+        const summaryContainer = document.getElementById('summary-container');
+        const statsContainer = document.getElementById('stats');
+
+        statsContainer.innerHTML = `
+          <div class="stat pass">
+            <div class="stat-value">${passed}</div>
+            <div class="stat-label">Passed</div>
+          </div>
+          <div class="stat fail">
+            <div class="stat-value">${failed}</div>
+            <div class="stat-label">Failed</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${total}</div>
+            <div class="stat-label">Total</div>
+          </div>
+          ${failed === 0 ? `<div style="padding: 0 16px; color: #10b981; font-weight: 600;">✓ All tests passed!</div>` : ''}
+        `;
+        summaryContainer.style.display = 'block';
+      }
+    };
+  </script>
+
+  <!-- Components -->
+  <script type="text/babel" src="js/components/LoginScreen.js"></script>
+  <script type="text/babel" src="js/components/SessionApp.js"></script>
+
+  <!-- Tests -->
+  <script type="text/babel" src="tests/login-screen.browser.test.js"></script>
+  <script type="text/babel" src="tests/session-app.browser.test.js"></script>
+</body>
+</html>
