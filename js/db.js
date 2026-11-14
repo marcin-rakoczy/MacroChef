@@ -123,10 +123,14 @@ window.MacroChef = window.MacroChef || {};
   class DexieCalorieRepository extends ICalorieRepository {
     constructor(databaseName = 'MacroChefDB', options = {}) {
       super();
-      this.db = new Dexie(databaseName);
+      // Prefix database name with environment if not PROD
+      const env = window.MacroChef.ENV;
+      const prefixedDbName = env !== 'PROD' ? `${env}_${databaseName}` : databaseName;
+      this.db = new Dexie(prefixedDbName);
       this.seedDefaults = options.seedDefaults !== false;
       this.userId = options.userId || 'guest';
       this.role = options.role;
+      this.environment = env;
 
       this.db.version(1).stores({
         recipes: 'id',

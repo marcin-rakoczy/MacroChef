@@ -8284,12 +8284,46 @@ window.MacroChef.shoppingAggregator = {
 // File: supabaseClient.js
 // ==========================================
 // Supabase client bootstrap. Falls back to Guest mode when online integration is unavailable.
+// Supports 3 environments: PROD (macrochef.pl), TEST (test.macrochef.pl, localhost), LOCAL (file://)
 window.MacroChef = window.MacroChef || {};
 
 (function () {
-  // Replace per environment (dev / nonprod / prod). The anon key is public by design; RLS enforces access.
-  const SUPABASE_URL = 'https://xymudnmqahgayqvpznwz.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_9_ZBVJnYEoFr8OWbAE0dMQ_RP1v7VeJ';
+  // Environment detection based on hostname
+  const detectEnvironment = () => {
+    if (window.location.protocol === 'file:') return 'LOCAL';
+    
+    const hostname = window.location.hostname;
+    if (hostname === 'macrochef.pl' || hostname === 'www.macrochef.pl') return 'PROD';
+    if (hostname === 'test.macrochef.pl' || hostname === 'localhost' || hostname === '127.0.0.1') return 'TEST';
+    
+    // Default to TEST for any other hostname (development, Docker, etc.)
+    return 'TEST';
+  };
+
+  window.MacroChef.ENV = detectEnvironment();
+
+  // Environment-specific Supabase configuration
+  const envConfig = {
+    PROD: {
+      url: 'https://xymudnmqahgayqvpznwz.supabase.co',
+      anonKey: 'sb_publishable_9_ZBVJnYEoFr8OWbAE0dMQ_RP1v7VeJ'
+    },
+    TEST: {
+      url: 'SUPABASE_TEST_URL', // Placeholder: Replace with test Supabase URL
+      anonKey: 'SUPABASE_TEST_ANON_KEY' // Placeholder: Replace with test anon key
+    },
+    LOCAL: {
+      url: null,
+      anonKey: null
+    }
+  };
+
+  const config = envConfig[window.MacroChef.ENV];
+  const SUPABASE_URL = config.url;
+  const SUPABASE_ANON_KEY = config.anonKey;
+
+  // Log environment detection for debugging
+  console.log(`[MacroChef] Environment: ${window.MacroChef.ENV} (hostname: ${window.location.hostname})`);
 
   const guest = (reason) => ({ client: null, enabled: false, mode: 'guest', reason });
 
@@ -8297,6 +8331,9 @@ window.MacroChef = window.MacroChef || {};
     // Standalone file:// bundle has an opaque origin: no CORS/Storage for sessions.
     if (window.location.protocol === 'file:') return guest('file-protocol');
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return guest('not-configured');
+    if (SUPABASE_URL.includes('PLACEHOLDER') || SUPABASE_ANON_KEY.includes('PLACEHOLDER')) {
+      return guest('credentials-not-configured');
+    }
     if (!window.supabase || typeof window.supabase.createClient !== 'function') {
       return guest('library-unavailable');
     }
@@ -8317,7 +8354,8 @@ window.MacroChef = window.MacroChef || {};
     client: state.client,
     enabled: state.enabled,
     mode: state.mode,
-    reason: state.reason
+    reason: state.reason,
+    environment: window.MacroChef.ENV
   };
 })();
 
@@ -8649,10 +8687,14 @@ window.MacroChef = window.MacroChef || {};
   class DexieCalorieRepository extends ICalorieRepository {
     constructor(databaseName = 'MacroChefDB', options = {}) {
       super();
-      this.db = new Dexie(databaseName);
+      // Prefix database name with environment if not PROD
+      const env = window.MacroChef.ENV;
+      const prefixedDbName = env !== 'PROD' ? `${env}_${databaseName}` : databaseName;
+      this.db = new Dexie(prefixedDbName);
       this.seedDefaults = options.seedDefaults !== false;
       this.userId = options.userId || 'guest';
       this.role = options.role;
+      this.environment = env;
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -9703,7 +9745,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">MacroChef</h1>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">MacroChef</h1>
+                {window.MacroChef.ENV !== 'PROD' && (
+                  <span className={`inline-flex items-center text-xs font-bold px-2 py-1 rounded-full border ${
+                    window.MacroChef.ENV === 'TEST'
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                      : 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
+                  }`}>
+                    {window.MacroChef.ENV}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-600 dark:text-slate-300 text-sm">
                 {t.appSubtitle || 'Meal Prep, Macro Control & Zero Waste'}
               </p>
@@ -10316,9 +10369,20 @@ window.MacroChef.components = window.MacroChef.components || {};
               <Icon name="chef-hat" className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                {t.appTitle}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+                  {t.appTitle}
+                </h1>
+                {window.MacroChef.ENV !== 'PROD' && (
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    window.MacroChef.ENV === 'TEST'
+                      ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                      : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                  }`}>
+                    {window.MacroChef.ENV}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">
                   {t.appSubtitle}
@@ -10511,6 +10575,11 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <div className="h-px bg-slate-200/80 dark:bg-slate-700/80" />
                 <div className="text-center text-[11px] font-medium text-slate-400 dark:text-slate-500">
                   MacroChef v{window.MacroChef.APP_VERSION || '0.0.0'}
+                  {window.MacroChef.ENV !== 'PROD' && (
+                    <span className="block text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">
+                      ({window.MacroChef.ENV} Environment)
+                    </span>
+                  )}
                 </div>
               </div>
             )}

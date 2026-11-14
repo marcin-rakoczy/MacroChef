@@ -49,9 +49,20 @@ window.MacroChef.components = window.MacroChef.components || {};
               <Icon name="chef-hat" className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-                {t.appTitle}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+                  {t.appTitle}
+                </h1>
+                {window.MacroChef.ENV !== 'PROD' && (
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    window.MacroChef.ENV === 'TEST'
+                      ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                      : 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+                  }`}>
+                    {window.MacroChef.ENV}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">
                   {t.appSubtitle}
@@ -244,6 +255,11 @@ window.MacroChef.components = window.MacroChef.components || {};
                 <div className="h-px bg-slate-200/80 dark:bg-slate-700/80" />
                 <div className="text-center text-[11px] font-medium text-slate-400 dark:text-slate-500">
                   MacroChef v{window.MacroChef.APP_VERSION || '0.0.0'}
+                  {window.MacroChef.ENV !== 'PROD' && (
+                    <span className="block text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">
+                      ({window.MacroChef.ENV} Environment)
+                    </span>
+                  )}
                 </div>
               </div>
             )}

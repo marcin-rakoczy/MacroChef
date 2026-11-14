@@ -94,7 +94,18 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">MacroChef</h1>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">MacroChef</h1>
+                {window.MacroChef.ENV !== 'PROD' && (
+                  <span className={`inline-flex items-center text-xs font-bold px-2 py-1 rounded-full border ${
+                    window.MacroChef.ENV === 'TEST'
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                      : 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
+                  }`}>
+                    {window.MacroChef.ENV}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-600 dark:text-slate-300 text-sm">
                 {t.appSubtitle || 'Meal Prep, Macro Control & Zero Waste'}
               </p>
