@@ -1,0 +1,332 @@
+PROPRIETARY LICENSE AGREEMENT
+
+© 2024-2026 Marcin Rakoczy
+MacroChef - Proprietary Fitness Application
+
+IMPORTANT - READ CAREFULLY BEFORE USING THIS SOFTWARE
+
+This License Agreement ("Agreement") is a legal agreement between you ("Licensee") 
+and Marcin Rakoczy ("Licensor") for the MacroChef software ("Software").
+
+================================================================================
+1. PROPRIETARY RIGHTS & OWNERSHIP
+================================================================================
+
+The Software is proprietary and confidential property owned entirely by Marcin 
+Rakoczy. All rights, title, and interest in the Software remain with the Licensor.
+
+This Software is NOT open source and is NOT distributed under any open source 
+license such as MIT, Apache 2.0, GPL, or similar.
+
+All source code, architecture, design, algorithms, and documentation are the 
+exclusive intellectual property of Marcin Rakoczy and are protected by:
+
+- United States Copyright Law
+- Digital Millennium Copyright Act (DMCA)
+- International Copyright Treaties (Berne Convention, TRIPS)
+- Trade Secret Protection Laws
+- International Intellectual Property Laws
+
+================================================================================
+2. GRANT OF LICENSE (RESTRICTED)
+================================================================================
+
+Subject to strict compliance with the terms of this Agreement, Licensor grants 
+Licensee a LIMITED, NON-EXCLUSIVE, NON-TRANSFERABLE, REVOCABLE license to use 
+the Software SOLELY for:
+
+- Personal, non-commercial purposes only
+- Evaluating the Software's functionality
+- Learning and educational purposes only
+- NO commercial use whatsoever
+
+This license is granted for a single user only and cannot be shared, 
+sublicensed, or transferred to third parties.
+
+================================================================================
+3. STRICT PROHIBITIONS - YOU MAY NOT
+================================================================================
+
+LICENSEE ABSOLUTELY MUST NOT, UNDER ANY CIRCUMSTANCES:
+
+1. Copy, reproduce, or duplicate any part of the Software or source code
+2. Modify, alter, adapt, translate, or create derivative works
+3. Reverse engineer, decompile, disassemble, or otherwise attempt to derive 
+   the source code
+4. Rent, lease, lend, sell, transfer, assign, sublicense, or offer for sale
+5. Distribute, publish, or make publicly available in any form
+6. Use for commercial purposes, business operations, or profit-making activities
+7. Create or distribute competing products based on this Software
+8. Remove or obscure any proprietary notices, labels, or copyright information
+9. Circumvent, disable, or bypass any technical protection measures
+10. Attempt to access, intercept, or monitor the Software's operation
+11. Merge with other software or integrate into other systems
+12. Backport, port, or adapt to different platforms without permission
+13. Use source code as reference for creating similar applications
+14. Share access with other users or organizations
+15. Store copies in version control systems without explicit written permission
+
+================================================================================
+4. PERMITTED ACTIVITIES (LIMITED)
+================================================================================
+
+Subject to compliance with all restrictions, Licensee MAY:
+
+✓ View and read the Software source code on GitHub (read-only)
+✓ Run the compiled application for personal, non-commercial use
+✓ Report legitimate security vulnerabilities to Licensor
+✓ Use as educational reference (without copying code)
+✓ Suggest improvements or features (which become Licensor's property)
+
+Any use beyond these permitted activities requires prior written consent from 
+Licensor and execution of a separate written license agreement.
+
+================================================================================
+5. COMMERCIAL LICENSING
+================================================================================
+
+FOR COMMERCIAL USE, BUSINESS USE, OR DEPLOYMENT:
+
+Contact: Marcin Rakoczy
+Email: [your-email@example.com]
+
+Commercial licenses are available at a negotiated fee. Each commercial license is:
+- Restricted to a specific entity, domain, or use case
+- Non-transferable to other parties
+- Subject to separate written agreement
+- May require source code audit or verification
+
+Unauthorized commercial use is strictly prohibited and constitutes trademark 
+and copyright infringement.
+
+================================================================================
+6. INTELLECTUAL PROPERTY PROTECTION
+================================================================================
+
+PROTECTED ELEMENTS include but are not limited to:
+
+- Application architecture and design patterns
+- User interface (UI/UX) design and layout
+- Algorithm implementations (including nutrition calculations)
+- Database schemas and data structures
+- CSS styling rules and design system
+- Component hierarchy and organization patterns
+- Business logic and workflows
+- Configuration systems and management
+- All original documentation and written materials
+- API designs and interaction patterns
+
+All these elements are protected intellectual property and cannot be reproduced, 
+adapted, or used without explicit written permission.
+
+================================================================================
+7. THIRD-PARTY COMPONENTS & OPEN SOURCE LICENSES
+================================================================================
+
+This Software includes open-source components licensed under various open-source 
+licenses. Third-party license terms apply ONLY to those specific components:
+
+Library          | License | Purpose
+───────────────────────────────────
+React 18         | MIT     | UI framework
+Babel            | MIT     | JSX compilation
+Tailwind CSS     | MIT     | CSS framework
+Lucide Icons     | ISC     | Icon library
+Dexie.js         | Apache 2.0 | IndexedDB wrapper
+Supabase JS      | MIT     | Backend services
+
+IMPORTANT: The open-source licenses of third-party components do NOT apply to 
+the MacroChef application itself. The MacroChef application as a whole remains 
+proprietary and fully protected.
+
+See package.json for complete dependency list and their respective licenses.
+
+================================================================================
+8. CONFIDENTIALITY & TRADE SECRETS
+================================================================================
+
+The Software contains trade secrets and confidential information. Licensee agrees:
+
+1. To treat the Software as confidential
+2. Not to disclose any information about the Software to third parties
+3. Not to document or describe the Software's implementation
+4. To use reasonable security measures to protect the Software
+5. To immediately report any unauthorized access or use
+
+Breach of confidentiality is subject to immediate license termination and 
+potential legal action.
+
+================================================================================
+9. NO WARRANTY - AS IS
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND.
+
+LICENSOR MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED, INCLUDING:
+- No warranty of merchantability
+- No warranty of fitness for a particular purpose
+- No warranty of non-infringement of third-party rights
+- No warranty of accuracy or completeness
+- No warranty of performance or reliability
+
+The Software may contain errors, bugs, or defects. Use at your own risk.
+
+LICENSOR DOES NOT WARRANT THAT:
+- The Software will meet your requirements
+- The Software will be uninterrupted or error-free
+- Defects will be corrected
+- The Software is virus-free
+
+================================================================================
+10. LIMITATION OF LIABILITY
+================================================================================
+
+IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY DAMAGES, INCLUDING:
+
+- Direct, indirect, incidental, or consequential damages
+- Lost profits, lost revenue, or lost data
+- Business interruption or loss of business opportunity
+- Costs of substitute goods or services
+- Any other damages arising from use or inability to use the Software
+
+This limitation applies regardless of:
+- The cause of damage (contract, tort, negligence, etc.)
+- Whether Licensor was advised of the possibility of damage
+- The theory of liability
+
+Some jurisdictions do not allow limitation of liability, so this limitation 
+may not apply to you.
+
+================================================================================
+11. TERM & TERMINATION
+================================================================================
+
+This license is effective immediately upon acceptance and continues until 
+terminated.
+
+LICENSOR MAY TERMINATE THIS LICENSE IMMEDIATELY AND WITHOUT NOTICE IF:
+- Licensee violates any term of this Agreement
+- Licensee attempts to reverse engineer or decompile the Software
+- Licensee uses the Software for commercial purposes
+- Licensee distributes or copies the Software
+- Licensor deems the use unauthorized for any reason
+
+UPON TERMINATION:
+- All rights to use the Software immediately cease
+- Licensee must destroy all copies of the Software
+- Licensee must certify destruction in writing upon request
+- All provisions survive termination
+
+================================================================================
+12. ENFORCEMENT & LEGAL REMEDIES
+================================================================================
+
+LICENSEE ACKNOWLEDGES THAT VIOLATION OF THIS AGREEMENT:
+
+Will cause irreparable harm to Licensor that cannot be adequately compensated 
+by monetary damages alone.
+
+Licensor is entitled to seek:
+- Preliminary and permanent injunctive relief
+- Immediate cessation of unauthorized use
+- Destruction of unauthorized copies
+- Monetary damages (actual and treble damages)
+- Attorney fees and court costs
+- Recovery of all costs associated with enforcing this Agreement
+
+Violations may also result in:
+- Civil litigation and damages up to $150,000+ per violation
+- Criminal prosecution (10 years imprisonment + $2,500,000 fine under DMCA)
+- DMCA takedown notices on GitHub and hosting platforms
+- Domain takedown and blocking
+- Payment processing termination
+- Public notification of violations
+
+================================================================================
+13. GOVERNING LAW & JURISDICTION
+================================================================================
+
+This Agreement is governed by the laws of [Your Jurisdiction], without regard 
+to conflict of law principles.
+
+Licensee irrevocably consents to the exclusive jurisdiction of courts located 
+in [Your Jurisdiction] for any legal proceedings.
+
+Licensee waives any objection to venue or jurisdiction in these courts.
+
+================================================================================
+14. SEVERABILITY
+================================================================================
+
+If any provision of this Agreement is found to be unenforceable or invalid, 
+that provision will be modified to the minimum extent necessary to make it 
+enforceable, or if that is not possible, it will be severed.
+
+All other provisions remain in full force and effect.
+
+================================================================================
+15. ENTIRE AGREEMENT
+================================================================================
+
+This Agreement, together with any written amendments, constitutes the entire 
+agreement between Licensee and Licensor concerning the Software and supersedes 
+all prior agreements, understandings, negotiations, and discussions.
+
+No modification of this Agreement is valid unless in writing and signed by 
+Licensor.
+
+================================================================================
+16. CONTACT & INQUIRIES
+================================================================================
+
+FOR LICENSING INQUIRIES:
+Contact: Marcin Rakoczy
+Email: [your-email@example.com]
+Website: [your-website]
+
+Please note:
+- License inquiries will be reviewed individually
+- Commercial licenses require negotiation
+- All inquiries should clearly state your intended use
+- Response time: 5-10 business days
+
+FOR DMCA VIOLATIONS:
+Please report to:
+- GitHub DMCA: https://github.com/github/dmca
+- Email: [dmca-email@example.com]
+- Include: Date, URL, violation details, evidence
+
+FOR SECURITY VULNERABILITIES:
+Contact: [security-email@example.com]
+Do NOT publicly disclose vulnerabilities before Licensor has had time to respond 
+and create a patch.
+
+================================================================================
+17. ACKNOWLEDGMENT
+================================================================================
+
+BY ACCESSING, DOWNLOADING, OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT:
+
+1. You have read and understand this Agreement
+2. You accept all terms and conditions
+3. You agree to comply fully with this Agreement
+4. You understand the restrictions and prohibitions
+5. You understand the legal consequences of violation
+6. You have the authority to accept this Agreement
+
+IF YOU DO NOT AGREE TO ALL TERMS, YOU MUST NOT USE THE SOFTWARE.
+DELETE THE SOFTWARE IMMEDIATELY AND CONTACT THE LICENSOR.
+
+================================================================================
+
+LAST UPDATED: November 14, 2026
+EFFECTIVE DATE: November 14, 2026
+VERSION: 1.0
+
+This is a LIVING AGREEMENT and may be updated at any time.
+Updates will be posted to the GitHub repository.
+Continued use of the Software constitutes acceptance of updates.
+
+© 2024-2026 Marcin Rakoczy. ALL RIGHTS RESERVED.
+
+🔐 PROPRIETARY - DO NOT COPY 🔐
