@@ -13837,11 +13837,15 @@ window.MacroChef.components = window.MacroChef.components || {};
     const langTranslations = window.MacroChef?.TRANSLATIONS?.[lang];
     const t = langTranslations || defaultTranslations;
 
+    const [page, setPage] = useState(0);
+    const PRODUCTS_PER_PAGE = 25;
+
     // Load all products
     useEffect(() => {
       async function loadProducts() {
         setLoading(true);
         setError('');
+        setPage(0);
         try {
           if (!repository) {
             throw new Error('Repository not available');
@@ -13850,12 +13854,15 @@ window.MacroChef.components = window.MacroChef.components || {};
             throw new Error('getAllProducts method not available on repository');
           }
           const all = await repository.getAllProducts();
-          console.log('Loaded products:', all);
+          console.log('[AdminProducts] Loaded products count:', all ? all.length : 0, 'Products:', all);
+          if (!Array.isArray(all)) {
+            throw new Error(`getAllProducts returned non-array: ${typeof all}`);
+          }
           setProducts(all || []);
         } catch (err) {
           const errorMsg = err.message || 'Failed to load products';
           setError(errorMsg);
-          console.error('Load products error:', err);
+          console.error('[AdminProducts] Load products error:', err);
         } finally {
           setLoading(false);
         }
@@ -14122,16 +14129,25 @@ window.MacroChef.components = window.MacroChef.components || {};
           {t.importProductsHelp || 'CSV format: name, price, calories, protein, carbs, fat, shop'}
         </div>
 
-        {/* Products Table */}
+        {/* Loading State */}
         {loading ? (
-          <div className="text-center py-8 text-slate-600 dark:text-slate-400">
-            {t.loading || 'Loading...'}
+          <div className="text-center py-12 text-slate-600 dark:text-slate-400">
+            <div className="mb-2">{t.loading || 'Loading...'}</div>
+            <div className="text-xs text-slate-500">Załadunek produktów...</div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-red-700 dark:text-red-400 text-sm font-semibold mb-2">Błąd: {error}</p>
+            <details className="text-xs text-red-600 dark:text-red-300 cursor-pointer">
+              <summary>Szczegóły błędu</summary>
+              <pre className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded text-xs overflow-auto">{error}</pre>
+            </details>
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-8 text-slate-600 dark:text-slate-400">
-            {t.noProducts || 'No products found'}
+          <div className="text-center py-12 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-slate-700 dark:text-slate-300 font-semibold">{t.noProducts || 'No products found'}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Załaduj produkty, aby sie pojawili tutaj</p>
           </div>
-        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600">
@@ -14161,7 +14177,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 </tr>
               </thead>
               <tbody>
-                {products.map(product => (
+                {products.slice(0, PRODUCTS_PER_PAGE).map(product => (
                   <tr key={product.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-4 py-3">
                       <input
@@ -14202,8 +14218,15 @@ window.MacroChef.components = window.MacroChef.components || {};
         )}
 
         {/* Summary */}
-        <div className="text-sm text-slate-600 dark:text-slate-400 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-          {t.totalProducts || 'Total Products'}: <span className="font-semibold text-slate-900 dark:text-white">{products.length}</span>
+        <div className="text-sm text-slate-600 dark:text-slate-400 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-2">
+          <div>
+            {t.totalProducts || 'Total Products'}: <span className="font-semibold text-slate-900 dark:text-white">{products.length}</span>
+          </div>
+          {products.length > PRODUCTS_PER_PAGE && (
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              Showing: {Math.min(PRODUCTS_PER_PAGE, products.length)} of {products.length} products
+            </div>
+          )}
         </div>
       </div>
     );
