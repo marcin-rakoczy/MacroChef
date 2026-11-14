@@ -42,10 +42,10 @@ jobs:
           node tests/environment.test.js
 
   # ============================================================================
-  # CLOUDFLARE PAGES DEPLOY - For all branches (test.macrochef.pl + branch previews)
+  # BUILD JOB - For all branches (Cloudflare Pages deploys automatically)
   # ============================================================================
-  deploy-cloudflare:
-    # Deploy to Cloudflare Pages on every push (except [skip ci])
+  build:
+    # Build on every push (except [skip ci])
     if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
     needs: test
     runs-on: ubuntu-latest
@@ -60,17 +60,10 @@ jobs:
 
       - name: Build application
         run: npm run build
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: macrochef-test
-          directory: .
-          branch: ${{ github.ref_name }}
-          # Production branch routes to test.macrochef.pl
-          # Other branches route to branch-name.test.macrochef.pl
+      
+      # Note: Cloudflare Pages automatically deploys from GitHub repository.
+      # No explicit deploy step needed here.
+      # Cloudflare Pages is configured to build from main branch and all feature/* branches.
 
   # ============================================================================
   # GITHUB PAGES DEPLOY - Only for main branch on workflow_dispatch or non-[skip ci] push
@@ -82,7 +75,7 @@ jobs:
     # 3. NOT on feature branches
     # 4. NOT on pull requests
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')))
-    needs: test
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
