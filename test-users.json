@@ -1,0 +1,32 @@
+﻿[
+    {
+        "email":  "alice.test@example.com",
+        "user_id":  "740100dc-4a1c-4c0e-8dcc-056a33f333c7",
+        "created_at":  "2026-11-14T11:15:47.2126135+01:00",
+        "role":  "Admin"
+    },
+    {
+        "email":  "bob.tester@example.com",
+        "user_id":  "beb6d6d6-62f5-4777-b711-808d988abd07",
+        "created_at":  "2026-11-14T11:15:47.2126135+01:00",
+        "role":  "Tester"
+    },
+    {
+        "email":  "charlie.user@example.com",
+        "user_id":  "74ad8edd-13bf-48e6-a9fb-c1495643de77",
+        "created_at":  "2026-11-14T11:15:47.2126135+01:00",
+        "role":  "UserWithAdvertisement"
+    },
+    {
+        "email":  "diana.user@example.com",
+        "user_id":  "8c1d8d41-1ed0-427d-8961-b008de26249e",
+        "created_at":  "2026-11-14T11:15:47.2126135+01:00",
+        "role":  "UserWithAdvertisement"
+    },
+    {
+        "email":  "eve.admin@example.com",
+        "user_id":  "d14ad94b-859b-4ca4-b557-a9c37af22b31",
+        "created_at":  "2026-11-14T11:15:47.2126135+01:00",
+        "role":  "Admin"
+    }
+]

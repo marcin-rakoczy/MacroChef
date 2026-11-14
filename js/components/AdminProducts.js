@@ -6,6 +6,10 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { useState, useEffect } = React;
 
   function AdminProducts({ repository, session }) {
+    // Define constants FIRST, before any hooks
+    const PRODUCTS_PER_PAGE = 25;
+    
+    // All useState hooks MUST come before any non-hook code
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -13,19 +17,69 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [selected, setSelected] = useState(new Set());
     const [editingId, setEditingId] = useState(null);
     const [editValues, setEditValues] = useState({});
-    const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
+    const [page, setPage] = useState(0);
+    const [searchQuery, setSearchQuery] = useState('');
+    
+    // NOW you can do non-hook initialization
+    const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
+    const importInputRef = React.useRef(null);
+    const defaultTranslations = {
+      importProducts: 'Import Products',
+      loading: 'Loading...',
+      noProducts: 'No products',
+      name: 'Name',
+      shop: 'Shop',
+      price: 'Price',
+      category: 'Category',
+      calories: 'Calories',
+      protein: 'Protein',
+      carbs: 'Carbs',
+      fat: 'Fat',
+      actions: 'Actions',
+      delete: 'Delete',
+      edit: 'Edit',
+      save: 'Save',
+      cancel: 'Cancel',
+      selectItems: 'Select items',
+      confirmDelete: 'Are you sure?',
+      editSelected: 'Edit Selected',
+      deleteSelected: 'Delete Selected',
+      editProducts: 'Edit Products',
+      productsUpdated: 'Products updated',
+      productsDeleted: 'Products deleted',
+      productsImported: 'Products imported',
+      importProductsHelp: 'CSV format: name, price, calories, protein, carbs, fat, shop, category',
+      totalProducts: 'Total Products',
+      search: 'Search by name or category...',
+      page: 'Page'
+    };
+    
+    const langTranslations = window.MacroChef?.TRANSLATIONS?.[lang];
+    const t = langTranslations || defaultTranslations;
 
     // Load all products
     useEffect(() => {
       async function loadProducts() {
         setLoading(true);
         setError('');
+        setPage(0);
         try {
+          if (!repository) {
+            throw new Error('Repository not available');
+          }
+          if (typeof repository.getAllProducts !== 'function') {
+            throw new Error('getAllProducts method not available on repository');
+          }
           const all = await repository.getAllProducts();
+          console.log('[AdminProducts] Loaded products count:', all ? all.length : 0, 'Products:', all);
+          if (!Array.isArray(all)) {
+            throw new Error(`getAllProducts returned non-array: ${typeof all}`);
+          }
           setProducts(all || []);
         } catch (err) {
-          setError(err.message || 'Failed to load products');
-          console.error('Load products error:', err);
+          const errorMsg = err.message || 'Failed to load products';
+          setError(errorMsg);
+          console.error('[AdminProducts] Load products error:', err);
         } finally {
           setLoading(false);
         }
@@ -89,7 +143,7 @@ window.MacroChef.components = window.MacroChef.components || {};
           if (editValues.carbs !== undefined) updated.carbs = parseFloat(editValues.carbs);
           if (editValues.fat !== undefined) updated.fat = parseFloat(editValues.fat);
 
-          await repository.updateProduct(productId, updated);
+          await repository.saveProduct(updated);
         }
 
         // Reload products
@@ -130,6 +184,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         const carbsIdx = headers.indexOf('carbs');
         const fatIdx = headers.indexOf('fat');
         const shopIdx = headers.indexOf('shop');
+        const categoryIdx = headers.indexOf('category');
 
         if (nameIdx === -1) throw new Error('CSV must have "name" column');
 
@@ -148,11 +203,12 @@ window.MacroChef.components = window.MacroChef.components || {};
             carbs: parseFloat(cells[carbsIdx]) || 0,
             fat: parseFloat(cells[fatIdx]) || 0,
             shop: cells[shopIdx] || 'Unknown',
+            category: cells[categoryIdx] || 'Other',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
 
-          await repository.createProduct(product);
+          await repository.saveProduct(product);
           newProducts.push(product);
         }
 
@@ -167,67 +223,144 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
+    // Download CSV template
+    const handleDownloadTemplate = () => {
+      const templateContent = `Nazwa,Cena,Kalorie,Białko,Węglowodany,Tłuszcze,Sklep,Kategoria
+Jajko,2.50,78,6,0.56,5.30,Lidl,Nabiał`;
+      const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'macrochef-products-template.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    // Filter products based on search query
+    const filteredProducts = products.filter(product => {
+      const query = searchQuery.toLowerCase();
+      const productName = typeof product.name === 'object' 
+        ? (product.name[lang] || product.name.pl || '').toLowerCase()
+        : (product.name || '').toLowerCase();
+      const productCategory = (product.category || '').toLowerCase();
+      const productShop = (product.shop || '').toLowerCase();
+      
+      return query === '' || productName.includes(query) || 
+             productCategory.includes(query) || 
+             productShop.includes(query);
+    });
+
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
+    const startIdx = page * PRODUCTS_PER_PAGE;
+    const paginatedProducts = filteredProducts.slice(startIdx, startIdx + PRODUCTS_PER_PAGE);
+
+    // Reset to page 0 when search query changes
+    useEffect(() => {
+      setPage(0);
+      setSelected(new Set());
+    }, [searchQuery]);
+
     return (
-      <div className="space-y-4">
+      <div className="space-y-4" role="region" aria-label="Products Management">
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4" role="alert">
             <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4" role="status">
             <p className="text-green-700 dark:text-green-400 text-sm">{success}</p>
           </div>
         )}
 
         {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Import CSV */}
-          <label className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium cursor-pointer transition">
-            {t.importProducts || 'Import Products'}
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          {/* Search Box - Left Side */}
+          <input
+            type="text"
+            placeholder={t.search || 'Search by name or category...'}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white flex-1"
+          />
+
+          <div className="flex items-center gap-4">
+            {/* Bulk Edit */}
+            {selected.size > 0 && !editingId && (
+              <button
+                onClick={() => setEditingId('bulk')}
+                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+              >
+                {t.editSelected || `Edit ${selected.size} Products`}
+              </button>
+            )}
+
+            {/* Bulk Delete */}
+            {selected.size > 0 && !editingId && (
+              <button
+                onClick={bulkDelete}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
+              >
+                {t.deleteSelected || `Delete ${selected.size} Products`}
+              </button>
+            )}
+
+            {/* Cancel Selection/Edit */}
+            {(selected.size > 0 || editingId) && (
+              <button
+                onClick={() => {
+                  setSelected(new Set());
+                  setEditingId(null);
+                  setEditValues({});
+                }}
+                className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 text-slate-900 dark:text-white rounded-lg font-medium transition"
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+            )}
+
+            {/* Import CSV Button - Right Side */}
+            <button
+              type="button"
+              onClick={() => importInputRef.current && importInputRef.current.click()}
+              className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all whitespace-nowrap"
+            >
+              <div className="flex flex-col items-center gap-0.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <div className="w-3 h-0.5 bg-current"></div>
+              </div>
+              <span>{t.importProducts || 'Import Products'}</span>
+            </button>
             <input
+              ref={importInputRef}
               type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
+              accept=".csv,text/csv"
               className="hidden"
-              disabled={loading}
+              onChange={handleImportCSV}
             />
-          </label>
+          </div>
+        </div>
 
-          {/* Bulk Edit */}
-          {selected.size > 0 && !editingId && (
+        {/* Import Help Section - Right Aligned */}
+        <div className="flex flex-col sm:flex-row gap-4 sm:justify-end">
+          <div className="space-y-2 text-right">
             <button
-              onClick={() => setEditingId('bulk')}
-              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
             >
-              {t.editSelected || `Edit ${selected.size} Products`}
+              {t.downloadProductsCsvTemplate || 'Download CSV template'}
             </button>
-          )}
-
-          {/* Bulk Delete */}
-          {selected.size > 0 && !editingId && (
-            <button
-              onClick={bulkDelete}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
-            >
-              {t.deleteSelected || `Delete ${selected.size} Products`}
-            </button>
-          )}
-
-          {/* Cancel Selection/Edit */}
-          {(selected.size > 0 || editingId) && (
-            <button
-              onClick={() => {
-                setSelected(new Set());
-                setEditingId(null);
-                setEditValues({});
-              }}
-              className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 text-slate-900 dark:text-white rounded-lg font-medium transition"
-            >
-              {t.cancel || 'Cancel'}
-            </button>
-          )}
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              {t.productImportHint || 'CSV format: name, price, calories, protein, carbs, fat, shop, category'}
+            </p>
+          </div>
         </div>
 
         {/* Bulk Edit Panel */}
@@ -287,19 +420,24 @@ window.MacroChef.components = window.MacroChef.components || {};
           </div>
         )}
 
-        {/* Help Text */}
-        <div className="text-xs text-slate-600 dark:text-slate-400 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          {t.importProductsHelp || 'CSV format: name, price, calories, protein, carbs, fat, shop'}
-        </div>
-
-        {/* Products Table */}
+        {/* Loading State */}
         {loading ? (
-          <div className="text-center py-8 text-slate-600 dark:text-slate-400">
-            {t.loading || 'Loading...'}
+          <div className="text-center py-12 text-slate-600 dark:text-slate-400">
+            <div className="mb-2">{t.loading || 'Loading...'}</div>
+            <div className="text-xs text-slate-500">Załadunek produktów...</div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-red-700 dark:text-red-400 text-sm font-semibold mb-2">Błąd: {error}</p>
+            <details className="text-xs text-red-600 dark:text-red-300 cursor-pointer">
+              <summary>Szczegóły błędu</summary>
+              <pre className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded text-xs overflow-auto">{error}</pre>
+            </details>
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-8 text-slate-600 dark:text-slate-400">
-            {t.noProducts || 'No products found'}
+          <div className="text-center py-12 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-slate-700 dark:text-slate-300 font-semibold">{t.noProducts || 'No products found'}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Załaduj produkty, aby sie pojawili tutaj</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -322,7 +460,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.name || 'Name'}</th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.shop || 'Shop'}</th>
-                  <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.price || 'Price'}</th>
+                  <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.category || 'Category'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.calories || 'Kcal'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.protein || 'P'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.carbs || 'C'}</th>
@@ -331,7 +469,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                 </tr>
               </thead>
               <tbody>
-                {products.map(product => (
+                {paginatedProducts.map(product => (
                   <tr key={product.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-4 py-3">
                       <input
@@ -349,13 +487,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                         className="cursor-pointer"
                       />
                     </td>
-                    <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{product.name}</td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{product.shop}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.price?.toFixed(2)} zł</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(product.calories)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.protein?.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.carbs?.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.fat?.toFixed(1)}</td>
+                    <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">{typeof product.name === 'object' ? (product.name[lang] || product.name.pl || '') : product.name}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{product.shop || ''}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{product.category || 'Other'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.calories ? Math.round(product.calories) : '—'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.protein ? product.protein.toFixed(1) : '—'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.carbs ? product.carbs.toFixed(1) : '—'}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{product.fat ? product.fat.toFixed(1) : '—'}</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => deleteProduct(product.id)}
@@ -371,9 +509,39 @@ window.MacroChef.components = window.MacroChef.components || {};
           </div>
         )}
 
-        {/* Summary */}
-        <div className="text-sm text-slate-600 dark:text-slate-400 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-          {t.totalProducts || 'Total Products'}: <span className="font-semibold text-slate-900 dark:text-white">{products.length}</span>
+        {/* Summary & Pagination */}
+        <div className="text-sm text-slate-600 dark:text-slate-400 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-4">
+          <div>
+            {t.totalProducts || 'Total Products'}: <span className="font-semibold text-slate-900 dark:text-white">{products.length}</span>
+            {searchQuery && (
+              <span className="ml-4">
+                (Znaleziono: <span className="font-semibold text-slate-900 dark:text-white">{filteredProducts.length}</span>)
+              </span>
+            )}
+          </div>
+          {filteredProducts.length > PRODUCTS_PER_PAGE && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Showing: {startIdx + 1} - {Math.min(startIdx + PRODUCTS_PER_PAGE, filteredProducts.length)} of {filteredProducts.length} products | {t.page || 'Page'} {page + 1} of {totalPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage(Math.max(0, page - 1))}
+                  disabled={page === 0}
+                  className="px-3 py-1 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white rounded text-xs font-medium transition"
+                >
+                  ← Poprzednia
+                </button>
+                <button
+                  onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="px-3 py-1 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 dark:text-white rounded text-xs font-medium transition"
+                >
+                  Następna →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

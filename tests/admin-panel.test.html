@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MacroChef Admin Panel Tests</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      padding: 20px;
+      color: #1e293b;
+    }
+    pre {
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .success { color: #059669; font-weight: bold; }
+    .failure { color: #dc2626; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>MacroChef Admin Panel Tests</h1>
+  <pre id="result">Running tests...</pre>
+  
+  <!-- Mock globals for testing -->
+  <script>
+    // Mock localStorage
+    if (typeof localStorage === 'undefined') {
+      window.localStorage = {
+        data: {},
+        getItem: function(key) { return this.data[key] || null; },
+        setItem: function(key, value) { this.data[key] = value; },
+        removeItem: function(key) { delete this.data[key]; },
+        clear: function() { this.data = {}; }
+      };
+    }
+
+    // Mock window.MacroChef
+    window.MacroChef = {
+      components: {},
+      TRANSLATIONS: {
+        en: {
+          importProducts: 'Import Products',
+          loading: 'Loading...',
+          noProducts: 'No products',
+          name: 'Name',
+          shop: 'Shop',
+          price: 'Price',
+          category: 'Category',
+          calories: 'Calories',
+          protein: 'Protein',
+          carbs: 'Carbs',
+          fat: 'Fat',
+          actions: 'Actions',
+          delete: 'Delete',
+          edit: 'Edit',
+          save: 'Save',
+          cancel: 'Cancel',
+          selectItems: 'Select items',
+          confirmDelete: 'Are you sure?',
+          allRoles: 'All Roles',
+          selected: 'selected',
+          action: 'Action...',
+          changeRole: 'Change Role',
+          deleteUsers: 'Delete Users',
+          selectRole: 'Select role...',
+          apply: 'Apply',
+          totalUsers: 'Total Users',
+          email: 'Email',
+          role: 'Role',
+          noUsers: 'No users found',
+          adminRecipes: 'Recipes',
+          adminProducts: 'Products',
+          adminUsers: 'Users'
+        },
+        pl: {
+          importProducts: 'Importuj Produkty',
+          loading: 'Ładowanie...',
+          noProducts: 'Brak produktów',
+          name: 'Nazwa',
+          shop: 'Sklep',
+          price: 'Cena',
+          category: 'Kategoria',
+          calories: 'Kalorie',
+          protein: 'Białko',
+          carbs: 'Węglowodany',
+          fat: 'Tłuszcze',
+          actions: 'Akcje',
+          delete: 'Usuń',
+          edit: 'Edytuj',
+          save: 'Zapisz',
+          cancel: 'Anuluj',
+          selectItems: 'Wybierz elementy',
+          confirmDelete: 'Jesteś pewny?',
+          allRoles: 'Wszystkie Role',
+          selected: 'wybrane',
+          action: 'Akcja...',
+          changeRole: 'Zmień Rolę',
+          deleteUsers: 'Usuń Użytkowników',
+          selectRole: 'Wybierz rolę...',
+          apply: 'Zastosuj',
+          totalUsers: 'Wszyscy Użytkownicy',
+          email: 'Email',
+          role: 'Rola',
+          noUsers: 'Brak użytkowników',
+          adminRecipes: 'Przepisy',
+          adminProducts: 'Produkty',
+          adminUsers: 'Użytkownicy'
+        }
+      },
+      helpers: {
+        getLocalized: function(value, lang) {
+          if (value && typeof value === 'object') {
+            return value[lang] || value.en || Object.values(value)[0];
+          }
+          return value;
+        }
+      }
+    };
+
+    // Mock React
+    window.React = {
+      createElement: function() { return null; }
+    };
+  </script>
+
+  <!-- Run tests -->
+  <script src="admin-panel.test.js"></script>
+</body>
+</html>

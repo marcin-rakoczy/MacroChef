@@ -20,6 +20,11 @@ window.MacroChef.components = window.MacroChef.components || {};
       { id: 'products', label: t.adminProducts || 'Products' }
     ];
 
+    // Assign components to variables for JSX rendering
+    const AdminUsers = window.MacroChef.components.AdminUsers;
+    const AdminRecipes = window.MacroChef.components.AdminRecipes;
+    const AdminProducts = window.MacroChef.components.AdminProducts;
+
     return (
       <div className="admin-panel bg-white dark:bg-slate-800 rounded-lg shadow-md border border-slate-200 dark:border-slate-700">
         {/* Tab Navigation */}
@@ -41,20 +46,20 @@ window.MacroChef.components = window.MacroChef.components || {};
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === 'users' && (
-            <window.MacroChef.components.AdminUsers 
+          {activeTab === 'users' && AdminUsers && (
+            <AdminUsers 
               repository={repository}
               session={session}
             />
           )}
-          {activeTab === 'recipes' && (
-            <window.MacroChef.components.AdminRecipes 
+          {activeTab === 'recipes' && AdminRecipes && (
+            <AdminRecipes 
               repository={repository}
               session={session}
             />
           )}
-          {activeTab === 'products' && (
-            <window.MacroChef.components.AdminProducts 
+          {activeTab === 'products' && AdminProducts && (
+            <AdminProducts 
               repository={repository}
               session={session}
             />

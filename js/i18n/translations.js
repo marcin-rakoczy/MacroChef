@@ -204,6 +204,7 @@ window.MacroChef.TRANSLATIONS = {
     authPasswordMinLength: 'Password must be at least 6 characters',
     authPasswordMinSix: 'Min 6 characters',
     // Admin Panel
+    adminPanel: 'Admin Panel',
     adminUsers: 'Users',
     adminRecipes: 'Recipes',
     adminProducts: 'Products',
@@ -457,6 +458,7 @@ window.MacroChef.TRANSLATIONS = {
     authPasswordMinLength: 'Hasło musi mieć co najmniej 6 znaków',
     authPasswordMinSix: 'Min 6 znaków',
     // Admin Panel
+    adminPanel: 'Admin Panel',
     adminUsers: 'Użytkownicy',
     adminRecipes: 'Przepisy',
     adminProducts: 'Produkty',
