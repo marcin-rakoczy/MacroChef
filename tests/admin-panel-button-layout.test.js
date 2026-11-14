@@ -39,12 +39,12 @@ const adminProductsContent = fs.readFileSync(adminProductsPath, 'utf8');
 
 console.log('\n=== Admin Panel Button Layout Tests ===\n');
 
-// Test 1: AdminRecipes - Import button before search
+// Test 1: AdminRecipes - Search on LEFT, Import on RIGHT
 test(
-  'AdminRecipes: Import button positioned BEFORE search input',
-  adminRecipesContent.includes('{/* Import CSV Button - Left Side */}') &&
-  adminRecipesContent.indexOf('{/* Import CSV Button - Left Side */}') < adminRecipesContent.indexOf('{/* Search Box */}'),
-  'Import button should appear first in JSX order'
+  'AdminRecipes: Search input on LEFT, Import button on RIGHT',
+  adminRecipesContent.includes('{/* Search Box - Left Side */}') &&
+  adminRecipesContent.includes('{/* Import CSV Button - Right Side */}'),
+  'Search should be labeled as left side, Import as right side'
 );
 
 // Test 2: AdminRecipes - SVG icon
@@ -71,12 +71,12 @@ test(
   'Should have emerald-700, emerald-300 and dark mode variants'
 );
 
-// Test 5: AdminProducts - Import button before search
+// Test 5: AdminProducts - Search on LEFT, Import on RIGHT
 test(
-  'AdminProducts: Import button positioned BEFORE search input',
-  adminProductsContent.includes('{/* Import CSV Button - Left Side */}') &&
-  adminProductsContent.indexOf('{/* Import CSV Button - Left Side */}') < adminProductsContent.indexOf('{/* Search Box */}'),
-  'Import button should appear first in JSX order'
+  'AdminProducts: Search input on LEFT, Import button on RIGHT',
+  adminProductsContent.includes('{/* Search Box - Left Side */}') &&
+  adminProductsContent.includes('{/* Import CSV Button - Right Side */}'),
+  'Search should be labeled as left side, Import as right side'
 );
 
 // Test 6: AdminProducts - SVG icon
@@ -103,34 +103,38 @@ test(
   'Should have emerald-700, emerald-300 and dark mode variants'
 );
 
-// Test 9: Consistency check - both components use same classes
+// Test 9: Consistency check - Help section right-aligned
 test(
-  'Both components: Consistent button styling',
-  adminRecipesContent.includes('flex items-center justify-center gap-2') &&
-  adminProductsContent.includes('flex items-center justify-center gap-2'),
-  'Both should have identical flex container classes'
+  'Both components: Help section (template link + hints) RIGHT-aligned',
+  adminRecipesContent.includes('sm:justify-end') &&
+  adminProductsContent.includes('sm:justify-end') &&
+  adminRecipesContent.includes('text-right') &&
+  adminProductsContent.includes('text-right'),
+  'Both should have right-alignment classes for template/hint sections'
 );
 
-// Test 10: Responsive layout
+// Test 10: Responsive layout with justify-between
 test(
-  'Both components: Use responsive layout (flex-col sm:flex-row)',
-  adminRecipesContent.includes('flex flex-col sm:flex-row') &&
-  adminProductsContent.includes('flex flex-col sm:flex-row'),
-  'Should have Tailwind responsive classes for mobile/desktop'
+  'Both components: Use flex-row with justify-between for desktop layout',
+  adminRecipesContent.includes('justify-between') &&
+  adminProductsContent.includes('justify-between'),
+  'Should have justify-between to spread search (left) and controls (right)'
 );
 
-// Test 11: No old icon symbol
+// Test 11: Help section right-aligned for AdminRecipes
 test(
-  'AdminRecipes: Old up-arrow icon (↑) removed',
-  !adminRecipesContent.includes('<span>↑</span>'),
-  'Old icon symbol should be replaced with SVG'
+  'AdminRecipes: Help section (download link + hints) RIGHT-aligned with text-right',
+  adminRecipesContent.includes('sm:justify-end') &&
+  adminRecipesContent.match(/space-y-2\s+text-right/),
+  'Help section should use text-right class for right alignment'
 );
 
-// Test 12: AdminProducts - No old icon symbol
+// Test 12: Help section right-aligned for AdminProducts
 test(
-  'AdminProducts: Old up-arrow icon (↑) removed',
-  !adminProductsContent.includes('<span>↑</span>'),
-  'Old icon symbol should be replaced with SVG'
+  'AdminProducts: Help section (download link + hints) RIGHT-aligned with text-right',
+  adminProductsContent.includes('sm:justify-end') &&
+  adminProductsContent.match(/space-y-2\s+text-right/),
+  'Help section should use text-right class for right alignment'
 );
 
 // Print summary
