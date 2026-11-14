@@ -226,40 +226,12 @@ window.MacroChef.components = window.MacroChef.components || {};
     canManageRecipes
   }) {
     const { t, lang } = window.MacroChef.useI18n();
-    const importInputRef = React.useRef(null);
 
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
       if (window.confirm(`${t.confirmDelete} (${name})`)) {
         onDeleteRecipe(recipe.id);
       }
-    };
-
-    const handleImportFile = async (event) => {
-      const file = event.target.files && event.target.files[0];
-      if (!file) return;
-      try {
-        const importedRecipes = window.MacroChef.recipeCsv.parse(await file.text(), lang);
-        await onImportRecipes(importedRecipes);
-        window.alert(t.recipeImportSuccess.replace('{count}', importedRecipes.length));
-      } catch (error) {
-        console.error('Failed to import recipes from CSV:', error);
-        window.alert(`${t.recipeImportError} ${error.message}`);
-      } finally {
-        event.target.value = '';
-      }
-    };
-
-    const handleDownloadTemplate = () => {
-      const csv = window.MacroChef.recipeCsv.createTemplate(lang);
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'macrochef-recipes-template.csv';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     return (
@@ -277,40 +249,13 @@ window.MacroChef.components = window.MacroChef.components || {};
 
           {canManageRecipes ? (
           <div className="flex flex-col items-stretch sm:items-end gap-2">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => importInputRef.current && importInputRef.current.click()}
-                className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
-              >
-                <Icon name="upload" className="w-4 h-4" />
-                <span>{t.importRecipes}</span>
-              </button>
-              <button
-                onClick={onCreateRecipe}
-                className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
-              >
-                <Icon name="plus" className="w-4 h-4" />
-                <span>{t.createRecipe}</span>
-              </button>
-            </div>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={handleImportFile}
-            />
             <button
-              type="button"
-              onClick={handleDownloadTemplate}
-              className="self-end text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
+              onClick={onCreateRecipe}
+              className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
             >
-              {t.downloadRecipeCsvTemplate}
+              <Icon name="plus" className="w-4 h-4" />
+              <span>{t.createRecipe}</span>
             </button>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-right">
-              {t.recipeImportHint}
-            </p>
           </div>
           ) : (
             <p className="text-xs text-slate-500 dark:text-slate-400">{t.recipesReadOnly}</p>

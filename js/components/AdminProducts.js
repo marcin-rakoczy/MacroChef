@@ -22,6 +22,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     
     // NOW you can do non-hook initialization
     const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
+    const importInputRef = React.useRef(null);
     const defaultTranslations = {
       importProducts: 'Import Products',
       loading: 'Loading...',
@@ -222,6 +223,21 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
+    // Download CSV template
+    const handleDownloadTemplate = () => {
+      const templateContent = `Nazwa,Cena,Kalorie,Białko,Węglowodany,Tłuszcze,Sklep,Kategoria
+Jajko,2.50,78,6,0.56,5.30,Lidl,Nabiał`;
+      const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'macrochef-products-template.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     // Filter products based on search query
     const filteredProducts = products.filter(product => {
       const query = searchQuery.toLowerCase();
@@ -273,18 +289,23 @@ window.MacroChef.components = window.MacroChef.components || {};
         </div>
 
         {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Import CSV */}
-          <label className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium cursor-pointer transition" title={t.importProducts || 'Import Products'}>
-            {t.importProducts || 'Import Products'}
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
-              className="hidden"
-              disabled={loading}
-            />
-          </label>
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          {/* Import CSV Button */}
+          <button
+            type="button"
+            onClick={() => importInputRef.current && importInputRef.current.click()}
+            className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
+          >
+            <span>↑</span>
+            <span>{t.importProducts || 'Import Products'}</span>
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportCSV}
+          />
 
           {/* Bulk Edit */}
           {selected.size > 0 && !editingId && (
@@ -319,6 +340,20 @@ window.MacroChef.components = window.MacroChef.components || {};
               {t.cancel || 'Cancel'}
             </button>
           )}
+        </div>
+
+        {/* Import Help Section */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
+          >
+            {t.downloadProductsCsvTemplate || 'Download CSV template'}
+          </button>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">
+            {t.productImportHint || 'CSV format: name, price, calories, protein, carbs, fat, shop, category'}
+          </p>
         </div>
 
         {/* Bulk Edit Panel */}

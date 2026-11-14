@@ -14,6 +14,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(0);
     const RECIPES_PER_PAGE = 25;
+    const importInputRef = React.useRef(null);
     const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
 
     // Load all recipes
@@ -157,6 +158,21 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
+    // Download CSV template
+    const handleDownloadTemplate = () => {
+      const templateContent = `Nazwa,Kategoria,CzasPrzygotowania,Porcje,Kalorie,Białko,Węglowodany,Tłuszcze,Kroki,Składnik1Nazwa,Składnik1Ilość,Składnik1Jednostka
+Przykładowy Przepis,Śniadanie,15,1,300,15,50,8,"Krok 1. Przygotuj składniki|Krok 2. Wymieszaj",Jajko,2,szt`;
+      const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'macrochef-recipes-template.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     return (
       <div className="space-y-4">
         {error && (
@@ -172,27 +188,32 @@ window.MacroChef.components = window.MacroChef.components || {};
         )}
 
         {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
           {/* Search Box */}
           <input
             type="text"
             placeholder={t.search || 'Search recipes...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white flex-1"
+            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white flex-1"
           />
 
-          {/* Import CSV */}
-          <label className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium cursor-pointer transition">
-            {t.importRecipes || 'Import Recipes'}
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
-              className="hidden"
-              disabled={loading}
-            />
-          </label>
+          {/* Import CSV Button */}
+          <button
+            type="button"
+            onClick={() => importInputRef.current && importInputRef.current.click()}
+            className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
+          >
+            <span>↑</span>
+            <span>{t.importRecipes || 'Import Recipes'}</span>
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportCSV}
+          />
 
           {/* Bulk Delete */}
           {selected.size > 0 && (
@@ -214,9 +235,18 @@ window.MacroChef.components = window.MacroChef.components || {};
           )}
         </div>
 
-        {/* Help Text */}
-        <div className="text-xs text-slate-600 dark:text-slate-400 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          {t.importRecipesHelp || 'CSV format: name, calories, protein, carbs, fat, ingredients (semicolon-separated)'}
+        {/* Import Help Section */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
+          >
+            {t.downloadRecipeCsvTemplate || 'Download CSV template'}
+          </button>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">
+            {t.recipeImportHint || 'One recipe per row; separate steps with |. For each ingredient add 5 columns, e.g. ingredient3Name–ingredient3PackageUnit.'}
+          </p>
         </div>
 
         {/* Recipes Table */}
