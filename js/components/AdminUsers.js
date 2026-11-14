@@ -15,7 +15,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [bulkNewRole, setBulkNewRole] = useState('');
     const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
 
-    const roles = ['Admin', 'Tester', 'UserWithAdvertisement', 'Guest'];
+    const roles = ['Admin', 'Tester', 'UserWithAdvertisement'];
 
     // Load all users
     useEffect(() => {
