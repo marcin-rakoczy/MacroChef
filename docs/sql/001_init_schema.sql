@@ -546,14 +546,14 @@ IS 'Users can only delete their own fitness goals';
 
 -- Verify RLS is enabled on all tables
 SELECT
-  schemaname,
-  tablename,
-  CASE WHEN relrowsecurity THEN '✓ ENABLED' ELSE '✗ DISABLED' END as rls_status
-FROM pg_class
-JOIN pg_namespace ON relnamespace = pg_namespace.oid
-WHERE schemaname = 'public'
-  AND tablename IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
-ORDER BY tablename;
+  ns.nspname as schemaname,
+  c.relname as tablename,
+  CASE WHEN c.relrowsecurity THEN '✓ ENABLED' ELSE '✗ DISABLED' END as rls_status
+FROM pg_class c
+JOIN pg_namespace ns ON c.relnamespace = ns.oid
+WHERE ns.nspname = 'public'
+  AND c.relname IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
+ORDER BY c.relname;
 
 -- List all created policies
 SELECT
