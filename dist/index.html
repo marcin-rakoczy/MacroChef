@@ -7485,6 +7485,7 @@ window.MacroChef.TRANSLATIONS = {
     authPasswordMinLength: 'Password must be at least 6 characters',
     authPasswordMinSix: 'Min 6 characters',
     // Admin Panel
+    adminPanel: 'Admin Panel',
     adminUsers: 'Users',
     adminRecipes: 'Recipes',
     adminProducts: 'Products',
@@ -7738,6 +7739,7 @@ window.MacroChef.TRANSLATIONS = {
     authPasswordMinLength: 'Hasło musi mieć co najmniej 6 znaków',
     authPasswordMinSix: 'Min 6 znaków',
     // Admin Panel
+    adminPanel: 'Admin Panel',
     adminUsers: 'Użytkownicy',
     adminRecipes: 'Przepisy',
     adminProducts: 'Produkty',
@@ -10540,7 +10542,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Add Admin tab only for Admin role
     if (session?.role === 'Admin') {
-      tabs.push({ id: 'admin', label: t.adminUsers || 'Admin', icon: 'shield' });
+      tabs.push({ id: 'admin', label: t.adminPanel || 'Admin Panel', icon: 'shield' });
     }
 
     if (isMobile) {
@@ -13233,7 +13235,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [bulkNewRole, setBulkNewRole] = useState('');
     const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
 
-    const roles = ['Admin', 'Tester', 'UserWithAdvertisement', 'Guest'];
+    const roles = ['Admin', 'Tester', 'UserWithAdvertisement'];
 
     // Load all users
     useEffect(() => {

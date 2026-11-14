@@ -17,7 +17,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Add Admin tab only for Admin role
     if (session?.role === 'Admin') {
-      tabs.push({ id: 'admin', label: t.adminUsers || 'Admin', icon: 'shield' });
+      tabs.push({ id: 'admin', label: t.adminPanel || 'Admin Panel', icon: 'shield' });
     }
 
     if (isMobile) {
