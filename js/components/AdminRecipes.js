@@ -50,8 +50,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     // Filter recipes based on search query
     const filteredRecipes = recipes.filter(recipe => {
       const query = searchQuery.toLowerCase();
-      const recipeName = typeof recipe.name === 'string' ? recipe.name : '';
-      const name = (recipeName || '').toLowerCase();
+      const name = window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl').toLowerCase();
       return name.includes(query);
     });
 
@@ -280,7 +279,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                       />
                     </td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">
-                      {typeof recipe.name === 'string' ? recipe.name : (recipe.name?.[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'] || 'Unnamed Recipe')}
+                      {window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl')}
                     </td>
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.calories || 0)}</td>
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.protein || 0)}g</td>
