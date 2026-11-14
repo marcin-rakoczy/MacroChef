@@ -8,20 +8,23 @@
 -- Note: This will cause infinite recursion if used in RLS policy checking user_profiles.role
 -- Instead, we create a table of admin user IDs that doesn't depend on user_profiles
 
+-- Drop function if it exists (to avoid parameter name conflicts)
+DROP FUNCTION IF EXISTS is_admin(uuid);
+
 CREATE TABLE IF NOT EXISTS public.admin_users (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at timestamptz DEFAULT NOW()
 );
 
 -- Helper function to check if authenticated user is admin
-CREATE OR REPLACE FUNCTION is_admin(user_id uuid)
+CREATE FUNCTION is_admin(check_user uuid)
 RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
   SELECT EXISTS(
-    SELECT 1 FROM public.admin_users WHERE admin_users.user_id = is_admin.user_id
+    SELECT 1 FROM public.admin_users WHERE admin_users.user_id = check_user
   );
 $$;
 
