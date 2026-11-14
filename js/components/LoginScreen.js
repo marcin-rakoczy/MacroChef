@@ -3,7 +3,6 @@ window.MacroChef.components = window.MacroChef.components || {};
 
 (function () {
   const { useState, useEffect } = React;
-  const { Mail, Lock, Eye, EyeOff, Loader } = lucide;
 
   function LoginScreen({ onSignIn, error, loading }) {
     const [isSignUp, setIsSignUp] = useState(false);
@@ -12,9 +11,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState('');
     const [validationError, setValidationError] = useState('');
+    const [lang, setLang] = useState(localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl');
 
-    const t = window.MacroChef.TRANSLATIONS[localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'];
-    const { lang, setLang } = window.MacroChef.useI18n();
+    const t = window.MacroChef.TRANSLATIONS[lang];
 
     useEffect(() => {
       setLocalError('');
@@ -109,7 +108,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                   {t.authEmail || 'Email Address'}
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400 pointer-events-none" />
+                  <svg className="absolute left-3 top-3 w-5 h-5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
                   <input
                     id="email"
                     type="email"
@@ -131,7 +132,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                   {t.authPassword || 'Password'}
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400 pointer-events-none" />
+                  <svg className="absolute left-3 top-3 w-5 h-5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm6-10V7a3 3 0 00-3-3H9a3 3 0 00-3 3v2h6z" />
+                  </svg>
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
@@ -152,9 +155,14 @@ window.MacroChef.components = window.MacroChef.components || {};
                     tabIndex="-1"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-4.753 4.753m7.313-10.049L9.47 9.47" />
+                      </svg>
                     ) : (
-                      <Eye className="w-5 h-5" />
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
                     )}
                   </button>
                 </div>
@@ -166,7 +174,10 @@ window.MacroChef.components = window.MacroChef.components || {};
                 disabled={loading}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 dark:bg-emerald-600 dark:hover:bg-emerald-700 disabled:dark:bg-emerald-800 text-white font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-2 mt-6"
               >
-                {loading && <Loader className="w-5 h-5 animate-spin" />}
+                {loading && <svg className="w-5 h-5 animate-spin inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>}
                 {loading
                   ? (t.authLoading || 'Loading...')
                   : (isSignUp ? (t.authSignUpButton || 'Create Account') : (t.authSignInButton || 'Sign In'))
