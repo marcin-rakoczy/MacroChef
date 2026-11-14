@@ -8,8 +8,8 @@
 -- Note: This will cause infinite recursion if used in RLS policy checking user_profiles.role
 -- Instead, we create a table of admin user IDs that doesn't depend on user_profiles
 
--- Drop function if it exists (to avoid parameter name conflicts)
-DROP FUNCTION IF EXISTS is_admin(uuid);
+-- Drop function with CASCADE to also drop dependent policies
+DROP FUNCTION IF EXISTS is_admin(uuid) CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.admin_users (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -125,7 +125,53 @@ ON public.admin_users
 FOR DELETE
 USING (is_admin(auth.uid()));
 
--- ===== Step 4: Verify setup =====
+-- ===== Step 4: Recreate policies on recipes and products tables =====
+-- These were dropped with CASCADE when we dropped the is_admin() function
+-- Recreate them now with the new function
+
+-- Recipes table policies
+CREATE POLICY "recipes_select_own_or_admin_library"
+ON public.recipes
+FOR SELECT
+USING (
+  user_id = auth.uid() OR
+  is_admin(auth.uid())
+);
+
+CREATE POLICY "recipes_insert_admin"
+ON public.recipes
+FOR INSERT
+WITH CHECK (is_admin(auth.uid()));
+
+CREATE POLICY "recipes_update_admin"
+ON public.recipes
+FOR UPDATE
+USING (is_admin(auth.uid()))
+WITH CHECK (is_admin(auth.uid()));
+
+CREATE POLICY "recipes_delete_admin"
+ON public.recipes
+FOR DELETE
+USING (is_admin(auth.uid()));
+
+-- Products table policies
+CREATE POLICY "products_insert_admin"
+ON public.products
+FOR INSERT
+WITH CHECK (is_admin(auth.uid()));
+
+CREATE POLICY "products_update_admin"
+ON public.products
+FOR UPDATE
+USING (is_admin(auth.uid()))
+WITH CHECK (is_admin(auth.uid()));
+
+CREATE POLICY "products_delete_admin"
+ON public.products
+FOR DELETE
+USING (is_admin(auth.uid()));
+
+-- ===== Step 5: Verify setup =====
 SELECT 
   'Admin users' as entity,
   COUNT(*) as count
