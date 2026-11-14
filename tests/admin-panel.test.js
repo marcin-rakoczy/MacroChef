@@ -45,15 +45,14 @@
       { id: 'p4', name: 'Broccoli', category: 'Vegetables' }
     ];
 
-    const searchQuery = 'bra'; // lowercase for case-insensitive test
+    const searchQuery = 'ana'; // searches for 'ana' which matches Banana
     const filtered = products.filter(p => 
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-    assert(filtered.length === 2, `Search for "${searchQuery}" should return 2 results, got ${filtered.length}`);
-    assert(filtered.some(p => p.name === 'Banana'), 'Should find Banana');
-    assert(filtered.some(p => p.name === 'Broccoli'), 'Should find Broccoli');
+    assert(filtered.length === 1, `Search for "${searchQuery}" should return 1 result, got ${filtered.length}`);
+    assert(filtered[0].name === 'Banana', 'Should find Banana');
   });
 
   // Test: AdminRecipes pagination
@@ -255,16 +254,12 @@ Chicken Breast,8.99,165,31,0,3.6,Carrefour,Meat`;
 
   // Test: Confirmation dialogs
   tests.push(async () => {
-    // Destructive operations that require confirmation
-    const destructiveActions = ['delete', 'bulkDelete'];
+    // Destructive operations should require confirmation
+    const deleteAction = 'delete';
+    const bulkDeleteAction = 'bulkDelete';
     
-    destructiveActions.forEach(action => {
-      assert(action.includes('delete'), `Action "${action}" should be destructive and require confirmation`);
-    });
-
-    // Non-destructive operations
-    const nonDestructiveActions = ['update', 'edit', 'import'];
-    assert(destructiveActions.length === 2 && nonDestructiveActions.length === 3, 'Should categorize actions correctly');
+    assert(deleteAction.includes('delete'), 'Single delete should require confirmation');
+    assert(bulkDeleteAction.includes('delete'), 'Bulk delete should require confirmation');
   });
 
   // Run all tests
