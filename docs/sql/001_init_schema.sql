@@ -544,26 +544,24 @@ IS 'Users can only delete their own fitness goals';
 -- SECTION 14: Final Verification
 -- ============================================================================
 
+-- Verify tables were created
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'public' 
+AND table_name IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
+ORDER BY table_name;
+
 -- Verify RLS is enabled on all tables
 SELECT
-  ns.nspname as schemaname,
-  c.relname as tablename,
-  CASE WHEN c.relrowsecurity THEN '✓ ENABLED' ELSE '✗ DISABLED' END as rls_status
-FROM pg_class c
-JOIN pg_namespace ns ON c.relnamespace = ns.oid
-WHERE ns.nspname = 'public'
-  AND c.relname IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
-ORDER BY c.relname;
-
--- List all created policies
-SELECT
-  schemaname,
-  tablename,
-  policyname,
-  cmd as dml_operation
-FROM pg_policies
-WHERE schemaname = 'public'
-ORDER BY tablename, cmd, policyname;
+  t.table_name,
+  (
+    SELECT relrowsecurity FROM pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND c.relname = t.table_name
+  ) as rls_enabled
+FROM information_schema.tables t
+WHERE t.table_schema = 'public'
+AND t.table_name IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
+ORDER BY t.table_name;
 
 -- ============================================================================
 -- HOW TO GRANT ADMIN ROLE TO A USER
