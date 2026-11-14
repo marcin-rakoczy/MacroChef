@@ -20,10 +20,18 @@ window.MacroChef.components = window.MacroChef.components || {};
         setLoading(true);
         setError('');
         try {
+          if (!repository) {
+            throw new Error('Repository not available');
+          }
+          if (typeof repository.getAllRecipes !== 'function') {
+            throw new Error('getAllRecipes method not available on repository');
+          }
           const all = await repository.getAllRecipes();
+          console.log('Loaded recipes:', all);
           setRecipes(all || []);
         } catch (err) {
-          setError(err.message || 'Failed to load recipes');
+          const errorMsg = err.message || 'Failed to load recipes';
+          setError(errorMsg);
           console.error('Load recipes error:', err);
         } finally {
           setLoading(false);

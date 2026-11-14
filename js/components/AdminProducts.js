@@ -21,10 +21,18 @@ window.MacroChef.components = window.MacroChef.components || {};
         setLoading(true);
         setError('');
         try {
+          if (!repository) {
+            throw new Error('Repository not available');
+          }
+          if (typeof repository.getAllProducts !== 'function') {
+            throw new Error('getAllProducts method not available on repository');
+          }
           const all = await repository.getAllProducts();
+          console.log('Loaded products:', all);
           setProducts(all || []);
         } catch (err) {
-          setError(err.message || 'Failed to load products');
+          const errorMsg = err.message || 'Failed to load products';
+          setError(errorMsg);
           console.error('Load products error:', err);
         } finally {
           setLoading(false);
