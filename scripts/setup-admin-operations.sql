@@ -103,6 +103,12 @@ ON CONFLICT (user_id) DO NOTHING;
 -- Re-enable RLS on admin_users
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing admin_users policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "admin_users_read" ON public.admin_users;
+DROP POLICY IF EXISTS "admin_users_insert" ON public.admin_users;
+DROP POLICY IF EXISTS "admin_users_update" ON public.admin_users;
+DROP POLICY IF EXISTS "admin_users_delete" ON public.admin_users;
+
 -- Admin users table policies
 CREATE POLICY "admin_users_read"
 ON public.admin_users
@@ -128,6 +134,15 @@ USING (is_admin(auth.uid()));
 -- ===== Step 4: Recreate policies on recipes and products tables =====
 -- These were dropped with CASCADE when we dropped the is_admin() function
 -- Recreate them now with the new function
+
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "recipes_select_own_or_admin_library" ON public.recipes;
+DROP POLICY IF EXISTS "recipes_insert_admin" ON public.recipes;
+DROP POLICY IF EXISTS "recipes_update_admin" ON public.recipes;
+DROP POLICY IF EXISTS "recipes_delete_admin" ON public.recipes;
+DROP POLICY IF EXISTS "products_insert_admin" ON public.products;
+DROP POLICY IF EXISTS "products_update_admin" ON public.products;
+DROP POLICY IF EXISTS "products_delete_admin" ON public.products;
 
 -- Recipes table policies
 CREATE POLICY "recipes_select_own_or_admin_library"
