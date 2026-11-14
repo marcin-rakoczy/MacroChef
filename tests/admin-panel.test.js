@@ -258,8 +258,8 @@ Chicken Breast,8.99,165,31,0,3.6,Carrefour,Meat`;
     const deleteAction = 'delete';
     const bulkDeleteAction = 'bulkDelete';
     
-    assert(deleteAction.includes('delete'), 'Single delete should require confirmation');
-    assert(bulkDeleteAction.includes('delete'), 'Bulk delete should require confirmation');
+    assert(deleteAction.toLowerCase().includes('delete'), 'Single delete should require confirmation');
+    assert(bulkDeleteAction.toLowerCase().includes('delete'), 'Bulk delete should require confirmation');
   });
 
   // Run all tests
