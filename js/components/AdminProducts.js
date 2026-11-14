@@ -420,11 +420,6 @@ Jajko,2.50,78,6,0.56,5.30,Lidl,Nabiał`;
           </div>
         )}
 
-        {/* Help Text */}
-        <div className="text-xs text-slate-600 dark:text-slate-400 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          {t.importProductsHelp || 'CSV format: name, price, calories, protein, carbs, fat, shop'}
-        </div>
-
         {/* Loading State */}
         {loading ? (
           <div className="text-center py-12 text-slate-600 dark:text-slate-400">
