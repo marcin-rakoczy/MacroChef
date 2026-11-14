@@ -1,6 +1,6 @@
 {
   "name": "macrochef",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "MacroChef - Meal Prep, Macro Control & Zero-Waste PWA",
   "main": "index.html",
   "scripts": {
