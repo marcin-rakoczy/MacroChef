@@ -1,9 +1,10 @@
-name: Deploy to GitHub Pages
+name: Build & Deploy (GitHub Pages + Cloudflare Pages)
 
 on:
   push:
     branches:
       - main
+      - feature/**
   pull_request:
     branches:
       - main
@@ -13,12 +14,16 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  pull-requests: write
 
 concurrency:
-  group: pages
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # ============================================================================
+  # TESTS - Run on all branches and PRs
+  # ============================================================================
   test:
     runs-on: ubuntu-latest
     steps:
@@ -36,8 +41,46 @@ jobs:
           node tests/sw.test.js
           node tests/environment.test.js
 
-  deploy:
-    # Only deploy on manual workflow_dispatch from main, or on push to main (when not [skip ci])
+  # ============================================================================
+  # CLOUDFLARE PAGES DEPLOY - For all branches (test.macrochef.pl + branch previews)
+  # ============================================================================
+  deploy-cloudflare:
+    # Deploy to Cloudflare Pages on every push (except [skip ci])
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build application
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: macrochef-test
+          directory: .
+          branch: ${{ github.ref_name }}
+          # Production branch routes to test.macrochef.pl
+          # Other branches route to branch-name.test.macrochef.pl
+
+  # ============================================================================
+  # GITHUB PAGES DEPLOY - Only for main branch on workflow_dispatch or non-[skip ci] push
+  # ============================================================================
+  deploy-github-pages:
+    # Only deploy to GitHub Pages:
+    # 1. On manual workflow_dispatch from main
+    # 2. On push to main without [skip ci]
+    # 3. NOT on feature branches
+    # 4. NOT on pull requests
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')))
     needs: test
     runs-on: ubuntu-latest
@@ -53,7 +96,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run tests
+      - name: Run full test suite
         run: |
           node tests/nutrition.test.js
           node tests/sw.test.js
