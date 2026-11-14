@@ -26,7 +26,7 @@ window.MacroChef.components = window.MacroChef.components || {};
           if (!window.MacroChef.supabaseClient) throw new Error('Supabase not available');
           const { data, error: err } = await window.MacroChef.supabaseClient
             .from('user_profiles')
-            .select('user_id, email, role, is_blocked, created_at')
+            .select('user_id, email, role, created_at')
             .order('created_at', { ascending: false });
           
           if (err) throw err;
@@ -51,21 +51,6 @@ window.MacroChef.components = window.MacroChef.components || {};
         
         if (err) throw err;
         setUsers(users.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
-      } catch (err) {
-        setError(err.message);
-      }
-    };
-
-    // Block/Unblock user
-    const toggleUserBlock = async (userId, isBlocked) => {
-      try {
-        const { error: err } = await window.MacroChef.supabaseClient
-          .from('user_profiles')
-          .update({ is_blocked: !isBlocked })
-          .eq('user_id', userId);
-        
-        if (err) throw err;
-        setUsers(users.map(u => u.user_id === userId ? { ...u, is_blocked: !isBlocked } : u));
       } catch (err) {
         setError(err.message);
       }
@@ -105,11 +90,6 @@ window.MacroChef.components = window.MacroChef.components || {};
         if (bulkAction === 'changeRole' && bulkNewRole) {
           for (const userId of userIds) {
             await updateUserRole(userId, bulkNewRole);
-          }
-        } else if (bulkAction === 'block') {
-          for (const userId of userIds) {
-            const user = users.find(u => u.user_id === userId);
-            await toggleUserBlock(userId, user.is_blocked);
           }
         } else if (bulkAction === 'delete') {
           if (!window.confirm(`Delete ${userIds.length} users?`)) return;
@@ -167,7 +147,6 @@ window.MacroChef.components = window.MacroChef.components || {};
               >
                 <option value="">{t.action || 'Action...'}</option>
                 <option value="changeRole">{t.changeRole || 'Change Role'}</option>
-                <option value="block">{t.blockUsers || 'Block Users'}</option>
                 <option value="delete">{t.deleteUsers || 'Delete Users'}</option>
               </select>
 
@@ -236,7 +215,6 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.email || 'Email'}</th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.role || 'Role'}</th>
-                  <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.status || 'Status'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.actions || 'Actions'}</th>
                 </tr>
               </thead>
@@ -271,22 +249,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        user.is_blocked
-                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                          : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                      }`}>
-                        {user.is_blocked ? (t.blocked || 'Blocked') : (t.active || 'Active')}
-                      </span>
-                    </td>
                     <td className="px-4 py-3 text-center space-x-2">
-                      <button
-                        onClick={() => toggleUserBlock(user.user_id, user.is_blocked)}
-                        className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs font-medium transition"
-                      >
-                        {user.is_blocked ? (t.unblock || 'Unblock') : (t.block || 'Block')}
-                      </button>
                       <button
                         onClick={() => deleteUser(user.user_id)}
                         className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
