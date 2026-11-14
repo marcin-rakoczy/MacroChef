@@ -188,30 +188,8 @@ Przykładowy Przepis,Śniadanie,15,1,300,15,50,8,"Krok 1. Przygotuj składniki|K
         )}
 
         {/* Controls */}
-        <div className="flex flex-col sm:flex-row gap-4 items-center">
-          {/* Import CSV Button - Left Side */}
-          <button
-            type="button"
-            onClick={() => importInputRef.current && importInputRef.current.click()}
-            className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
-          >
-            <div className="flex flex-col items-center gap-0.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-              <div className="w-3 h-0.5 bg-current"></div>
-            </div>
-            <span>{t.importRecipes || 'Import Recipes'}</span>
-          </button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={handleImportCSV}
-          />
-
-          {/* Search Box */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          {/* Search Box - Left Side */}
           <input
             type="text"
             placeholder={t.search || 'Search recipes...'}
@@ -220,38 +198,64 @@ Przykładowy Przepis,Śniadanie,15,1,300,15,50,8,"Krok 1. Przygotuj składniki|K
             className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white flex-1"
           />
 
-          {/* Bulk Delete */}
-          {selected.size > 0 && (
-            <button
-              onClick={bulkDelete}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
-            >
-              {t.deleteSelected || `Delete ${selected.size} Recipes`}
-            </button>
-          )}
+          <div className="flex items-center gap-4">
+            {/* Bulk Delete */}
+            {selected.size > 0 && (
+              <button
+                onClick={bulkDelete}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
+              >
+                {t.deleteSelected || `Delete ${selected.size} Recipes`}
+              </button>
+            )}
 
-          {selected.size > 0 && (
+            {selected.size > 0 && (
+              <button
+                onClick={() => setSelected(new Set())}
+                className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 text-slate-900 dark:text-white rounded-lg font-medium transition"
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+            )}
+
+            {/* Import CSV Button - Right Side */}
             <button
-              onClick={() => setSelected(new Set())}
-              className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 text-slate-900 dark:text-white rounded-lg font-medium transition"
+              type="button"
+              onClick={() => importInputRef.current && importInputRef.current.click()}
+              className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all whitespace-nowrap"
             >
-              {t.cancel || 'Cancel'}
+              <div className="flex flex-col items-center gap-0.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <div className="w-3 h-0.5 bg-current"></div>
+              </div>
+              <span>{t.importRecipes || 'Import Recipes'}</span>
             </button>
-          )}
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCSV}
+            />
+          </div>
         </div>
 
-        {/* Import Help Section */}
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={handleDownloadTemplate}
-            className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
-          >
-            {t.downloadRecipeCsvTemplate || 'Download CSV template'}
-          </button>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">
-            {t.recipeImportHint || 'One recipe per row; separate steps with |. For each ingredient add 5 columns, e.g. ingredient3Name–ingredient3PackageUnit.'}
-          </p>
+        {/* Import Help Section - Right Aligned */}
+        <div className="flex flex-col sm:flex-row gap-4 sm:justify-end">
+          <div className="space-y-2 text-right">
+            <button
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
+            >
+              {t.downloadRecipeCsvTemplate || 'Download CSV template'}
+            </button>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              {t.recipeImportHint || 'One recipe per row; separate steps with |. For each ingredient add 5 columns, e.g. ingredient3Name–ingredient3PackageUnit.'}
+            </p>
+          </div>
         </div>
 
         {/* Recipes Table */}

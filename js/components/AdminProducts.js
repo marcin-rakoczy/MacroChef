@@ -277,90 +277,90 @@ Jajko,2.50,78,6,0.56,5.30,Lidl,Nabiał`;
           </div>
         )}
 
-        {/* Search Box & Controls */}
-        <div className="flex gap-2 flex-col sm:flex-row sm:items-center">
-          {/* Import CSV Button - Left Side */}
-          <button
-            type="button"
-            onClick={() => importInputRef.current && importInputRef.current.click()}
-            className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all"
-          >
-            <div className="flex flex-col items-center gap-0.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-              <div className="w-3 h-0.5 bg-current"></div>
-            </div>
-            <span>{t.importProducts || 'Import Products'}</span>
-          </button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={handleImportCSV}
-          />
-
-          {/* Search Box */}
+        {/* Controls */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          {/* Search Box - Left Side */}
           <input
             type="text"
             placeholder={t.search || 'Search by name or category...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-800 dark:text-white flex-1"
           />
+
+          <div className="flex items-center gap-4">
+            {/* Bulk Edit */}
+            {selected.size > 0 && !editingId && (
+              <button
+                onClick={() => setEditingId('bulk')}
+                className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+              >
+                {t.editSelected || `Edit ${selected.size} Products`}
+              </button>
+            )}
+
+            {/* Bulk Delete */}
+            {selected.size > 0 && !editingId && (
+              <button
+                onClick={bulkDelete}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
+              >
+                {t.deleteSelected || `Delete ${selected.size} Products`}
+              </button>
+            )}
+
+            {/* Cancel Selection/Edit */}
+            {(selected.size > 0 || editingId) && (
+              <button
+                onClick={() => {
+                  setSelected(new Set());
+                  setEditingId(null);
+                  setEditValues({});
+                }}
+                className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 text-slate-900 dark:text-white rounded-lg font-medium transition"
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+            )}
+
+            {/* Import CSV Button - Right Side */}
+            <button
+              type="button"
+              onClick={() => importInputRef.current && importInputRef.current.click()}
+              className="flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 font-semibold text-xs px-4 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 transition-all whitespace-nowrap"
+            >
+              <div className="flex flex-col items-center gap-0.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <div className="w-3 h-0.5 bg-current"></div>
+              </div>
+              <span>{t.importProducts || 'Import Products'}</span>
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={handleImportCSV}
+            />
+          </div>
         </div>
 
-        {/* Additional Controls */}
-        <div className="flex flex-col sm:flex-row gap-4 items-center">
-
-          {/* Bulk Edit */}
-          {selected.size > 0 && !editingId && (
+        {/* Import Help Section - Right Aligned */}
+        <div className="flex flex-col sm:flex-row gap-4 sm:justify-end">
+          <div className="space-y-2 text-right">
             <button
-              onClick={() => setEditingId('bulk')}
-              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+              type="button"
+              onClick={handleDownloadTemplate}
+              className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
             >
-              {t.editSelected || `Edit ${selected.size} Products`}
+              {t.downloadProductsCsvTemplate || 'Download CSV template'}
             </button>
-          )}
-
-          {/* Bulk Delete */}
-          {selected.size > 0 && !editingId && (
-            <button
-              onClick={bulkDelete}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
-            >
-              {t.deleteSelected || `Delete ${selected.size} Products`}
-            </button>
-          )}
-
-          {/* Cancel Selection/Edit */}
-          {(selected.size > 0 || editingId) && (
-            <button
-              onClick={() => {
-                setSelected(new Set());
-                setEditingId(null);
-                setEditValues({});
-              }}
-              className="px-4 py-2 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400 dark:hover:bg-slate-500 text-slate-900 dark:text-white rounded-lg font-medium transition"
-            >
-              {t.cancel || 'Cancel'}
-            </button>
-          )}
-        </div>
-
-        {/* Import Help Section */}
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={handleDownloadTemplate}
-            className="text-[11px] font-medium text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300 underline underline-offset-2"
-          >
-            {t.downloadProductsCsvTemplate || 'Download CSV template'}
-          </button>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">
-            {t.productImportHint || 'CSV format: name, price, calories, protein, carbs, fat, shop, category'}
-          </p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              {t.productImportHint || 'CSV format: name, price, calories, protein, carbs, fat, shop, category'}
+            </p>
+          </div>
         </div>
 
         {/* Bulk Edit Panel */}
