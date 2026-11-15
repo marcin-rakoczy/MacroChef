@@ -128,18 +128,33 @@ window.MacroChef = window.MacroChef || {};
 
     const ingredients = parseIngredients(cells, headerMap);
 
+    // Map category names
+    const categoryMap = {
+      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
+      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
+      lunch: { en: 'Lunch', pl: 'Obiad' },
+      obiad: { en: 'Lunch', pl: 'Obiad' },
+      dinner: { en: 'Dinner', pl: 'Kolacja' },
+      kolacja: { en: 'Dinner', pl: 'Kolacja' },
+      snack: { en: 'Snack', pl: 'Przekąska' },
+      przekaska: { en: 'Snack', pl: 'Przekąska' }
+    };
+    
+    const categoryInput = (get('kategoria') || get('category')).toLowerCase().replace(/\s+/g, '');
+    const categoryObj = categoryMap[categoryInput] || { en: 'Lunch', pl: 'Obiad' };
+
     const recipe = {
       id: window.crypto.randomUUID(),
-      name: get('nazwa') || get('name'),
-      category: get('kategoria') || get('category'),
+      name: { en: (get('nazwa') || get('name')), pl: (get('nazwa') || get('name')) },
+      category: categoryObj,
       prepTime: get('czasPrzygotowania') || get('prepTime'),
       servings: parseInt(get('porcje') || get('servings')) || 1,
-      caloriesPerServing: parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0,
-      proteinPerServing: parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0,
-      carbsPerServing: parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0,
-      fatPerServing: parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0,
+      calories: parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0,
+      protein: parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0,
+      carbs: parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0,
+      fats: parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0,
       ingredients: ingredients,
-      steps: parseSteps(get('kroki') || get('steps')),
+      steps: { en: parseSteps(get('kroki') || get('steps')), pl: parseSteps(get('kroki') || get('steps')) },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -165,8 +180,9 @@ window.MacroChef = window.MacroChef || {};
       const nameIdx = headerMap[namePl] !== undefined ? headerMap[namePl] : headerMap[nameEn];
       if (nameIdx === undefined || !cells[nameIdx]) continue;
 
+      const ingredientName = cells[nameIdx];
       const ingredient = {
-        name: cells[nameIdx],
+        name: { en: ingredientName, pl: ingredientName },
         amount: parseFloat(cells[headerMap[ilosc] || headerMap[amount]] || 0),
         unit: cells[headerMap[jednostka] || headerMap[unit]] || '',
         packageSize: parseFloat(cells[headerMap[rozmiar] || headerMap[packageSize]] || 0),

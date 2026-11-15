@@ -123,21 +123,10 @@ window.MacroChef.components = window.MacroChef.components || {};
 
         const newRecipes = [];
         for (const parsedRecipe of parsedRecipes) {
-          // Map parsed recipe to repository structure
+          // Use parsed recipe directly (it now has correct field names)
           const recipe = {
-            id: window.crypto.randomUUID(),
-            name: parsedRecipe.name,
-            category: parsedRecipe.category || 'Inne',
-            prepTime: parsedRecipe.prepTime || 0,
-            servings: parsedRecipe.servings || 1,
-            caloriesPerServing: parsedRecipe.caloriesPerServing || 0,
-            proteinPerServing: parsedRecipe.proteinPerServing || 0,
-            carbsPerServing: parsedRecipe.carbsPerServing || 0,
-            fatPerServing: parsedRecipe.fatPerServing || 0,
-            steps: parsedRecipe.steps || [],
-            ingredients: parsedRecipe.ingredients || [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            ...parsedRecipe,
+            id: parsedRecipe.id || window.crypto.randomUUID()
           };
 
           await repository.saveRecipe(recipe);
