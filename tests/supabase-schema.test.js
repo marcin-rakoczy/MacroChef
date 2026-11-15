@@ -103,4 +103,14 @@ assert.match(singletonMigration, /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON pub
 assert.match(singletonMigration, /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON public\.goals \(user_id\)/);
 assert.doesNotMatch(singletonMigration, /\bDELETE\b/i);
 
+const sharedRecipes = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations',
+  '20261115130000_make_recipes_shared.sql'), 'utf8');
+assert.match(sharedRecipes, /DROP POLICY IF EXISTS recipes_select_own_or_admin_library ON public\.recipes;/);
+assert.match(sharedRecipes, /CREATE POLICY recipes_select_all ON public\.recipes\s+FOR SELECT TO authenticated\s+USING \(true\);/);
+['update', 'delete'].forEach((action) => {
+  assert.match(sharedRecipes, new RegExp(`CREATE POLICY recipes_${action}_admin[\\s\\S]*?USING \\(public\\.is_admin\\(\\)\\)`));
+});
+assert.match(sharedRecipes, /recipes_insert_admin[\s\S]*?WITH CHECK \(public\.is_admin\(\) AND \(SELECT auth\.uid\(\)\) = user_id\)/);
+assert.doesNotMatch(sharedRecipes, /DROP NOT NULL|SET user_id = NULL/i, 'recipes keep their author');
+
 console.log('supabase schema tests passed');

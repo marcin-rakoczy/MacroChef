@@ -164,7 +164,6 @@ window.MacroChef = window.MacroChef || {};
       updatedAt: new Date().toISOString()
     };
 
-    console.log('Parsed recipe:', recipe);
     return recipe;
   };
 

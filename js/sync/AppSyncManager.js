@@ -36,6 +36,25 @@ window.MacroChef = window.MacroChef || {};
     });
   }
 
+  // Legacy CSV imports stored macros as *PerServing; the UI reads calories/protein/carbs/fats.
+  const legacyMacroFields = {
+    caloriesPerServing: 'calories', proteinPerServing: 'protein',
+    carbsPerServing: 'carbs', fatPerServing: 'fats', fatsPerServing: 'fats'
+  };
+
+  function normalizeRecipe(record) {
+    const result = { ...record };
+    Object.entries(legacyMacroFields).forEach(([legacy, field]) => {
+      if (!(legacy in result)) return;
+      if (result[field] === undefined || result[field] === null || result[field] === '') {
+        result[field] = Number(result[legacy]) || 0;
+      }
+      delete result[legacy];
+    });
+    delete result.userId;
+    return result;
+  }
+
   function fromRemote(table, row) {
     if (table === 'products') {
       return {
@@ -45,6 +64,7 @@ window.MacroChef = window.MacroChef || {};
       };
     }
     const record = { ...row.data, id: row.id, ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}) };
+    if (table === 'recipes') return normalizeRecipe(record);
     if (table === 'plannerEntries') {
       slots.forEach((slot) => { if (record[slot] === null) delete record[slot]; });
     }
@@ -53,10 +73,6 @@ window.MacroChef = window.MacroChef || {};
 
   function toRemote(table, record, userId) {
     if (table === 'products') return productToRemote(record);
-    // Recipes are shared globally; set user_id to NULL
-    if (table === 'recipes') {
-      return { id: record.id, user_id: null, data: clean(record) };
-    }
     return {
       id: record.id, user_id: userId, data: clean(record),
       ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {})
