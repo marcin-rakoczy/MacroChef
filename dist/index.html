@@ -8123,7 +8123,8 @@ window.MacroChef = window.MacroChef || {};
       przekaska: { en: 'Snack', pl: 'Przekąska' }
     };
     
-    const categoryInput = (get('kategoria') || get('category')).toLowerCase().replace(/\s+/g, '');
+    const categoryInput = (get('kategoria') || get('category')).toLowerCase().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
     const categoryObj = categoryMap[categoryInput] || { en: 'Lunch', pl: 'Obiad' };
 
     const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;

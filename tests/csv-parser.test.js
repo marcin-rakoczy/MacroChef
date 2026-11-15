@@ -179,6 +179,8 @@ assert(!['old-1', 'old-2'].includes(importPlan.recipes[2].id), 'Different calori
 assert(!['old-1', 'old-2'].includes(importPlan.recipes[3].id), 'Different category => new recipe');
 const repeatPlan = planRecipeImport([imported[3], imported[3]], []);
 assert(repeatPlan.added === 1 && repeatPlan.updated === 1 && repeatPlan.recipes[0].id === repeatPlan.recipes[1].id, 'Duplicate rows within one file collapse into one recipe');
+const diacriticCategories = csvParse('nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje\nA;Śniadanie;5;1;1;1;1;1\nB;Przekąska;5;1;1;1;1;1');
+assert(diacriticCategories[0].category.en === 'Breakfast' && diacriticCategories[1].category.en === 'Snack', 'Polish categories with diacritics are recognised');
 
 // Summary
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
