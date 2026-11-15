@@ -247,7 +247,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             </p>
           </div>
 
-          {canManageRecipes ? (
+          {canManageRecipes && (
           <div className="flex flex-col items-stretch sm:items-end gap-2">
             <button
               onClick={onCreateRecipe}
@@ -257,8 +257,6 @@ window.MacroChef.components = window.MacroChef.components || {};
               <span>{t.createRecipe}</span>
             </button>
           </div>
-          ) : (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{t.recipesReadOnly}</p>
           )}
         </div>
 
