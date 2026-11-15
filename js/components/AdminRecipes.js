@@ -141,7 +141,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             updatedAt: new Date().toISOString()
           };
 
-          await repository.createRecipe(recipe);
+          await repository.saveRecipe(recipe);
           newRecipes.push(recipe);
         }
 
