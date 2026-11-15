@@ -227,12 +227,26 @@ window.MacroChef.components = window.MacroChef.components || {};
   }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [page, setPage] = React.useState(0);
+    const [searchQuery, setSearchQuery] = React.useState('');
     const RECIPES_PER_PAGE = 12;
+
+    // Filter recipes by search query (name or category)
+    const filteredRecipes = recipes.filter((recipe) => {
+      const searchLower = searchQuery.toLowerCase();
+      const name = getLocalized(recipe.name, lang).toLowerCase();
+      const category = getLocalized(recipe.category, lang).toLowerCase();
+      return name.includes(searchLower) || category.includes(searchLower);
+    });
 
     const startIndex = page * RECIPES_PER_PAGE;
     const endIndex = startIndex + RECIPES_PER_PAGE;
-    const paginatedRecipes = recipes.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(recipes.length / RECIPES_PER_PAGE);
+    const paginatedRecipes = filteredRecipes.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(filteredRecipes.length / RECIPES_PER_PAGE);
+
+    const handleSearch = (query) => {
+      setSearchQuery(query);
+      setPage(0); // Reset to first page on search
+    };
 
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
@@ -243,28 +257,43 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Icon name="book-open" className="w-5 h-5 text-emerald-500" />
-              <span>{t.recipes}</span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t.recipeSub}
-            </p>
-          </div>
+        <div className="flex flex-col gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Icon name="book-open" className="w-5 h-5 text-emerald-500" />
+                <span>{t.recipes}</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {t.recipeSub}
+              </p>
+            </div>
 
-          {canManageRecipes && (
-          <div className="flex flex-col items-stretch sm:items-end gap-2">
-            <button
-              onClick={onCreateRecipe}
-              className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
-            >
-              <Icon name="plus" className="w-4 h-4" />
-              <span>{t.createRecipe}</span>
-            </button>
-          </div>
+            {canManageRecipes && (
+            <div className="flex flex-col items-stretch sm:items-end gap-2">
+              <button
+                onClick={onCreateRecipe}
+                className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+              >
+                <Icon name="plus" className="w-4 h-4" />
+                <span>{t.createRecipe}</span>
+              </button>
+            </div>
           )}
+        </div>
+
+        {/* Search Input */}
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="relative">
+            <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+            <input
+              type="text"
+              placeholder={t.search || 'Search recipes...'}
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -361,10 +390,10 @@ window.MacroChef.components = window.MacroChef.components || {};
         </div>
 
         {/* Pagination Controls */}
-        {recipes.length > RECIPES_PER_PAGE && (
+        {filteredRecipes.length > RECIPES_PER_PAGE && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
             <div className="text-sm text-slate-600 dark:text-slate-400">
-              {t.showing || 'Showing'}: {startIndex + 1} - {Math.min(endIndex, recipes.length)} {t.of || 'of'} {recipes.length} {t.recipes || 'recipes'} | {t.page || 'Page'} {page + 1} {t.of || 'of'} {totalPages}
+              {t.showing || 'Showing'}: {startIndex + 1} - {Math.min(endIndex, filteredRecipes.length)} {t.of || 'of'} {filteredRecipes.length} {t.recipes || 'recipes'} | {t.page || 'Page'} {page + 1} {t.of || 'of'} {totalPages}
             </div>
             <div className="flex gap-2">
               <button
