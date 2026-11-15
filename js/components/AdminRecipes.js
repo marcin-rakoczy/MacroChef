@@ -329,7 +329,7 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
                       {window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl')}
                     </td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white">
-                      {recipe.category || '-'}
+                      {window.MacroChef.helpers.getLocalized(recipe.category, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl') || '-'}
                     </td>
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.caloriesPerServing || recipe.calories || 0)}</td>
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.proteinPerServing || recipe.protein || 0)}g</td>
