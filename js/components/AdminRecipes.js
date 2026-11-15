@@ -319,10 +319,10 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">
                       {window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl')}
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.calories || 0)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.protein || 0)}g</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.carbs || 0)}g</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.fats || 0)}g</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.caloriesPerServing || recipe.calories || 0)}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.proteinPerServing || recipe.protein || 0)}g</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.carbsPerServing || recipe.carbs || 0)}g</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.fatPerServing || recipe.fats || 0)}g</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => deleteRecipe(recipe.id)}
