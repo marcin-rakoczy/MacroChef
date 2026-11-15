@@ -335,6 +335,92 @@ window.MacroChef = window.MacroChef || {};
       });
     }
 
+    async normalizeRecipes() {
+      // Normalize all recipes to have consistent field structure
+      try {
+        const recipes = await this.db.recipes.toArray();
+        let needsUpdate = false;
+
+        for (const recipe of recipes) {
+          let updated = false;
+          const normalized = { ...recipe };
+
+          // Convert PerServing fields to regular fields
+          if (normalized.hasOwnProperty('caloriesPerServing') && !normalized.hasOwnProperty('calories')) {
+            normalized.calories = normalized.caloriesPerServing;
+            delete normalized.caloriesPerServing;
+            updated = true;
+          }
+          if (normalized.hasOwnProperty('proteinPerServing') && !normalized.hasOwnProperty('protein')) {
+            normalized.protein = normalized.proteinPerServing;
+            delete normalized.proteinPerServing;
+            updated = true;
+          }
+          if (normalized.hasOwnProperty('carbsPerServing') && !normalized.hasOwnProperty('carbs')) {
+            normalized.carbs = normalized.carbsPerServing;
+            delete normalized.carbsPerServing;
+            updated = true;
+          }
+          if (normalized.hasOwnProperty('fatPerServing') && !normalized.hasOwnProperty('fats')) {
+            normalized.fats = normalized.fatPerServing;
+            delete normalized.fatPerServing;
+            updated = true;
+          }
+
+          // Ensure ingredient names are in { en, pl } format
+          if (normalized.ingredients && Array.isArray(normalized.ingredients)) {
+            const normalizedIngredients = normalized.ingredients.map(ing => ({
+              ...ing,
+              name: typeof ing.name === 'string' ? { en: ing.name, pl: ing.name } : ing.name
+            }));
+            if (JSON.stringify(normalizedIngredients) !== JSON.stringify(normalized.ingredients)) {
+              normalized.ingredients = normalizedIngredients;
+              updated = true;
+            }
+          }
+
+          // Ensure category is in { en, pl } format
+          if (normalized.category && typeof normalized.category === 'string') {
+            const categoryMap = {
+              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Lunch': { en: 'Lunch', pl: 'Obiad' },
+              'Obiad': { en: 'Lunch', pl: 'Obiad' },
+              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
+              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
+              'Snack': { en: 'Snack', pl: 'Przekąska' },
+              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
+            };
+            normalized.category = categoryMap[normalized.category] || { en: 'Lunch', pl: 'Obiad' };
+            updated = true;
+          }
+
+          // Ensure name is in { en, pl } format
+          if (normalized.name && typeof normalized.name === 'string') {
+            normalized.name = { en: normalized.name, pl: normalized.name };
+            updated = true;
+          }
+
+          // Ensure steps are in { en, pl } format if they're an array of strings
+          if (normalized.steps && Array.isArray(normalized.steps) && typeof normalized.steps[0] === 'string') {
+            normalized.steps = { en: normalized.steps, pl: normalized.steps };
+            updated = true;
+          }
+
+          if (updated) {
+            needsUpdate = true;
+            await this.db.recipes.put(normalized);
+          }
+        }
+
+        if (needsUpdate) {
+          console.log('Recipe normalization completed');
+        }
+      } catch (err) {
+        console.warn('Error normalizing recipes:', err);
+      }
+    }
+
     async initialize() {
       await this.db.open();
       if (!this.seedDefaults) return;
@@ -342,6 +428,8 @@ window.MacroChef = window.MacroChef || {};
         await this.db.transaction('rw', this.db.recipes, this.db.plannerEntries, this.db.goals, () => this.seedInitialData());
       }
       await this.seedProducts();
+      // Normalize all recipes to have consistent structure
+      await this.normalizeRecipes();
     }
 
     close() {
