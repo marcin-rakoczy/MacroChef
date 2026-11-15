@@ -399,8 +399,7 @@ MacroChef/
 │   └── icon-512.png             # High-res 512x512 PWA splash icon
 ├── js/
 │   ├── data/
-│   │   ├── starterRecipes.js    # Bilingual recipe library (Mediterranean chicken, oats, curry, etc.)
-│   │   └── defaultPlan.js       # Default weekly schedule & user nutritional goals
+│   │   └── defaultPlan.js       # Default user nutritional goals
 │   ├── i18n/
 │   │   ├── translations.js      # English & Polish bilingual UI dictionary
 │   │   ├── days.js              # Days of the week definitions & localization

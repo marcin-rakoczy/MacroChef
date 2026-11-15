@@ -120,4 +120,22 @@ assert.doesNotMatch(sharedRecipes, /DROP NOT NULL|SET user_id = NULL/i, 'recipes
 assert.ok(sharedRecipes.indexOf('CREATE OR REPLACE FUNCTION public.is_admin') < sharedRecipes.indexOf('CREATE POLICY'),
   'is_admin() must exist before policies reference it');
 
+const manageUsers = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations',
+  '20261115150000_admin_manage_users.sql'), 'utf8');
+const fnBody = (name) => {
+  const match = manageUsers.match(new RegExp(`FUNCTION public\\.${name}\\([\\s\\S]*?\\$\\$([\\s\\S]*?)\\$\\$;`));
+  assert.ok(match, `${name} defined`);
+  return match[1];
+};
+['admin_set_user_role', 'admin_delete_user'].forEach((name) => {
+  assert.match(fnBody(name), /^\s*BEGIN\s+IF NOT public\.is_admin\(\) THEN\s+RAISE EXCEPTION/m, `${name} checks admin first`);
+  assert.match(manageUsers, new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([^)]*\\) FROM PUBLIC, anon;`));
+});
+assert.match(fnBody('admin_set_user_role'), /target_user = auth\.uid\(\) AND new_role <> 'Admin'/, 'admin cannot demote self');
+const deleteBody = fnBody('admin_delete_user');
+assert.match(deleteBody, /target_user = auth\.uid\(\) THEN/, 'admin cannot delete self');
+assert.ok(deleteBody.indexOf('UPDATE public.recipes SET user_id = auth.uid()') < deleteBody.indexOf('DELETE FROM auth.users'),
+  'shared recipes are reassigned before the cascade delete');
+assert.doesNotMatch(manageUsers, /CREATE POLICY \w+ ON public\.user_profiles/, 'no direct client write policies');
+
 console.log('supabase schema tests passed');

@@ -95,17 +95,24 @@
     await repository.saveProduct({ name: 'Online product' });
     assert(await db.OutboxQueue.count() === count, 'Online mutation was journaled');
 
-    const starterId = window.MacroChef.STARTER_RECIPES[0].id;
     const fresh = new window.MacroChef.DexieCalorieRepository(freshName);
     try {
       Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
       await fresh.initialize();
-      const freshRecipes = await fresh.db.recipes.toArray();
-      const freshPlans = await fresh.db.plannerEntries.toArray();
-      assert(freshRecipes.length > 0 && freshPlans.length === 7, 'Initial data missing');
-      assert(freshPlans.every((item) => !item.Breakfast || freshRecipes.some((r) => r.id === item.Breakfast)), 'Initial recipe references broken');
-      assert(window.MacroChef.STARTER_RECIPES[0].id === starterId, 'Starter data was mutated');
+      assert(await fresh.db.recipes.count() === 0, 'Demo recipes were seeded');
+      assert(await fresh.db.plannerEntries.count() === 0, 'Demo plan was seeded');
+      assert(await fresh.db.goals.count() === 1, 'Default goals missing');
       assert(await fresh.db.OutboxQueue.count() === 0, 'Initial data was journaled');
+
+      await fresh.db.recipes.bulkAdd([
+        { id: 'rec-demo-local', name: { en: 'Berry Protein Oats Bowl', pl: 'Owsianka' } },
+        { id: 'rec-demo-synced', name: { en: 'Greek Yogurt & Almond Snack', pl: 'Jogurt' } },
+        { id: 'rec-user', name: { en: 'My recipe', pl: 'Mój przepis' } }
+      ]);
+      await fresh.db.SyncState.put({ id: 'recipes:rec-demo-synced', table: 'recipes', recordId: 'rec-demo-synced', updatedAt: '2026-01-01T00:00:00Z' });
+      await fresh.initialize();
+      const remaining = (await fresh.db.recipes.toArray()).map((r) => r.id).sort();
+      assert(JSON.stringify(remaining) === JSON.stringify(['rec-demo-synced', 'rec-user']), `Legacy demo recipes not purged: ${remaining}`);
     } finally {
       fresh.db.close();
     }

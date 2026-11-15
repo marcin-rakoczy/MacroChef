@@ -29,6 +29,13 @@ window.MacroChef = window.MacroChef || {};
 
   const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
+  const LEGACY_DEMO_RECIPE_NAMES = new Set([
+    'Mediterranean Chicken & Quinoa Bowl',
+    'Berry Protein Oats Bowl',
+    'Batch Beef & Sweet Potato Curry',
+    'Greek Yogurt & Almond Snack'
+  ]);
+
   const createId = (prefix) => {
     const cryptoApi = window.crypto;
     if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
@@ -265,28 +272,25 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async seedInitialData() {
-      const recipes = window.MacroChef.STARTER_RECIPES || [];
-      const recipeIds = new Map();
-      const seededRecipes = recipes.map((recipe) => {
-        const id = createId('rec');
-        recipeIds.set(recipe.id, id);
-        return { ...recipe, id };
-      });
-      if (seededRecipes.length) await this.db.recipes.bulkAdd(seededRecipes);
-
-      if (window.MacroChef.DEFAULT_PLAN && await this.db.plannerEntries.count() === 0) {
-        const plans = window.MacroChef.DEFAULT_PLAN.map((plan) => {
-          const seeded = { ...plan, id: createId('plan') };
-          slots.forEach((slot) => {
-            if (recipeIds.has(seeded[slot])) seeded[slot] = recipeIds.get(seeded[slot]);
-          });
-          return seeded;
-        });
-        await this.db.plannerEntries.bulkAdd(plans);
-      }
       if (window.MacroChef.DEFAULT_GOALS && await this.db.goals.count() === 0) {
         await this.db.goals.add({ ...window.MacroChef.DEFAULT_GOALS, id: createId('goal') });
       }
+    }
+
+    // Older builds seeded these demo recipes locally; the shared library now comes only from Supabase.
+    async removeLegacyDemoRecipes() {
+      await this.db.transaction('rw', this.db.recipes, this.db.SyncState, async () => {
+        const syncedIds = new Set((await this.db.SyncState.toArray())
+          .filter((state) => state.table === 'recipes')
+          .map((state) => state.recordId));
+        const demoIds = (await this.db.recipes.toArray())
+          .filter((recipe) => {
+            const name = recipe.name && typeof recipe.name === 'object' ? recipe.name.en : recipe.name;
+            return LEGACY_DEMO_RECIPE_NAMES.has(name) && !syncedIds.has(recipe.id);
+          })
+          .map((recipe) => recipe.id);
+        if (demoIds.length) await this.db.recipes.bulkDelete(demoIds);
+      });
     }
 
     async seedProducts() {
@@ -423,10 +427,9 @@ window.MacroChef = window.MacroChef || {};
 
     async initialize() {
       await this.db.open();
+      await this.removeLegacyDemoRecipes();
       if (!this.seedDefaults) return;
-      if (await this.db.recipes.count() === 0) {
-        await this.db.transaction('rw', this.db.recipes, this.db.plannerEntries, this.db.goals, () => this.seedInitialData());
-      }
+      await this.db.transaction('rw', this.db.goals, () => this.seedInitialData());
       await this.seedProducts();
       // Normalize all recipes to have consistent structure
       await this.normalizeRecipes();

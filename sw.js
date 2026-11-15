@@ -11,7 +11,6 @@ const STATIC_ASSETS = [
   './icons/icon-512.png',
   './js/data/appVersion.js',
   './js/data/lidlProducts.js',
-  './js/data/starterRecipes.js',
   './js/data/defaultPlan.js',
   './js/i18n/translations.js',
   './js/i18n/days.js',

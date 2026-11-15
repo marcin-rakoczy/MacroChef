@@ -9,6 +9,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
     const [selected, setSelected] = useState(new Set());
     const [filterRole, setFilterRole] = useState('');
     const [bulkAction, setBulkAction] = useState('');
@@ -41,37 +42,58 @@ window.MacroChef.components = window.MacroChef.components || {};
       loadUsers();
     }, []);
 
-    // Update user role
+    const currentUserId = session && session.userId;
+    const isSelf = (user) => user.user_id === currentUserId;
+    const deleteBlockedReason = (user) => {
+      if (isSelf(user)) return t.cannotDeleteSelf || 'You cannot delete your own account';
+      if (user.role === 'Admin') return t.demoteAdminBeforeDelete || 'Change the Admin role before deleting this account';
+      return '';
+    };
+
+    const rpc = async (fn, params) => {
+      if (!window.MacroChef.supabaseClient) throw new Error('Supabase not available');
+      const { error: err } = await window.MacroChef.supabaseClient.rpc(fn, params);
+      if (err) throw err;
+    };
+
+    const applyRole = async (userId, newRole) => {
+      await rpc('admin_set_user_role', { target_user: userId, new_role: newRole });
+      setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
+    };
+
+    const removeUser = async (userId) => {
+      await rpc('admin_delete_user', { target_user: userId });
+      setUsers(prev => prev.filter(u => u.user_id !== userId));
+      setSelected(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    };
+
     const updateUserRole = async (userId, newRole) => {
+      setError('');
+      setNotice('');
       try {
-        const { error: err } = await window.MacroChef.supabaseClient
-          .from('user_profiles')
-          .update({ role: newRole })
-          .eq('user_id', userId);
-        
-        if (err) throw err;
-        setUsers(users.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
+        await applyRole(userId, newRole);
+        setNotice(t.userRoleUpdated || 'Role updated');
       } catch (err) {
         setError(err.message);
       }
     };
 
-    // Delete user
-    const deleteUser = async (userId) => {
-      if (!window.confirm(t.confirmDelete || 'Are you sure?')) return;
+    const deleteUser = async (user) => {
+      setError('');
+      setNotice('');
+      const blocked = deleteBlockedReason(user);
+      if (blocked) {
+        setError(blocked);
+        return;
+      }
+      if (!window.confirm(`${t.confirmDeleteUser || 'Delete this account permanently?'}\n${user.email}`)) return;
       try {
-        const { error: err } = await window.MacroChef.supabaseClient
-          .from('user_profiles')
-          .delete()
-          .eq('user_id', userId);
-        
-        if (err) throw err;
-        setUsers(users.filter(u => u.user_id !== userId));
-        setSelected(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(userId);
-          return newSet;
-        });
+        await removeUser(user.user_id);
+        setNotice(t.userDeleted || 'Account deleted');
       } catch (err) {
         setError(err.message);
       }
@@ -79,33 +101,52 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Bulk operations
     const executeBulkAction = async () => {
+      setError('');
+      setNotice('');
       if (selected.size === 0) {
         setError(t.selectItems || 'Select users first');
         return;
       }
 
-      try {
-        const userIds = Array.from(selected);
-        
-        if (bulkAction === 'changeRole' && bulkNewRole) {
-          for (const userId of userIds) {
-            await updateUserRole(userId, bulkNewRole);
+      const targets = users.filter(u => selected.has(u.user_id));
+      const failures = [];
+      let done = 0;
+
+      if (bulkAction === 'changeRole' && bulkNewRole) {
+        for (const user of targets) {
+          try {
+            await applyRole(user.user_id, bulkNewRole);
+            done++;
+          } catch (err) {
+            failures.push(`${user.email}: ${err.message}`);
           }
-        } else if (bulkAction === 'delete') {
-          if (!window.confirm(`Delete ${userIds.length} users?`)) return;
-          for (const userId of userIds) {
-            await deleteUser(userId);
-          }
-          setSelected(new Set());
+        }
+      } else if (bulkAction === 'delete') {
+        const deletable = targets.filter(u => !deleteBlockedReason(u));
+        targets.filter(u => deleteBlockedReason(u)).forEach(u => failures.push(`${u.email}: ${deleteBlockedReason(u)}`));
+        if (deletable.length === 0) {
+          setError(failures.join('\n'));
           return;
         }
-
-        setSelected(new Set());
-        setBulkAction('');
-        setBulkNewRole('');
-      } catch (err) {
-        setError(err.message);
+        const message = `${t.confirmDeleteUser || 'Delete this account permanently?'} (${deletable.length})\n${deletable.map(u => u.email).join('\n')}`;
+        if (!window.confirm(message)) return;
+        for (const user of deletable) {
+          try {
+            await removeUser(user.user_id);
+            done++;
+          } catch (err) {
+            failures.push(`${user.email}: ${err.message}`);
+          }
+        }
+      } else {
+        return;
       }
+
+      if (done > 0) setNotice(`${bulkAction === 'delete' ? (t.userDeleted || 'Account deleted') : (t.userRoleUpdated || 'Role updated')}: ${done}`);
+      if (failures.length) setError(failures.join('\n'));
+      setSelected(new Set());
+      setBulkAction('');
+      setBulkNewRole('');
     };
 
     const filteredUsers = filterRole
@@ -116,7 +157,12 @@ window.MacroChef.components = window.MacroChef.components || {};
       <div className="space-y-4">
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+            <p className="text-red-700 dark:text-red-400 text-sm whitespace-pre-line">{error}</p>
+          </div>
+        )}
+        {notice && (
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
+            <p className="text-emerald-700 dark:text-emerald-300 text-sm">{notice}</p>
           </div>
         )}
 
@@ -241,8 +287,10 @@ window.MacroChef.components = window.MacroChef.components || {};
                     <td className="px-4 py-3">
                       <select
                         value={user.role}
+                        disabled={isSelf(user)}
+                        title={isSelf(user) ? (t.cannotChangeOwnRole || 'You cannot change your own role') : ''}
                         onChange={(e) => updateUserRole(user.user_id, e.target.value)}
-                        className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                        className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {roles.map(role => (
                           <option key={role} value={role}>{role}</option>
@@ -251,8 +299,10 @@ window.MacroChef.components = window.MacroChef.components || {};
                     </td>
                     <td className="px-4 py-3 text-center space-x-2">
                       <button
-                        onClick={() => deleteUser(user.user_id)}
-                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
+                        onClick={() => deleteUser(user)}
+                        disabled={!!deleteBlockedReason(user)}
+                        title={deleteBlockedReason(user)}
+                        className="px-3 py-1 bg-red-500 hover:bg-red-600 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded text-xs font-medium transition"
                       >
                         {t.delete || 'Delete'}
                       </button>
