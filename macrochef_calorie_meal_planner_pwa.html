@@ -13836,36 +13836,34 @@ window.MacroChef.components = window.MacroChef.components || {};
 
       try {
         const text = await file.text();
-        const lines = text.trim().split('\n');
         
-        if (lines.length < 2) {
-          throw new Error('CSV must have header and at least one recipe');
+        // Use advanced CSV parser that handles:
+        // - Polish semicolon-delimited format
+        // - Unlimited ingredients (1-20+)
+        // - Quote escaping and multiline text
+        // - Case-insensitive headers
+        const parsedRecipes = window.MacroChef.recipeCsv.parseCSV(text);
+        
+        if (!Array.isArray(parsedRecipes) || parsedRecipes.length === 0) {
+          throw new Error(t.noRecipesInCSV || 'No recipes found in CSV file');
         }
 
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        const nameIdx = headers.indexOf('name');
-        const caloriesIdx = headers.indexOf('calories');
-        const proteinIdx = headers.indexOf('protein');
-        const carbsIdx = headers.indexOf('carbs');
-        const fatIdx = headers.indexOf('fat');
-        const ingredientsIdx = headers.indexOf('ingredients');
-
-        if (nameIdx === -1) throw new Error('CSV must have "name" column');
-
         const newRecipes = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cells = lines[i].split(',').map(c => c.trim());
-          if (!cells[nameIdx]) continue;
-
+        for (const parsedRecipe of parsedRecipes) {
+          // Map parsed recipe to repository structure
           const recipe = {
             id: window.crypto.randomUUID(),
             userId: session.userId,
-            name: cells[nameIdx],
-            calories: parseFloat(cells[caloriesIdx]) || 0,
-            protein: parseFloat(cells[proteinIdx]) || 0,
-            carbs: parseFloat(cells[carbsIdx]) || 0,
-            fat: parseFloat(cells[fatIdx]) || 0,
-            ingredients: cells[ingredientsIdx] ? cells[ingredientsIdx].split(';').map(i => i.trim()) : [],
+            name: parsedRecipe.name,
+            category: parsedRecipe.category || 'Inne',
+            prepTime: parsedRecipe.prepTime || 0,
+            servings: parsedRecipe.servings || 1,
+            caloriesPerServing: parsedRecipe.caloriesPerServing || 0,
+            proteinPerServing: parsedRecipe.proteinPerServing || 0,
+            carbsPerServing: parsedRecipe.carbsPerServing || 0,
+            fatPerServing: parsedRecipe.fatPerServing || 0,
+            steps: parsedRecipe.steps || [],
+            ingredients: parsedRecipe.ingredients || [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
@@ -13879,7 +13877,8 @@ window.MacroChef.components = window.MacroChef.components || {};
         setTimeout(() => setSuccess(''), 3000);
         event.target.value = '';
       } catch (err) {
-        setError(err.message);
+        setError(err.message || (t.importError || 'Failed to import recipes'));
+        console.error('Import error:', err);
       } finally {
         setLoading(false);
       }
