@@ -103,6 +103,11 @@ assert.match(singletonMigration, /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON pub
 assert.match(singletonMigration, /CREATE UNIQUE INDEX IF NOT EXISTS \w+\s+ON public\.goals \(user_id\)/);
 assert.doesNotMatch(singletonMigration, /\bDELETE\b/i);
 
+const adminProfiles = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations',
+  '20261115140000_admin_list_user_profiles.sql'), 'utf8');
+assert.match(adminProfiles, /CREATE POLICY user_profiles_select_admin ON public\.user_profiles\s+FOR SELECT TO authenticated\s+USING \(public\.is_admin\(\)\);/);
+assert.doesNotMatch(adminProfiles, /CREATE POLICY \w+ ON public\.user_profiles\s+FOR (INSERT|UPDATE|DELETE|ALL)/, 'profiles stay read-only for clients');
+
 const sharedRecipes = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations',
   '20261115130000_make_recipes_shared.sql'), 'utf8');
 assert.match(sharedRecipes, /DROP POLICY IF EXISTS recipes_select_own_or_admin_library ON public\.recipes;/);
