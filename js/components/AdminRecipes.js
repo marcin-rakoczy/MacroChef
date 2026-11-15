@@ -13,6 +13,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [importSummary, setImportSummary] = useState(null);
     const [selected, setSelected] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState(null); // null = all
     const [page, setPage] = useState(0);
     const RECIPES_PER_PAGE = 25;
     const importInputRef = React.useRef(null);
@@ -44,16 +45,30 @@ window.MacroChef.components = window.MacroChef.components || {};
       loadRecipes();
     }, [repository]);
 
-    // Reset page when search changes
+    // Reset page when search or category changes
     useEffect(() => {
       setPage(0);
-    }, [searchQuery]);
+    }, [searchQuery, selectedCategory]);
 
-    // Filter recipes based on search query
+    const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
+    const getLocalized = window.MacroChef.helpers.getLocalized;
+
+    const categoryStats = React.useMemo(() => {
+      const stats = {};
+      recipes.forEach((recipe) => {
+        const cat = getLocalized(recipe.category, lang);
+        stats[cat] = (stats[cat] || 0) + 1;
+      });
+      const categories = Object.keys(stats).sort((a, b) => window.MacroChef.helpers.compareMealCategories(a, b, lang));
+      return { all: recipes.length, categories, stats };
+    }, [recipes, lang]);
+
+    // Filter recipes by search query and selected category
     const filteredRecipes = recipes.filter(recipe => {
       const query = searchQuery.toLowerCase();
-      const name = window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl').toLowerCase();
-      return name.includes(query);
+      const name = getLocalized(recipe.name, lang).toLowerCase();
+      const matchesCategory = !selectedCategory || getLocalized(recipe.category, lang) === selectedCategory;
+      return name.includes(query) && matchesCategory;
     });
 
     const totalPages = Math.ceil(filteredRecipes.length / RECIPES_PER_PAGE);
@@ -263,6 +278,25 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
               {t.recipeImportHint || 'One recipe per row; separate steps with |. For each ingredient add 5 columns, e.g. ingredient3Name–ingredient3PackageUnit.'}
             </p>
           </div>
+        </div>
+
+        {/* Category Filters */}
+        <div className="flex flex-wrap gap-2">
+          {[null, ...categoryStats.categories].map((cat) => (
+            <button
+              key={cat === null ? '__all' : cat}
+              type="button"
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                selectedCategory === cat
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {cat === null ? (t.allCategories || 'Wszystkie kategorie') : cat}{' '}
+              <span className="ml-1">{cat === null ? categoryStats.all : categoryStats.stats[cat]}</span>
+            </button>
+          ))}
         </div>
 
         {/* Recipes Table */}

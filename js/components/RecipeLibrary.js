@@ -242,18 +242,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         stats[cat] = (stats[cat] || 0) + 1;
       });
       
-      // Meal order: breakfast, lunch, dinner, snack; unknown categories follow alphabetically
-      const mealRank = {
-        'śniadanie': 0, breakfast: 0,
-        obiad: 1, lunch: 1,
-        kolacja: 2, dinner: 2,
-        'przekąska': 3, snack: 3
-      };
-      const rank = (cat) => {
-        const r = mealRank[String(cat).trim().toLowerCase()];
-        return r === undefined ? 99 : r;
-      };
-      const sorted = Array.from(allCategories).sort((a, b) => rank(a) - rank(b) || String(a).localeCompare(String(b), lang));
+      const sorted = Array.from(allCategories).sort((a, b) => window.MacroChef.helpers.compareMealCategories(a, b, lang));
       return { all: recipes.length, categories: sorted, stats };
     }, [recipes, lang]);
 
