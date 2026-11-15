@@ -143,22 +143,28 @@ window.MacroChef = window.MacroChef || {};
     const categoryInput = (get('kategoria') || get('category')).toLowerCase().replace(/\s+/g, '');
     const categoryObj = categoryMap[categoryInput] || { en: 'Lunch', pl: 'Obiad' };
 
+    const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;
+    const protein = parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0;
+    const carbs = parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0;
+    const fats = parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0;
+
     const recipe = {
       id: window.crypto.randomUUID(),
       name: { en: (get('nazwa') || get('name')), pl: (get('nazwa') || get('name')) },
       category: categoryObj,
       prepTime: get('czasPrzygotowania') || get('prepTime'),
       servings: parseInt(get('porcje') || get('servings')) || 1,
-      calories: parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0,
-      protein: parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0,
-      carbs: parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0,
-      fats: parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0,
+      calories,
+      protein,
+      carbs,
+      fats,
       ingredients: ingredients,
       steps: { en: parseSteps(get('kroki') || get('steps')), pl: parseSteps(get('kroki') || get('steps')) },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
+    console.log('Parsed recipe:', recipe);
     return recipe;
   };
 

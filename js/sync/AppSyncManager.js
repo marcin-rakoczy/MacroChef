@@ -53,6 +53,10 @@ window.MacroChef = window.MacroChef || {};
 
   function toRemote(table, record, userId) {
     if (table === 'products') return productToRemote(record);
+    // Recipes are shared globally; set user_id to NULL
+    if (table === 'recipes') {
+      return { id: record.id, user_id: null, data: clean(record) };
+    }
     return {
       id: record.id, user_id: userId, data: clean(record),
       ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {})
@@ -343,14 +347,14 @@ window.MacroChef = window.MacroChef || {};
         method = entry.action === 'delete' ? 'DELETE' : 'PATCH';
         params.id = `eq.${id}`;
         params.updated_at = `eq.${current.updated_at}`;
-        if (table !== 'products') params.user_id = `eq.${this.scope.userId}`;
+        if (table !== 'products' && table !== 'recipes') params.user_id = `eq.${this.scope.userId}`;
       }
       const response = await this.request(remoteTables[table], params, method, method === 'DELETE' ? undefined : payload);
       if (![200, 201].includes(response.status) || !Array.isArray(response.data) ||
           response.data.length !== 1 || response.data[0].id !== id ||
           typeof response.data[0].updated_at !== 'string' ||
           Number.isNaN(Date.parse(response.data[0].updated_at)) ||
-          (table !== 'products' && response.data[0].user_id !== this.scope.userId)) {
+          (table !== 'products' && table !== 'recipes' && response.data[0].user_id !== this.scope.userId)) {
         throw new Error(`Write not acknowledged: ${table}/${id}`);
       }
       const acknowledged = response.data[0];
