@@ -66,15 +66,12 @@ jobs:
       # Cloudflare Pages is configured to build from main branch and all feature/* branches.
 
   # ============================================================================
-  # GITHUB PAGES DEPLOY - Only for main branch on workflow_dispatch or non-[skip ci] push
+  # GITHUB PAGES DEPLOY - Manual only (workflow_dispatch from main branch)
   # ============================================================================
   deploy-github-pages:
-    # Only deploy to GitHub Pages:
-    # 1. On manual workflow_dispatch from main
-    # 2. On push to main without [skip ci]
-    # 3. NOT on feature branches
-    # 4. NOT on pull requests
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')))
+    # Only deploy to GitHub Pages on manual workflow_dispatch from main branch.
+    # This ensures production deployments are explicit and controlled.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     environment:
