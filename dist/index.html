@@ -11732,7 +11732,15 @@ window.MacroChef.components = window.MacroChef.components || {};
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recipes.map((rec) => (
+          {recipes.length === 0 ? (
+            <div className="col-span-full">
+              <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <Icon name="book-open" className="w-12 h-12 text-slate-400 dark:text-slate-500 mx-auto mb-3" />
+                <p className="text-sm text-slate-600 dark:text-slate-400">{t.noRecipes || 'No recipes available. Create one or import from a file.'}</p>
+              </div>
+            </div>
+          ) : (
+            recipes.map((rec) => (
             <div
               key={rec.id}
               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
@@ -11812,7 +11820,8 @@ window.MacroChef.components = window.MacroChef.components || {};
                 )}
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     );
