@@ -228,14 +228,39 @@ window.MacroChef.components = window.MacroChef.components || {};
     const { t, lang } = window.MacroChef.useI18n();
     const [page, setPage] = React.useState(0);
     const [searchQuery, setSearchQuery] = React.useState('');
+    const [selectedCategory, setSelectedCategory] = React.useState(null); // null = all
     const RECIPES_PER_PAGE = 12;
 
-    // Filter recipes by search query (name or category)
+    // Get all unique categories with counts
+    const categoryStats = React.useMemo(() => {
+      const stats = {};
+      const allCategories = new Set();
+      
+      recipes.forEach((recipe) => {
+        const cat = getLocalized(recipe.category, lang);
+        allCategories.add(cat);
+        stats[cat] = (stats[cat] || 0) + 1;
+      });
+      
+      // Sort categories alphabetically
+      const sorted = Array.from(allCategories).sort();
+      return { all: recipes.length, categories: sorted, stats };
+    }, [recipes, lang]);
+
+    // Filter recipes by search query and selected category
     const filteredRecipes = recipes.filter((recipe) => {
       const searchLower = searchQuery.toLowerCase();
       const name = getLocalized(recipe.name, lang).toLowerCase();
-      const category = getLocalized(recipe.category, lang).toLowerCase();
-      return name.includes(searchLower) || category.includes(searchLower);
+      const category = getLocalized(recipe.category, lang);
+      const categoryLower = category.toLowerCase();
+      
+      // Search filter
+      const matchesSearch = name.includes(searchLower) || categoryLower.includes(searchLower);
+      
+      // Category filter
+      const matchesCategory = !selectedCategory || category === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
     });
 
     const startIndex = page * RECIPES_PER_PAGE;
@@ -246,6 +271,11 @@ window.MacroChef.components = window.MacroChef.components || {};
     const handleSearch = (query) => {
       setSearchQuery(query);
       setPage(0); // Reset to first page on search
+    };
+
+    const handleCategoryFilter = (category) => {
+      setSelectedCategory(category);
+      setPage(0); // Reset to first page on category change
     };
 
     const handleDelete = (recipe) => {
@@ -285,7 +315,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
         {/* Search Input */}
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div className="relative">
+          <div className="relative mb-4">
             <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
@@ -294,6 +324,33 @@ window.MacroChef.components = window.MacroChef.components || {};
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
             />
+          </div>
+
+          {/* Category Filters */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => handleCategoryFilter(null)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                selectedCategory === null
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {t.allCategories || 'Wszystkie kategorie'} <span className="ml-1">{categoryStats.all}</span>
+            </button>
+            {categoryStats.categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => handleCategoryFilter(cat)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  selectedCategory === cat
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                {cat} <span className="ml-1">{categoryStats.stats[cat]}</span>
+              </button>
+            ))}
           </div>
         </div>
 
