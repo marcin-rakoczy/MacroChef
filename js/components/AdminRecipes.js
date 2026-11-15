@@ -126,7 +126,6 @@ window.MacroChef.components = window.MacroChef.components || {};
           // Map parsed recipe to repository structure
           const recipe = {
             id: window.crypto.randomUUID(),
-            userId: session.userId,
             name: parsedRecipe.name,
             category: parsedRecipe.category || 'Inne',
             prepTime: parsedRecipe.prepTime || 0,
