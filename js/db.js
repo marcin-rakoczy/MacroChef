@@ -184,6 +184,76 @@ window.MacroChef = window.MacroChef || {};
       this.db.version(5).stores({ settings: 'id, userId' });
       this.db.version(6).stores({ migrationState: 'id, userId' });
       this.db.version(7).stores({ SyncState: 'id' });
+      this.db.version(8).stores({
+        recipes: 'id',
+        planner: 'dayKey',
+        plannerEntries: 'id, dayKey',
+        goals: 'id',
+        products: 'id, name, category',
+        OutboxQueue: 'id, timestamp',
+        SyncState: 'id',
+        settings: 'id, userId',
+        migrationState: 'id, userId'
+      }).upgrade(async (tx) => {
+        // Migrate recipes with old field names (caloriesPerServing -> calories, etc.)
+        const recipes = await tx.table('recipes').toArray();
+        for (const recipe of recipes) {
+          const migrated = { ...recipe };
+          
+          // Convert PerServing fields to regular fields if old structure detected
+          if (recipe.hasOwnProperty('caloriesPerServing') && !recipe.hasOwnProperty('calories')) {
+            migrated.calories = recipe.caloriesPerServing;
+            delete migrated.caloriesPerServing;
+          }
+          if (recipe.hasOwnProperty('proteinPerServing') && !recipe.hasOwnProperty('protein')) {
+            migrated.protein = recipe.proteinPerServing;
+            delete migrated.proteinPerServing;
+          }
+          if (recipe.hasOwnProperty('carbsPerServing') && !recipe.hasOwnProperty('carbs')) {
+            migrated.carbs = recipe.carbsPerServing;
+            delete migrated.carbsPerServing;
+          }
+          if (recipe.hasOwnProperty('fatPerServing') && !recipe.hasOwnProperty('fats')) {
+            migrated.fats = recipe.fatPerServing;
+            delete migrated.fatPerServing;
+          }
+          
+          // Ensure ingredient names are in { en, pl } format
+          if (migrated.ingredients && Array.isArray(migrated.ingredients)) {
+            migrated.ingredients = migrated.ingredients.map(ing => ({
+              ...ing,
+              name: typeof ing.name === 'string' ? { en: ing.name, pl: ing.name } : ing.name
+            }));
+          }
+          
+          // Ensure category is in { en, pl } format
+          if (migrated.category && typeof migrated.category === 'string') {
+            const categoryMap = {
+              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Lunch': { en: 'Lunch', pl: 'Obiad' },
+              'Obiad': { en: 'Lunch', pl: 'Obiad' },
+              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
+              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
+              'Snack': { en: 'Snack', pl: 'Przekąska' },
+              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
+            };
+            migrated.category = categoryMap[migrated.category] || { en: 'Lunch', pl: 'Obiad' };
+          }
+          
+          // Ensure name is in { en, pl } format
+          if (migrated.name && typeof migrated.name === 'string') {
+            migrated.name = { en: migrated.name, pl: migrated.name };
+          }
+          
+          // Ensure steps are in { en, pl } format
+          if (migrated.steps && Array.isArray(migrated.steps) && typeof migrated.steps[0] === 'string') {
+            migrated.steps = { en: migrated.steps, pl: migrated.steps };
+          }
+          
+          await tx.table('recipes').put(migrated);
+        }
+      });
       this.mutations = new OfflineMutationDecorator(this.db, this.userId);
 
       this.db.on('populate', async () => {
