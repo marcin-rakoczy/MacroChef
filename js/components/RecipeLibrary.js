@@ -280,6 +280,7 @@ window.MacroChef.components = window.MacroChef.components || {};
               </button>
             </div>
           )}
+          </div>
         </div>
 
         {/* Search Input */}
