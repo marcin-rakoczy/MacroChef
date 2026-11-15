@@ -226,6 +226,13 @@ window.MacroChef.components = window.MacroChef.components || {};
     canManageRecipes
   }) {
     const { t, lang } = window.MacroChef.useI18n();
+    const [page, setPage] = React.useState(0);
+    const RECIPES_PER_PAGE = 12;
+
+    const startIndex = page * RECIPES_PER_PAGE;
+    const endIndex = startIndex + RECIPES_PER_PAGE;
+    const paginatedRecipes = recipes.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(recipes.length / RECIPES_PER_PAGE);
 
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
@@ -261,7 +268,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recipes.length === 0 ? (
+          {paginatedRecipes.length === 0 ? (
             <div className="col-span-full">
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <Icon name="book-open" className="w-12 h-12 text-slate-400 dark:text-slate-500 mx-auto mb-3" />
@@ -269,7 +276,7 @@ window.MacroChef.components = window.MacroChef.components || {};
               </div>
             </div>
           ) : (
-            recipes.map((rec) => (
+            paginatedRecipes.map((rec) => (
             <div
               key={rec.id}
               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
@@ -352,6 +359,31 @@ window.MacroChef.components = window.MacroChef.components || {};
             ))
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {recipes.length > RECIPES_PER_PAGE && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              {t.showing || 'Showing'}: {startIndex + 1} - {Math.min(endIndex, recipes.length)} {t.of || 'of'} {recipes.length} {t.recipes || 'recipes'} | {t.page || 'Page'} {page + 1} {t.of || 'of'} {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                ← {t.previous || 'Previous'}
+              </button>
+              <button
+                onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                disabled={page === totalPages - 1}
+                className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {t.next || 'Next'} →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
