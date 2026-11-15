@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSV Import UI Test</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #f8fafc; padding: 20px; }
+    .test-container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .test-section { margin-bottom: 30px; border: 1px solid #e2e8f0; padding: 15px; border-radius: 4px; }
+    .test-result { margin-top: 10px; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+    .passed { background: #d1fae5; color: #065f46; }
+    .failed { background: #fee2e2; color: #991b1b; }
+    button { background: #10b981; color: white; padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; margin: 5px 0; }
+    button:hover { background: #059669; }
+    textarea { width: 100%; height: 200px; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1 style="font-size: 24px; margin-bottom: 20px; font-weight: bold;">🧪 CSV Import Integration Test</h1>
+    
+    <div class="test-section">
+      <h2 style="font-weight: bold; margin-bottom: 10px;">1. Load CSV Parser</h2>
+      <button onclick="testLoadParser()">Load Parser</button>
+      <div id="test-parser-result" class="test-result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h2 style="font-weight: bold; margin-bottom: 10px;">2. Parse Test CSV</h2>
+      <textarea id="test-csv-input" placeholder="Paste Polish CSV here...">nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;wgldNaPorcje;tluszczNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
+Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3";Mąka;150;g;1kg;12.50zł;"Mąka pszenna";Zioła;5;g;100g;8.00zł;"Koperkość"
+Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 3 minuty";Białko jajka;4;szt;500g;18.00zł;"Białko ekologiczne"</textarea>
+      <button onclick="testParseCSV()">Parse CSV</button>
+      <div id="test-parse-result" class="test-result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h2 style="font-weight: bold; margin-bottom: 10px;">3. Validate Parsed Structure</h2>
+      <button onclick="testValidateStructure()">Validate Structure</button>
+      <div id="test-validate-result" class="test-result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h2 style="font-weight: bold; margin-bottom: 10px;">4. Test Macro Calculations</h2>
+      <button onclick="testMacroCalculations()">Test Macros</button>
+      <div id="test-macros-result" class="test-result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h2 style="font-weight: bold; margin-bottom: 10px;">5. Load Real CSV File</h2>
+      <input type="file" id="csv-file-input" accept=".csv" style="padding: 8px; margin-bottom: 10px;">
+      <button onclick="testLoadRealCSV()">Load and Parse Real File</button>
+      <div id="test-real-csv-result" class="test-result" style="display:none;"></div>
+    </div>
+
+    <div class="test-section">
+      <h2 style="font-weight: bold; margin-bottom: 10px;">📊 Results Summary</h2>
+      <div id="summary" style="padding: 10px; background: #f0f9ff; border-radius: 4px;">
+        <p id="summary-text">Run tests above to see results</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let testResults = {
+      passed: 0,
+      failed: 0,
+      results: []
+    };
+
+    function addResult(name, passed, details) {
+      testResults.results.push({ name, passed, details });
+      if (passed) testResults.passed++;
+      else testResults.failed++;
+      updateSummary();
+    }
+
+    function updateSummary() {
+      const total = testResults.passed + testResults.failed;
+      const summary = `✅ ${testResults.passed} passed | ❌ ${testResults.failed} failed | Total: ${total}`;
+      document.getElementById('summary-text').textContent = summary;
+    }
+
+    async function testLoadParser() {
+      const resultDiv = document.getElementById('test-parser-result');
+      resultDiv.style.display = 'block';
+      
+      try {
+        // Try to load the parser from repository or via script tag
+        const response = await fetch('/js/utils/recipeCsv.js');
+        const code = await response.text();
+        
+        // Create a function from the code
+        const fn = new Function(code + '; return window.MacroChef.recipeCsv;');
+        const parser = fn();
+        
+        if (parser && typeof parser.parseCSV === 'function') {
+          resultDiv.innerHTML = '<div class="passed">✅ CSV Parser loaded successfully</div>';
+          addResult('Load Parser', true, 'parseCSV function available');
+        } else {
+          resultDiv.innerHTML = '<div class="failed">❌ Parser loaded but parseCSV not found</div>';
+          addResult('Load Parser', false, 'Missing parseCSV function');
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="failed">❌ Error: ${error.message}</div>`;
+        addResult('Load Parser', false, error.message);
+      }
+    }
+
+    async function testParseCSV() {
+      const resultDiv = document.getElementById('test-parse-result');
+      resultDiv.style.display = 'block';
+      
+      try {
+        const csvText = document.getElementById('test-csv-input').value;
+        
+        // Load and execute the CSV parser
+        const response = await fetch('/js/utils/recipeCsv.js');
+        const code = await response.text();
+        
+        // Initialize namespace
+        window.MacroChef = window.MacroChef || {};
+        
+        // Execute parser code
+        eval(code);
+        
+        if (!window.MacroChef.recipeCsv || !window.MacroChef.recipeCsv.parseCSV) {
+          throw new Error('Parser not initialized');
+        }
+        
+        const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
+        
+        let html = `<div class="passed">✅ Parsed ${recipes.length} recipes:</div>`;
+        recipes.forEach((recipe, i) => {
+          html += `<div style="margin-top: 10px; padding: 10px; background: #f3f4f6; border-radius: 3px;">
+            <strong>${i+1}. ${recipe.name}</strong><br>
+            Kategoria: ${recipe.category || 'N/A'}<br>
+            Kalorie: ${recipe.caloriesPerServing}, Białko: ${recipe.proteinPerServing}, Węgle: ${recipe.carbsPerServing}, Tłuszcz: ${recipe.fatPerServing}<br>
+            Składniki: ${recipe.ingredients?.length || 0}, Kroki: ${recipe.steps?.length || 0}
+          </div>`;
+        });
+        
+        resultDiv.innerHTML = html;
+        addResult('Parse CSV', recipes.length > 0, `Parsed ${recipes.length} recipes`);
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="failed">❌ Error: ${error.message}</div>`;
+        addResult('Parse CSV', false, error.message);
+      }
+    }
+
+    async function testValidateStructure() {
+      const resultDiv = document.getElementById('test-validate-result');
+      resultDiv.style.display = 'block';
+      
+      try {
+        const csvText = document.getElementById('test-csv-input').value;
+        
+        // Load parser
+        window.MacroChef = window.MacroChef || {};
+        const response = await fetch('/js/utils/recipeCsv.js');
+        const code = await response.text();
+        eval(code);
+        
+        const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
+        
+        if (recipes.length === 0) {
+          throw new Error('No recipes parsed');
+        }
+        
+        const requiredFields = ['name', 'category', 'caloriesPerServing', 'proteinPerServing', 'carbsPerServing', 'fatPerServing', 'ingredients', 'steps'];
+        let allValid = true;
+        let html = '<div class="passed">✅ Structure Validation Results:</div>';
+        
+        recipes.forEach((recipe, i) => {
+          const missing = requiredFields.filter(field => !recipe.hasOwnProperty(field));
+          const isValid = missing.length === 0;
+          allValid = allValid && isValid;
+          
+          html += `<div style="margin-top: 8px; padding: 8px; background: ${isValid ? '#d1fae5' : '#fee2e2'}; border-radius: 3px;">
+            <strong>${recipe.name}</strong>: ${isValid ? '✅ Valid' : '❌ Missing: ' + missing.join(', ')}
+          </div>`;
+        });
+        
+        resultDiv.innerHTML = html;
+        addResult('Validate Structure', allValid, `All ${recipes.length} recipes valid structure`);
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="failed">❌ Error: ${error.message}</div>`;
+        addResult('Validate Structure', false, error.message);
+      }
+    }
+
+    async function testMacroCalculations() {
+      const resultDiv = document.getElementById('test-macros-result');
+      resultDiv.style.display = 'block';
+      
+      try {
+        const csvText = document.getElementById('test-csv-input').value;
+        
+        // Load parser
+        window.MacroChef = window.MacroChef || {};
+        const response = await fetch('/js/utils/recipeCsv.js');
+        const code = await response.text();
+        eval(code);
+        
+        const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
+        
+        let html = '<div class="passed">✅ Macro Calculations:</div>';
+        let allValid = true;
+        
+        recipes.forEach((recipe, i) => {
+          const totalCals = (recipe.proteinPerServing || 0) * 4 + (recipe.carbsPerServing || 0) * 4 + (recipe.fatPerServing || 0) * 9;
+          const match = Math.abs(totalCals - (recipe.caloriesPerServing || 0)) < 50; // Allow 50 cal variance
+          allValid = allValid && match;
+          
+          html += `<div style="margin-top: 8px; padding: 8px; background: ${match ? '#d1fae5' : '#fef3c7'}; border-radius: 3px;">
+            <strong>${recipe.name}</strong>: Stated=${recipe.caloriesPerServing}, Calculated=${totalCals.toFixed(0)}, ${match ? '✅' : '⚠️'}
+          </div>`;
+        });
+        
+        resultDiv.innerHTML = html;
+        addResult('Macro Calculations', allValid, 'All macro totals within tolerance');
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="failed">❌ Error: ${error.message}</div>`;
+        addResult('Macro Calculations', false, error.message);
+      }
+    }
+
+    async function testLoadRealCSV() {
+      const resultDiv = document.getElementById('test-real-csv-result');
+      resultDiv.style.display = 'block';
+      
+      const file = document.getElementById('csv-file-input').files[0];
+      if (!file) {
+        resultDiv.innerHTML = '<div class="failed">❌ No file selected</div>';
+        addResult('Load Real CSV', false, 'No file selected');
+        return;
+      }
+      
+      try {
+        const text = await file.text();
+        
+        // Load parser
+        window.MacroChef = window.MacroChef || {};
+        const response = await fetch('/js/utils/recipeCsv.js');
+        const code = await response.text();
+        eval(code);
+        
+        const recipes = window.MacroChef.recipeCsv.parseCSV(text);
+        
+        let html = `<div class="passed">✅ Loaded and parsed ${recipes.length} recipes from: ${file.name}</div>`;
+        recipes.forEach((recipe, i) => {
+          html += `<div style="margin-top: 10px; padding: 10px; background: #f3f4f6; border-radius: 3px;">
+            <strong>${i+1}. ${recipe.name}</strong> (${recipe.category})<br>
+            Kalorie: ${recipe.caloriesPerServing} | Białko: ${recipe.proteinPerServing}g | Węgle: ${recipe.carbsPerServing}g | Tłuszcz: ${recipe.fatPerServing}g<br>
+            Składniki: ${recipe.ingredients?.length || 0} | Kroki: ${recipe.steps?.length || 0}
+          </div>`;
+        });
+        
+        resultDiv.innerHTML = html;
+        addResult('Load Real CSV', recipes.length > 0, `Successfully loaded ${recipes.length} recipes`);
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="failed">❌ Error: ${error.message}</div>`;
+        addResult('Load Real CSV', false, error.message);
+      }
+    }
+  </script>
+</body>
+</html>
