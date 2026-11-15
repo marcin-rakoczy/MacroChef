@@ -13886,7 +13886,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Download CSV template
     const handleDownloadTemplate = () => {
-      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;wgldNaPorcje;tluszczNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
+      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
 Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3"`;;
       const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -14017,6 +14017,7 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.name || 'Name'}</th>
+                  <th className="px-4 py-3 text-left text-slate-700 dark:text-slate-300 font-semibold">{t.category || 'Category'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.calories || 'Calories'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.protein || 'Protein'}</th>
                   <th className="px-4 py-3 text-center text-slate-700 dark:text-slate-300 font-semibold">{t.carbs || 'Carbs'}</th>
@@ -14046,10 +14047,13 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">
                       {window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl')}
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.calories || 0)}</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.protein || 0)}g</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.carbs || 0)}g</td>
-                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.fats || 0)}g</td>
+                    <td className="px-4 py-3 text-slate-900 dark:text-white">
+                      {recipe.category || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.caloriesPerServing || recipe.calories || 0)}</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.proteinPerServing || recipe.protein || 0)}g</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.carbsPerServing || recipe.carbs || 0)}g</td>
+                    <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.fatPerServing || recipe.fats || 0)}g</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => deleteRecipe(recipe.id)}
