@@ -9298,7 +9298,7 @@ window.MacroChef = window.MacroChef || {};
     const databaseName = `MacroChef-account-${suffix}`;
     return {
       repository: new window.MacroChef.DexieCalorieRepository(databaseName, {
-        seedDefaults: false, userId: scope.userId, role: scope.role
+        seedDefaults: true, userId: scope.userId, role: scope.role
       }),
       shoppingStorageKey: `macrochef_checked_${suffix}`
     };
