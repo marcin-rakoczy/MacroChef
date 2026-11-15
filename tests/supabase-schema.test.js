@@ -112,5 +112,7 @@ assert.match(sharedRecipes, /CREATE POLICY recipes_select_all ON public\.recipes
 });
 assert.match(sharedRecipes, /recipes_insert_admin[\s\S]*?WITH CHECK \(public\.is_admin\(\) AND \(SELECT auth\.uid\(\)\) = user_id\)/);
 assert.doesNotMatch(sharedRecipes, /DROP NOT NULL|SET user_id = NULL/i, 'recipes keep their author');
+assert.ok(sharedRecipes.indexOf('CREATE OR REPLACE FUNCTION public.is_admin') < sharedRecipes.indexOf('CREATE POLICY'),
+  'is_admin() must exist before policies reference it');
 
 console.log('supabase schema tests passed');
