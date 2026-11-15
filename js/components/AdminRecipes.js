@@ -10,6 +10,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [importSummary, setImportSummary] = useState(null);
     const [selected, setSelected] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(0);
@@ -106,6 +107,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       setLoading(true);
       setError('');
       setSuccess('');
+      setImportSummary(null);
 
       try {
         const text = await file.text();
@@ -121,21 +123,18 @@ window.MacroChef.components = window.MacroChef.components || {};
           throw new Error(t.noRecipesInCSV || 'No recipes found in CSV file');
         }
 
-        const newRecipes = [];
-        for (const parsedRecipe of parsedRecipes) {
-          // Use parsed recipe directly (it now has correct field names)
-          const recipe = {
-            ...parsedRecipe,
-            id: parsedRecipe.id || window.crypto.randomUUID()
-          };
-
+        const existing = (await repository.getAllRecipes()) || [];
+        const plan = window.MacroChef.recipeCsv.planRecipeImport(parsedRecipes, existing);
+        for (const recipe of plan.recipes) {
           await repository.saveRecipe(recipe);
-          newRecipes.push(recipe);
         }
 
-        setRecipes([...recipes, ...newRecipes]);
-        setSuccess(`${newRecipes.length} ${t.recipesImported || 'recipes imported'}`);
-        setTimeout(() => setSuccess(''), 3000);
+        const saved = new Map(plan.recipes.map((r) => [r.id, r]));
+        setRecipes([
+          ...existing.map((r) => saved.get(r.id) || r),
+          ...plan.recipes.filter((r) => !existing.some((e) => e.id === r.id))
+        ]);
+        setImportSummary({ total: plan.total, added: plan.added, updated: plan.updated });
         event.target.value = '';
       } catch (err) {
         setError(err.message || (t.importError || 'Failed to import recipes'));
@@ -171,6 +170,27 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
         {success && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <p className="text-green-700 dark:text-green-400 text-sm">{success}</p>
+          </div>
+        )}
+
+        {importSummary && (
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 flex items-start justify-between gap-4">
+            <div className="text-sm text-emerald-800 dark:text-emerald-300">
+              <p className="font-semibold mb-1">{t.importSummaryTitle || 'Import summary'}</p>
+              <p>
+                {t.importSummaryTotal || 'Rows in file'}: <strong>{importSummary.total}</strong>
+                {' · '}{t.importSummaryAdded || 'Added'}: <strong>{importSummary.added}</strong>
+                {' · '}{t.importSummaryUpdated || 'Updated'}: <strong>{importSummary.updated}</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportSummary(null)}
+              aria-label={t.close || 'Close'}
+              className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 text-lg leading-none"
+            >
+              ×
+            </button>
           </div>
         )}
 

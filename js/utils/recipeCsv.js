@@ -236,12 +236,56 @@ window.MacroChef = window.MacroChef || {};
     return `\uFEFF${[headers, values].map((row) => row.map(quote).join(';')).join('\r\n')}`;
   };
 
+  // Import dedupe key: first 50 chars of name + category + per-serving macros.
+  const recipeImportKey = (recipe) => {
+    const text = (value, lang) => (value && typeof value === 'object' ? (value[lang] || value.pl || value.en || '') : (value || ''));
+    const fold = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
+    const categoryAliases = { sniadanie: 'breakfast', obiad: 'lunch', kolacja: 'dinner', przekaska: 'snack' };
+    const rawCategory = fold(text(recipe.category, 'en'));
+    const num = (...values) => {
+      const v = values.find((x) => x !== undefined && x !== null && x !== '');
+      return Math.round((parseFloat(v) || 0) * 10) / 10;
+    };
+    return [
+      String(text(recipe.name, 'pl')).trim().toLowerCase().slice(0, 50),
+      categoryAliases[rawCategory] || rawCategory,
+      num(recipe.calories, recipe.caloriesPerServing),
+      num(recipe.protein, recipe.proteinPerServing),
+      num(recipe.carbs, recipe.carbsPerServing),
+      num(recipe.fats, recipe.fatPerServing, recipe.fatsPerServing)
+    ].join('|');
+  };
+
+  // Matching rows overwrite the existing record (same id); others are added.
+  const planRecipeImport = (parsedRecipes, existingRecipes = []) => {
+    const byKey = new Map();
+    existingRecipes.forEach((recipe) => {
+      const key = recipeImportKey(recipe);
+      if (!byKey.has(key)) byKey.set(key, recipe);
+    });
+    let added = 0;
+    let updated = 0;
+    const recipes = parsedRecipes.map((parsed) => {
+      const key = recipeImportKey(parsed);
+      const match = byKey.get(key);
+      const recipe = match
+        ? { ...parsed, id: match.id, createdAt: match.createdAt || parsed.createdAt }
+        : { ...parsed, id: parsed.id || window.crypto.randomUUID() };
+      if (match) updated++; else added++;
+      byKey.set(key, recipe);
+      return recipe;
+    });
+    return { recipes, total: parsedRecipes.length, added, updated };
+  };
+
   window.MacroChef.recipeCsv = { 
     parseCSV, 
     parseCSVLine, 
     parseRecipeRow, 
     parseIngredients, 
     parseSteps,
+    recipeImportKey,
+    planRecipeImport,
     createTemplate 
   };
 })();

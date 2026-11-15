@@ -7517,6 +7517,10 @@ window.MacroChef.TRANSLATIONS = {
     importRecipes: 'Import Recipes',
     importRecipesHelp: 'CSV format: name, calories, protein, carbs, fat, ingredients (semicolon-separated)',
     recipesImported: 'recipes imported',
+    importSummaryTitle: 'Import summary',
+    importSummaryTotal: 'Rows in file',
+    importSummaryAdded: 'Added',
+    importSummaryUpdated: 'Updated',
     deleteSelected: 'Delete Selected',
     totalRecipes: 'Total Recipes',
     name: 'Name',
@@ -7771,6 +7775,10 @@ window.MacroChef.TRANSLATIONS = {
     importRecipes: 'Importuj przepisy',
     importRecipesHelp: 'Format CSV: nazwa, kalorie, białko, węglowodany, tłuszcze, składniki (oddzielone średnikami)',
     recipesImported: 'przepisy zaimportowane',
+    importSummaryTitle: 'Podsumowanie importu',
+    importSummaryTotal: 'Rekordów w pliku',
+    importSummaryAdded: 'Dodano',
+    importSummaryUpdated: 'Zaktualizowano',
     deleteSelected: 'Usuń zaznaczone',
     totalRecipes: 'Razem przepisów',
     name: 'Nazwa',
@@ -8103,18 +8111,38 @@ window.MacroChef = window.MacroChef || {};
 
     const ingredients = parseIngredients(cells, headerMap);
 
+    // Map category names
+    const categoryMap = {
+      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
+      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
+      lunch: { en: 'Lunch', pl: 'Obiad' },
+      obiad: { en: 'Lunch', pl: 'Obiad' },
+      dinner: { en: 'Dinner', pl: 'Kolacja' },
+      kolacja: { en: 'Dinner', pl: 'Kolacja' },
+      snack: { en: 'Snack', pl: 'Przekąska' },
+      przekaska: { en: 'Snack', pl: 'Przekąska' }
+    };
+    
+    const categoryInput = (get('kategoria') || get('category')).toLowerCase().replace(/\s+/g, '');
+    const categoryObj = categoryMap[categoryInput] || { en: 'Lunch', pl: 'Obiad' };
+
+    const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;
+    const protein = parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0;
+    const carbs = parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0;
+    const fats = parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0;
+
     const recipe = {
       id: window.crypto.randomUUID(),
-      name: get('nazwa') || get('name'),
-      category: get('kategoria') || get('category'),
+      name: { en: (get('nazwa') || get('name')), pl: (get('nazwa') || get('name')) },
+      category: categoryObj,
       prepTime: get('czasPrzygotowania') || get('prepTime'),
       servings: parseInt(get('porcje') || get('servings')) || 1,
-      caloriesPerServing: parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0,
-      proteinPerServing: parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0,
-      carbsPerServing: parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0,
-      fatPerServing: parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0,
+      calories,
+      protein,
+      carbs,
+      fats,
       ingredients: ingredients,
-      steps: parseSteps(get('kroki') || get('steps')),
+      steps: { en: parseSteps(get('kroki') || get('steps')), pl: parseSteps(get('kroki') || get('steps')) },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -8140,8 +8168,9 @@ window.MacroChef = window.MacroChef || {};
       const nameIdx = headerMap[namePl] !== undefined ? headerMap[namePl] : headerMap[nameEn];
       if (nameIdx === undefined || !cells[nameIdx]) continue;
 
+      const ingredientName = cells[nameIdx];
       const ingredient = {
-        name: cells[nameIdx],
+        name: { en: ingredientName, pl: ingredientName },
         amount: parseFloat(cells[headerMap[ilosc] || headerMap[amount]] || 0),
         unit: cells[headerMap[jednostka] || headerMap[unit]] || '',
         packageSize: parseFloat(cells[headerMap[rozmiar] || headerMap[packageSize]] || 0),
@@ -8190,12 +8219,56 @@ window.MacroChef = window.MacroChef || {};
     return `\uFEFF${[headers, values].map((row) => row.map(quote).join(';')).join('\r\n')}`;
   };
 
+  // Import dedupe key: first 50 chars of name + category + per-serving macros.
+  const recipeImportKey = (recipe) => {
+    const text = (value, lang) => (value && typeof value === 'object' ? (value[lang] || value.pl || value.en || '') : (value || ''));
+    const fold = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
+    const categoryAliases = { sniadanie: 'breakfast', obiad: 'lunch', kolacja: 'dinner', przekaska: 'snack' };
+    const rawCategory = fold(text(recipe.category, 'en'));
+    const num = (...values) => {
+      const v = values.find((x) => x !== undefined && x !== null && x !== '');
+      return Math.round((parseFloat(v) || 0) * 10) / 10;
+    };
+    return [
+      String(text(recipe.name, 'pl')).trim().toLowerCase().slice(0, 50),
+      categoryAliases[rawCategory] || rawCategory,
+      num(recipe.calories, recipe.caloriesPerServing),
+      num(recipe.protein, recipe.proteinPerServing),
+      num(recipe.carbs, recipe.carbsPerServing),
+      num(recipe.fats, recipe.fatPerServing, recipe.fatsPerServing)
+    ].join('|');
+  };
+
+  // Matching rows overwrite the existing record (same id); others are added.
+  const planRecipeImport = (parsedRecipes, existingRecipes = []) => {
+    const byKey = new Map();
+    existingRecipes.forEach((recipe) => {
+      const key = recipeImportKey(recipe);
+      if (!byKey.has(key)) byKey.set(key, recipe);
+    });
+    let added = 0;
+    let updated = 0;
+    const recipes = parsedRecipes.map((parsed) => {
+      const key = recipeImportKey(parsed);
+      const match = byKey.get(key);
+      const recipe = match
+        ? { ...parsed, id: match.id, createdAt: match.createdAt || parsed.createdAt }
+        : { ...parsed, id: parsed.id || window.crypto.randomUUID() };
+      if (match) updated++; else added++;
+      byKey.set(key, recipe);
+      return recipe;
+    });
+    return { recipes, total: parsedRecipes.length, added, updated };
+  };
+
   window.MacroChef.recipeCsv = { 
     parseCSV, 
     parseCSVLine, 
     parseRecipeRow, 
     parseIngredients, 
     parseSteps,
+    recipeImportKey,
+    planRecipeImport,
     createTemplate 
   };
 })();
@@ -8950,6 +9023,76 @@ window.MacroChef = window.MacroChef || {};
       this.db.version(5).stores({ settings: 'id, userId' });
       this.db.version(6).stores({ migrationState: 'id, userId' });
       this.db.version(7).stores({ SyncState: 'id' });
+      this.db.version(8).stores({
+        recipes: 'id',
+        planner: 'dayKey',
+        plannerEntries: 'id, dayKey',
+        goals: 'id',
+        products: 'id, name, category',
+        OutboxQueue: 'id, timestamp',
+        SyncState: 'id',
+        settings: 'id, userId',
+        migrationState: 'id, userId'
+      }).upgrade(async (tx) => {
+        // Migrate recipes with old field names (caloriesPerServing -> calories, etc.)
+        const recipes = await tx.table('recipes').toArray();
+        for (const recipe of recipes) {
+          const migrated = { ...recipe };
+          
+          // Convert PerServing fields to regular fields if old structure detected
+          if (recipe.hasOwnProperty('caloriesPerServing') && !recipe.hasOwnProperty('calories')) {
+            migrated.calories = recipe.caloriesPerServing;
+            delete migrated.caloriesPerServing;
+          }
+          if (recipe.hasOwnProperty('proteinPerServing') && !recipe.hasOwnProperty('protein')) {
+            migrated.protein = recipe.proteinPerServing;
+            delete migrated.proteinPerServing;
+          }
+          if (recipe.hasOwnProperty('carbsPerServing') && !recipe.hasOwnProperty('carbs')) {
+            migrated.carbs = recipe.carbsPerServing;
+            delete migrated.carbsPerServing;
+          }
+          if (recipe.hasOwnProperty('fatPerServing') && !recipe.hasOwnProperty('fats')) {
+            migrated.fats = recipe.fatPerServing;
+            delete migrated.fatPerServing;
+          }
+          
+          // Ensure ingredient names are in { en, pl } format
+          if (migrated.ingredients && Array.isArray(migrated.ingredients)) {
+            migrated.ingredients = migrated.ingredients.map(ing => ({
+              ...ing,
+              name: typeof ing.name === 'string' ? { en: ing.name, pl: ing.name } : ing.name
+            }));
+          }
+          
+          // Ensure category is in { en, pl } format
+          if (migrated.category && typeof migrated.category === 'string') {
+            const categoryMap = {
+              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Lunch': { en: 'Lunch', pl: 'Obiad' },
+              'Obiad': { en: 'Lunch', pl: 'Obiad' },
+              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
+              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
+              'Snack': { en: 'Snack', pl: 'Przekąska' },
+              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
+            };
+            migrated.category = categoryMap[migrated.category] || { en: 'Lunch', pl: 'Obiad' };
+          }
+          
+          // Ensure name is in { en, pl } format
+          if (migrated.name && typeof migrated.name === 'string') {
+            migrated.name = { en: migrated.name, pl: migrated.name };
+          }
+          
+          // Ensure steps are in { en, pl } format
+          if (migrated.steps && Array.isArray(migrated.steps) && typeof migrated.steps[0] === 'string') {
+            migrated.steps = { en: migrated.steps, pl: migrated.steps };
+          }
+          
+          await tx.table('recipes').put(migrated);
+        }
+      });
       this.mutations = new OfflineMutationDecorator(this.db, this.userId);
 
       this.db.on('populate', async () => {
@@ -9031,6 +9174,92 @@ window.MacroChef = window.MacroChef || {};
       });
     }
 
+    async normalizeRecipes() {
+      // Normalize all recipes to have consistent field structure
+      try {
+        const recipes = await this.db.recipes.toArray();
+        let needsUpdate = false;
+
+        for (const recipe of recipes) {
+          let updated = false;
+          const normalized = { ...recipe };
+
+          // Convert PerServing fields to regular fields
+          if (normalized.hasOwnProperty('caloriesPerServing') && !normalized.hasOwnProperty('calories')) {
+            normalized.calories = normalized.caloriesPerServing;
+            delete normalized.caloriesPerServing;
+            updated = true;
+          }
+          if (normalized.hasOwnProperty('proteinPerServing') && !normalized.hasOwnProperty('protein')) {
+            normalized.protein = normalized.proteinPerServing;
+            delete normalized.proteinPerServing;
+            updated = true;
+          }
+          if (normalized.hasOwnProperty('carbsPerServing') && !normalized.hasOwnProperty('carbs')) {
+            normalized.carbs = normalized.carbsPerServing;
+            delete normalized.carbsPerServing;
+            updated = true;
+          }
+          if (normalized.hasOwnProperty('fatPerServing') && !normalized.hasOwnProperty('fats')) {
+            normalized.fats = normalized.fatPerServing;
+            delete normalized.fatPerServing;
+            updated = true;
+          }
+
+          // Ensure ingredient names are in { en, pl } format
+          if (normalized.ingredients && Array.isArray(normalized.ingredients)) {
+            const normalizedIngredients = normalized.ingredients.map(ing => ({
+              ...ing,
+              name: typeof ing.name === 'string' ? { en: ing.name, pl: ing.name } : ing.name
+            }));
+            if (JSON.stringify(normalizedIngredients) !== JSON.stringify(normalized.ingredients)) {
+              normalized.ingredients = normalizedIngredients;
+              updated = true;
+            }
+          }
+
+          // Ensure category is in { en, pl } format
+          if (normalized.category && typeof normalized.category === 'string') {
+            const categoryMap = {
+              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
+              'Lunch': { en: 'Lunch', pl: 'Obiad' },
+              'Obiad': { en: 'Lunch', pl: 'Obiad' },
+              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
+              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
+              'Snack': { en: 'Snack', pl: 'Przekąska' },
+              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
+            };
+            normalized.category = categoryMap[normalized.category] || { en: 'Lunch', pl: 'Obiad' };
+            updated = true;
+          }
+
+          // Ensure name is in { en, pl } format
+          if (normalized.name && typeof normalized.name === 'string') {
+            normalized.name = { en: normalized.name, pl: normalized.name };
+            updated = true;
+          }
+
+          // Ensure steps are in { en, pl } format if they're an array of strings
+          if (normalized.steps && Array.isArray(normalized.steps) && typeof normalized.steps[0] === 'string') {
+            normalized.steps = { en: normalized.steps, pl: normalized.steps };
+            updated = true;
+          }
+
+          if (updated) {
+            needsUpdate = true;
+            await this.db.recipes.put(normalized);
+          }
+        }
+
+        if (needsUpdate) {
+          console.log('Recipe normalization completed');
+        }
+      } catch (err) {
+        console.warn('Error normalizing recipes:', err);
+      }
+    }
+
     async initialize() {
       await this.db.open();
       if (!this.seedDefaults) return;
@@ -9038,6 +9267,8 @@ window.MacroChef = window.MacroChef || {};
         await this.db.transaction('rw', this.db.recipes, this.db.plannerEntries, this.db.goals, () => this.seedInitialData());
       }
       await this.seedProducts();
+      // Normalize all recipes to have consistent structure
+      await this.normalizeRecipes();
     }
 
     close() {
@@ -9349,6 +9580,25 @@ window.MacroChef = window.MacroChef || {};
     });
   }
 
+  // Legacy CSV imports stored macros as *PerServing; the UI reads calories/protein/carbs/fats.
+  const legacyMacroFields = {
+    caloriesPerServing: 'calories', proteinPerServing: 'protein',
+    carbsPerServing: 'carbs', fatPerServing: 'fats', fatsPerServing: 'fats'
+  };
+
+  function normalizeRecipe(record) {
+    const result = { ...record };
+    Object.entries(legacyMacroFields).forEach(([legacy, field]) => {
+      if (!(legacy in result)) return;
+      if (result[field] === undefined || result[field] === null || result[field] === '') {
+        result[field] = Number(result[legacy]) || 0;
+      }
+      delete result[legacy];
+    });
+    delete result.userId;
+    return result;
+  }
+
   function fromRemote(table, row) {
     if (table === 'products') {
       return {
@@ -9358,6 +9608,7 @@ window.MacroChef = window.MacroChef || {};
       };
     }
     const record = { ...row.data, id: row.id, ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}) };
+    if (table === 'recipes') return normalizeRecipe(record);
     if (table === 'plannerEntries') {
       slots.forEach((slot) => { if (record[slot] === null) delete record[slot]; });
     }
@@ -9656,14 +9907,14 @@ window.MacroChef = window.MacroChef || {};
         method = entry.action === 'delete' ? 'DELETE' : 'PATCH';
         params.id = `eq.${id}`;
         params.updated_at = `eq.${current.updated_at}`;
-        if (table !== 'products') params.user_id = `eq.${this.scope.userId}`;
+        if (table !== 'products' && table !== 'recipes') params.user_id = `eq.${this.scope.userId}`;
       }
       const response = await this.request(remoteTables[table], params, method, method === 'DELETE' ? undefined : payload);
       if (![200, 201].includes(response.status) || !Array.isArray(response.data) ||
           response.data.length !== 1 || response.data[0].id !== id ||
           typeof response.data[0].updated_at !== 'string' ||
           Number.isNaN(Date.parse(response.data[0].updated_at)) ||
-          (table !== 'products' && response.data[0].user_id !== this.scope.userId)) {
+          (table !== 'products' && table !== 'recipes' && response.data[0].user_id !== this.scope.userId)) {
         throw new Error(`Write not acknowledged: ${table}/${id}`);
       }
       const acknowledged = response.data[0];
@@ -11698,12 +11949,56 @@ window.MacroChef.components = window.MacroChef.components || {};
   }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [page, setPage] = React.useState(0);
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [selectedCategory, setSelectedCategory] = React.useState(null); // null = all
     const RECIPES_PER_PAGE = 12;
+
+    // Get all unique categories with counts
+    const categoryStats = React.useMemo(() => {
+      const stats = {};
+      const allCategories = new Set();
+      
+      recipes.forEach((recipe) => {
+        const cat = getLocalized(recipe.category, lang);
+        allCategories.add(cat);
+        stats[cat] = (stats[cat] || 0) + 1;
+      });
+      
+      // Sort categories alphabetically
+      const sorted = Array.from(allCategories).sort();
+      return { all: recipes.length, categories: sorted, stats };
+    }, [recipes, lang]);
+
+    // Filter recipes by search query and selected category
+    const filteredRecipes = recipes.filter((recipe) => {
+      const searchLower = searchQuery.toLowerCase();
+      const name = getLocalized(recipe.name, lang).toLowerCase();
+      const category = getLocalized(recipe.category, lang);
+      const categoryLower = category.toLowerCase();
+      
+      // Search filter
+      const matchesSearch = name.includes(searchLower) || categoryLower.includes(searchLower);
+      
+      // Category filter
+      const matchesCategory = !selectedCategory || category === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
+    });
 
     const startIndex = page * RECIPES_PER_PAGE;
     const endIndex = startIndex + RECIPES_PER_PAGE;
-    const paginatedRecipes = recipes.slice(startIndex, endIndex);
-    const totalPages = Math.ceil(recipes.length / RECIPES_PER_PAGE);
+    const paginatedRecipes = filteredRecipes.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(filteredRecipes.length / RECIPES_PER_PAGE);
+
+    const handleSearch = (query) => {
+      setSearchQuery(query);
+      setPage(0); // Reset to first page on search
+    };
+
+    const handleCategoryFilter = (category) => {
+      setSelectedCategory(category);
+      setPage(0); // Reset to first page on category change
+    };
 
     const handleDelete = (recipe) => {
       const name = getLocalized(recipe.name, lang);
@@ -11714,28 +12009,71 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Icon name="book-open" className="w-5 h-5 text-emerald-500" />
-              <span>{t.recipes}</span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {t.recipeSub}
-            </p>
+        <div className="flex flex-col gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Icon name="book-open" className="w-5 h-5 text-emerald-500" />
+                <span>{t.recipes}</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {t.recipeSub}
+              </p>
+            </div>
+
+            {canManageRecipes && (
+            <div className="flex flex-col items-stretch sm:items-end gap-2">
+              <button
+                onClick={onCreateRecipe}
+                className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+              >
+                <Icon name="plus" className="w-4 h-4" />
+                <span>{t.createRecipe}</span>
+              </button>
+            </div>
+          )}
+          </div>
+        </div>
+
+        {/* Search Input */}
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          <div className="relative mb-4">
+            <Icon name="search" className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+            <input
+              type="text"
+              placeholder={t.search || 'Search recipes...'}
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            />
           </div>
 
-          {canManageRecipes && (
-          <div className="flex flex-col items-stretch sm:items-end gap-2">
+          {/* Category Filters */}
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={onCreateRecipe}
-              className="flex items-center justify-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+              onClick={() => handleCategoryFilter(null)}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                selectedCategory === null
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
             >
-              <Icon name="plus" className="w-4 h-4" />
-              <span>{t.createRecipe}</span>
+              {t.allCategories || 'Wszystkie kategorie'} <span className="ml-1">{categoryStats.all}</span>
             </button>
+            {categoryStats.categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => handleCategoryFilter(cat)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+                  selectedCategory === cat
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                {cat} <span className="ml-1">{categoryStats.stats[cat]}</span>
+              </button>
+            ))}
           </div>
-          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -11832,10 +12170,10 @@ window.MacroChef.components = window.MacroChef.components || {};
         </div>
 
         {/* Pagination Controls */}
-        {recipes.length > RECIPES_PER_PAGE && (
+        {filteredRecipes.length > RECIPES_PER_PAGE && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
             <div className="text-sm text-slate-600 dark:text-slate-400">
-              {t.showing || 'Showing'}: {startIndex + 1} - {Math.min(endIndex, recipes.length)} {t.of || 'of'} {recipes.length} {t.recipes || 'recipes'} | {t.page || 'Page'} {page + 1} {t.of || 'of'} {totalPages}
+              {t.showing || 'Showing'}: {startIndex + 1} - {Math.min(endIndex, filteredRecipes.length)} {t.of || 'of'} {filteredRecipes.length} {t.recipes || 'recipes'} | {t.page || 'Page'} {page + 1} {t.of || 'of'} {totalPages}
             </div>
             <div className="flex gap-2">
               <button
@@ -13776,6 +14114,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [importSummary, setImportSummary] = useState(null);
     const [selected, setSelected] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(0);
@@ -13872,6 +14211,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       setLoading(true);
       setError('');
       setSuccess('');
+      setImportSummary(null);
 
       try {
         const text = await file.text();
@@ -13887,32 +14227,18 @@ window.MacroChef.components = window.MacroChef.components || {};
           throw new Error(t.noRecipesInCSV || 'No recipes found in CSV file');
         }
 
-        const newRecipes = [];
-        for (const parsedRecipe of parsedRecipes) {
-          // Map parsed recipe to repository structure
-          const recipe = {
-            id: window.crypto.randomUUID(),
-            name: parsedRecipe.name,
-            category: parsedRecipe.category || 'Inne',
-            prepTime: parsedRecipe.prepTime || 0,
-            servings: parsedRecipe.servings || 1,
-            caloriesPerServing: parsedRecipe.caloriesPerServing || 0,
-            proteinPerServing: parsedRecipe.proteinPerServing || 0,
-            carbsPerServing: parsedRecipe.carbsPerServing || 0,
-            fatPerServing: parsedRecipe.fatPerServing || 0,
-            steps: parsedRecipe.steps || [],
-            ingredients: parsedRecipe.ingredients || [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-
+        const existing = (await repository.getAllRecipes()) || [];
+        const plan = window.MacroChef.recipeCsv.planRecipeImport(parsedRecipes, existing);
+        for (const recipe of plan.recipes) {
           await repository.saveRecipe(recipe);
-          newRecipes.push(recipe);
         }
 
-        setRecipes([...recipes, ...newRecipes]);
-        setSuccess(`${newRecipes.length} ${t.recipesImported || 'recipes imported'}`);
-        setTimeout(() => setSuccess(''), 3000);
+        const saved = new Map(plan.recipes.map((r) => [r.id, r]));
+        setRecipes([
+          ...existing.map((r) => saved.get(r.id) || r),
+          ...plan.recipes.filter((r) => !existing.some((e) => e.id === r.id))
+        ]);
+        setImportSummary({ total: plan.total, added: plan.added, updated: plan.updated });
         event.target.value = '';
       } catch (err) {
         setError(err.message || (t.importError || 'Failed to import recipes'));
@@ -13948,6 +14274,27 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
         {success && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <p className="text-green-700 dark:text-green-400 text-sm">{success}</p>
+          </div>
+        )}
+
+        {importSummary && (
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 flex items-start justify-between gap-4">
+            <div className="text-sm text-emerald-800 dark:text-emerald-300">
+              <p className="font-semibold mb-1">{t.importSummaryTitle || 'Import summary'}</p>
+              <p>
+                {t.importSummaryTotal || 'Rows in file'}: <strong>{importSummary.total}</strong>
+                {' · '}{t.importSummaryAdded || 'Added'}: <strong>{importSummary.added}</strong>
+                {' · '}{t.importSummaryUpdated || 'Updated'}: <strong>{importSummary.updated}</strong>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setImportSummary(null)}
+              aria-label={t.close || 'Close'}
+              className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 text-lg leading-none"
+            >
+              ×
+            </button>
           </div>
         )}
 

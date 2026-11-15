@@ -156,6 +156,30 @@ const templateEN = createTemplate('en');
 assert(templateEN.includes('name'), 'English template has "name" header');
 assert(templateEN.includes('Example recipe'), 'English template has example values');
 
+// Test 4: Import upsert planning
+console.log('\n🔁 Test Suite: Import add/update planning\n');
+const { planRecipeImport } = global.window.MacroChef.recipeCsv;
+const longName = 'A'.repeat(50);
+const existingRecipes = [
+  { id: 'old-1', name: { pl: 'Jajecznica ze Szpinakiem', en: 'Jajecznica ze Szpinakiem' }, category: { en: 'Breakfast', pl: 'Śniadanie' },
+    caloriesPerServing: 250, proteinPerServing: 20, carbsPerServing: 5, fatPerServing: 15, createdAt: '2026-01-01' },
+  { id: 'old-2', name: longName + 'stary', category: 'Obiad', calories: 500, protein: 40, carbs: 50, fats: 10 }
+];
+const imported = [
+  { name: { pl: 'jajecznica ze szpinakiem ' }, category: { en: 'Breakfast', pl: 'Śniadanie' }, calories: 250, protein: 20, carbs: 5, fats: 15 },
+  { name: { pl: longName + 'nowy' }, category: { en: 'Lunch', pl: 'Obiad' }, calories: 500, protein: 40, carbs: 50, fats: 10 },
+  { name: { pl: 'Jajecznica ze Szpinakiem' }, category: { en: 'Breakfast', pl: 'Śniadanie' }, calories: 251, protein: 20, carbs: 5, fats: 15 },
+  { name: { pl: 'Jajecznica ze Szpinakiem' }, category: { en: 'Dinner', pl: 'Kolacja' }, calories: 250, protein: 20, carbs: 5, fats: 15 }
+];
+const importPlan = planRecipeImport(imported, existingRecipes);
+assert(importPlan.total === 4 && importPlan.updated === 2 && importPlan.added === 2, 'Counts rows, updates and additions');
+assert(importPlan.recipes[0].id === 'old-1' && importPlan.recipes[0].createdAt === '2026-01-01', 'Match overwrites existing id (case/whitespace/legacy fields ignored)');
+assert(importPlan.recipes[1].id === 'old-2', 'Name compared on first 50 characters; PL/EN category equivalent');
+assert(!['old-1', 'old-2'].includes(importPlan.recipes[2].id), 'Different calories => new recipe');
+assert(!['old-1', 'old-2'].includes(importPlan.recipes[3].id), 'Different category => new recipe');
+const repeatPlan = planRecipeImport([imported[3], imported[3]], []);
+assert(repeatPlan.added === 1 && repeatPlan.updated === 1 && repeatPlan.recipes[0].id === repeatPlan.recipes[1].id, 'Duplicate rows within one file collapse into one recipe');
+
 // Summary
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log(`\n📊 Test Results: ${passedTests} passed, ${failedTests} failed\n`);
