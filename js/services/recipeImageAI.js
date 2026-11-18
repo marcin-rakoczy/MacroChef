@@ -151,23 +151,25 @@ window.MacroChef = window.MacroChef || {};
     }
   }
 
-  async function restylizeRecipeImage(imageSource, recipe) {
+  async function restylizeRecipeImage(imageSource, recipe, options = {}) {
     if (!imageSource || isPlaceholder(imageSource)) return generateRecipeImage(recipe);
     try {
       const result = await invokeProvider('restylize', recipe, imageSource);
       return await persistImage(result, recipe);
     } catch (error) {
+      if (options.strict) throw error;
       enqueue(recipe, 'restylize', imageSource);
       console.warn('Recipe image restyling queued:', error);
       return fallback(recipe, imageSource);
     }
   }
 
-  async function generateRecipeImage(recipe) {
+  async function generateRecipeImage(recipe, options = {}) {
     try {
       const result = await invokeProvider('generate', recipe, null);
       return await persistImage(result, recipe);
     } catch (error) {
+      if (options.strict) throw error;
       enqueue(recipe, 'generate', null);
       console.warn('Recipe image generation queued:', error);
       return fallback(recipe);
@@ -191,14 +193,14 @@ window.MacroChef = window.MacroChef || {};
       if (verification.providerAvailable !== false &&
           (!verification.valid || !verification.matchesRecipe)) {
         report('generatingRecipeImage');
-        imageUrl = await generateRecipeImage(recipe);
+        imageUrl = await generateRecipeImage(recipe, { strict: options.strict === true });
       } else {
         report('restylizingRecipeImage');
-        imageUrl = await restylizeRecipeImage(source, recipe);
+        imageUrl = await restylizeRecipeImage(source, recipe, { strict: options.strict === true });
       }
     } else {
       report('generatingRecipeImage');
-      imageUrl = await generateRecipeImage(recipe);
+      imageUrl = await generateRecipeImage(recipe, { strict: options.strict === true });
     }
     return { ...recipe, imageUrl, imageVerification: verification || null };
   }

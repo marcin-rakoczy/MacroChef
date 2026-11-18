@@ -4,11 +4,13 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 const calls = [];
+let providerFailure = null;
 const storage = new Map();
 const client = {
   functions: {
     async invoke(name, options) {
       calls.push({ name, operation: options.body.operation, body: options.body });
+      if (providerFailure) return { data: null, error: new Error(providerFailure) };
       if (options.body.operation === 'verify') {
         const wrongDish = options.body.imageSource === 'https://source.test/wrong.jpg';
         return {
@@ -109,6 +111,13 @@ const recipe = {
   );
   assert.equal(calls.length, 0);
   assert.equal(editedWithoutNewImage.imageUrl, 'https://old.test/image.jpg');
+
+  providerFailure = 'Edge Function rejected request';
+  await assert.rejects(
+    ai.generateRecipeImage(recipe, { strict: true }),
+    /Edge Function rejected request/
+  );
+  providerFailure = null;
 
   console.log('PASS: AI recipe image import, generation, edit restyling, and preservation rules');
 })().catch((error) => {

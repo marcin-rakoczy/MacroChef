@@ -69,6 +69,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [imageReady, setImageReady] = React.useState(false);
     const [imageBusy, setImageBusy] = React.useState(false);
     const [imageStatus, setImageStatus] = React.useState('');
+    const [imageError, setImageError] = React.useState('');
     const fileInputRef = React.useRef(null);
 
     // Lidl Products Catalog State
@@ -319,6 +320,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       const file = event.target.files && event.target.files[0];
       if (!file) return;
       setImageBusy(true);
+      setImageError('');
       setImageStatus(t.preparingRecipeImage);
       try {
         const imageAI = window.MacroChef.recipeImageAI;
@@ -330,7 +332,8 @@ window.MacroChef.components = window.MacroChef.components || {};
         setImageChanged(true);
         setImageReady(false);
       } catch (error) {
-        window.alert(`${t.recipeImageError}: ${error.message}`);
+        console.error('Recipe image upload failed:', error);
+        setImageError(error.message || t.recipeImageError);
       } finally {
         setImageBusy(false);
         setImageStatus('');
@@ -340,6 +343,7 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     const buildCurrentRecipe = () => ({
       id: formData.id,
+      imageUrl: formData.imageUrl,
       name: { [lang]: formData.name, [lang === 'pl' ? 'en' : 'pl']: formData.name },
       category: { [lang]: formData.category, [lang === 'pl' ? 'en' : 'pl']: formData.category },
       ingredients: formData.ingredients
@@ -354,16 +358,29 @@ window.MacroChef.components = window.MacroChef.components || {};
     const handleRegenerate = async () => {
       if (imageBusy) return;
       setImageBusy(true);
+      setImageError('');
       try {
         setImageStatus(t.generatingRecipeImage);
         const imageAI = window.MacroChef.recipeImageAI;
-        if (!imageAI || typeof imageAI.generateRecipeImage !== 'function') {
+        if (!imageAI || typeof imageAI.processRecipeImage !== 'function') {
           throw new Error(t.recipeImageError);
         }
-        const imageUrl = await imageAI.generateRecipeImage(buildCurrentRecipe());
+        const processed = await imageAI.processRecipeImage(buildCurrentRecipe(), {
+          force: true,
+          changed: true,
+          strict: true,
+          onStatus: (status) => setImageStatus(t[status] || t.generatingRecipeImage)
+        });
+        const imageUrl = processed && processed.imageUrl;
+        if (!imageUrl || imageUrl === window.MacroChef.recipeImages.DEFAULT_IMAGE_URL) {
+          throw new Error(t.recipeImageNoResult);
+        }
         setFormData((current) => ({ ...current, imageUrl }));
         setImageChanged(true);
         setImageReady(true);
+      } catch (error) {
+        console.error('Recipe AI image generation failed:', error);
+        setImageError(error.message || t.recipeImageError);
       } finally {
         setImageBusy(false);
         setImageStatus('');
@@ -445,6 +462,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     setFormData({ ...formData, imageUrl: e.target.value });
                     setImageChanged(true);
                     setImageReady(false);
+                    setImageError('');
                   }}
                   placeholder="https://..."
                   className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -488,10 +506,16 @@ window.MacroChef.components = window.MacroChef.components || {};
               </button>
               {imageBusy && (
                 <span role="status" className="self-center text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                  <span className="inline-block mr-2 h-3 w-3 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" aria-hidden="true"></span>
                   {imageStatus || t.processingRecipeImage}
                 </span>
               )}
             </div>
+            {imageError && (
+              <div role="alert" className="mt-3 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 px-3 py-2.5 text-xs font-medium text-rose-700 dark:text-rose-300">
+                {t.recipeImageError}: {imageError}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
