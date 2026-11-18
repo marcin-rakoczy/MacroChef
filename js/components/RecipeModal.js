@@ -6,6 +6,16 @@ window.MacroChef.components = window.MacroChef.components || {};
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
 
+  const normalizeSteps = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((step) => String(step == null ? '' : step).trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value.split(/\r?\n|\|/).map((step) => step.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
   function RecipeModal({ editingRecipe, onClose, onSave, repository = window.MacroChef.repositories }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
@@ -28,7 +38,13 @@ window.MacroChef.components = window.MacroChef.components || {};
             packageSize: ing.packageSize || 200,
             packageUnit: ing.packageUnit || ing.unit || 'g'
           })),
-          steps: getLocalized(editingRecipe.steps, lang) || []
+          steps: normalizeSteps(getLocalized(
+            editingRecipe.steps ||
+              editingRecipe.batchSteps ||
+              editingRecipe.batchSteps_pl ||
+              editingRecipe.batchSteps_en,
+            lang
+          ))
         };
       }
       return {
@@ -270,14 +286,22 @@ window.MacroChef.components = window.MacroChef.components || {};
         steps: {
           [lang]: formData.steps.filter((s) => s.trim().length > 0),
           [altLang]: editingRecipe
-            ? getLocalized(editingRecipe.steps, altLang)
+            ? normalizeSteps(getLocalized(
+                editingRecipe.steps ||
+                  editingRecipe.batchSteps ||
+                  editingRecipe[`batchSteps_${altLang}`] ||
+                  editingRecipe.batchSteps_pl ||
+                  editingRecipe.batchSteps_en,
+                altLang
+              ))
             : formData.steps.filter((s) => s.trim().length > 0)
         }
       };
 
       setImageBusy(true);
       try {
-        const processed = imageReady ? formattedRecipe : await window.MacroChef.recipeImageAI.processRecipeImage(formattedRecipe, {
+        const imageAI = window.MacroChef.recipeImageAI;
+        const processed = imageReady || !imageAI ? formattedRecipe : await imageAI.processRecipeImage(formattedRecipe, {
           originalRecipe: editingRecipe,
           force: imageChanged,
           changed: imageChanged,
@@ -297,7 +321,11 @@ window.MacroChef.components = window.MacroChef.components || {};
       setImageBusy(true);
       setImageStatus(t.preparingRecipeImage);
       try {
-        const imageUrl = await window.MacroChef.recipeImageAI.prepareFile(file);
+        const imageAI = window.MacroChef.recipeImageAI;
+        if (!imageAI || typeof imageAI.prepareFile !== 'function') {
+          throw new Error(t.recipeImageError);
+        }
+        const imageUrl = await imageAI.prepareFile(file);
         setFormData((current) => ({ ...current, imageUrl }));
         setImageChanged(true);
         setImageReady(false);
@@ -328,7 +356,11 @@ window.MacroChef.components = window.MacroChef.components || {};
       setImageBusy(true);
       try {
         setImageStatus(t.generatingRecipeImage);
-        const imageUrl = await window.MacroChef.recipeImageAI.generateRecipeImage(buildCurrentRecipe());
+        const imageAI = window.MacroChef.recipeImageAI;
+        if (!imageAI || typeof imageAI.generateRecipeImage !== 'function') {
+          throw new Error(t.recipeImageError);
+        }
+        const imageUrl = await imageAI.generateRecipeImage(buildCurrentRecipe());
         setFormData((current) => ({ ...current, imageUrl }));
         setImageChanged(true);
         setImageReady(true);
@@ -990,5 +1022,6 @@ window.MacroChef.components = window.MacroChef.components || {};
     );
   }
 
+  window.MacroChef.normalizeRecipeSteps = normalizeSteps;
   window.MacroChef.components.RecipeModal = RecipeModal;
 })();

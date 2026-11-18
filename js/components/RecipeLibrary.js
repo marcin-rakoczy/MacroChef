@@ -5,6 +5,11 @@ window.MacroChef.components = window.MacroChef.components || {};
 (function () {
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
+  const normalizeSteps = window.MacroChef.normalizeRecipeSteps || ((value) => {
+    if (Array.isArray(value)) return value.map((step) => String(step || '').trim()).filter(Boolean);
+    if (typeof value === 'string') return value.split(/\r?\n|\|/).map((step) => step.trim()).filter(Boolean);
+    return [];
+  });
   const normalizeImageUrl = (value) => window.MacroChef.recipeImages
     ? window.MacroChef.recipeImages.normalizeUrl(value)
     : (typeof value === 'string' && value.trim()
@@ -560,7 +565,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <div>
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">{t.cookingSteps}</h3>
                     <ol className="list-decimal pl-5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                      {(getLocalized(viewingRecipe.steps, lang) || []).map((step, index) => (
+                      {normalizeSteps(getLocalized(viewingRecipe.steps, lang)).map((step, index) => (
                         <li key={`${step}-${index}`}>{step}</li>
                       ))}
                     </ol>

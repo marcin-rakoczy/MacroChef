@@ -42,6 +42,7 @@ jobs:
           node tests/environment.test.js
           node tests/header-navigation.test.js
           node tests/recipe-image-ai.test.js
+          node tests/recipe-steps-normalization.test.js
 
   # ============================================================================
   # BUILD JOB - For all branches (Cloudflare Pages deploys automatically)
@@ -96,6 +97,7 @@ jobs:
           node tests/environment.test.js
           node tests/header-navigation.test.js
           node tests/recipe-image-ai.test.js
+          node tests/recipe-steps-normalization.test.js
           node tests/version.test.js
 
       - name: Bump version and build
