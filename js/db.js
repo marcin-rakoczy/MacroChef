@@ -21,7 +21,6 @@ window.MacroChef = window.MacroChef || {};
     savePlannerSlot(dayKey, currentDayPlan, mealType, recipeId) {
       throw new Error('savePlannerSlot() must be implemented');
     }
-    clearPlanner() { throw new Error('clearPlanner() must be implemented'); }
     saveGoals(goals) { throw new Error('saveGoals() must be implemented'); }
     saveProduct(productData) { throw new Error('saveProduct() must be implemented'); }
     deleteProduct(id) { throw new Error('deleteProduct() must be implemented'); }
@@ -612,29 +611,6 @@ window.MacroChef = window.MacroChef || {};
         const { id, dayKey: savedDay, ...plan } = updated;
         return plan;
       });
-    }
-
-    async clearPlanner() {
-      const days = window.MacroChef.DAYS_KEYS || [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
-      ];
-      await this.mutations.transaction([this.db.plannerEntries], async ({ put, update, delete: remove }) => {
-        const existing = await this.db.plannerEntries.toArray();
-        for (const plan of existing) {
-          if (!days.includes(plan.dayKey)) await remove(this.db.plannerEntries, plan.id);
-        }
-        for (const dayKey of days) {
-          const plan = existing.find((item) => item.dayKey === dayKey);
-          if (plan) {
-            const changes = {};
-            slots.forEach((slot) => { if (slot in plan) changes[slot] = undefined; });
-            if (Object.keys(changes).length) await update(this.db.plannerEntries, plan.id, changes);
-          } else {
-            await put(this.db.plannerEntries, { id: createId('plan'), dayKey });
-          }
-        }
-      });
-      return Object.fromEntries(days.map((dayKey) => [dayKey, {}]));
     }
 
     async saveGoals(goals) {

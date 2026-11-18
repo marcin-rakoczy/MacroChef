@@ -68,7 +68,14 @@
       (entry) => entry.action === 'update' && entry.table === 'recipes'
     );
     assert(replacement && replacement.payload.value.name === 'Updated recipe', 'Missing replacement payload');
-    await repository.clearPlanner();
+    const plansToClear = await db.plannerEntries.toArray();
+    for (const plannerDay of plansToClear) {
+      for (const slot of ['Breakfast', 'Lunch', 'Dinner', 'Snack']) {
+        if (plannerDay[slot]) {
+          await repository.savePlannerSlot(plannerDay.dayKey, plannerDay, slot, '');
+        }
+      }
+    }
     assert((await db.plannerEntries.toArray()).every((item) => !item.Breakfast && !item.Lunch), 'Clear planner failed');
 
     const failQueue = () => { throw new Error('Queue write failed'); };

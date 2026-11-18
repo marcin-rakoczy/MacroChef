@@ -149,10 +149,6 @@ window.MacroChef = window.MacroChef || {};
       );
     };
 
-    const handleClearWeek = async () => {
-      await repositories.clearPlanner();
-    };
-
     const requireRecipePermission = () => {
       if (!window.MacroChef.permissions.canManageRecipes(roleRef.current)) {
         throw new Error(t.recipesReadOnly);
@@ -260,7 +256,6 @@ window.MacroChef = window.MacroChef || {};
                 recipes={recipes}
                 goals={goals}
                 onAssignMeal={handleAssignMeal}
-                onClearWeek={handleClearWeek}
                 onCreateRecipe={canManageRecipes ? handleCreateRecipe : undefined}
               />
             )}
