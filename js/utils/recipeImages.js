@@ -24,6 +24,7 @@ window.MacroChef = window.MacroChef || {};
   const isUsableUrl = (value) => {
     if (typeof value !== 'string' || !value.trim()) return false;
     const url = value.trim();
+    if (/^data:image\/(webp|png|jpeg|jpg);base64,/i.test(url)) return true;
     if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../') || url.startsWith('images/')) return true;
     if (!/^https?:\/\//i.test(url) && !/^file:\/\//i.test(url)) return false;
     try {

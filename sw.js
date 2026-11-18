@@ -23,6 +23,7 @@ const STATIC_ASSETS = [
   './src/core/nutrition/calculations.js',
   './js/utils/shoppingAggregator.js',
   './js/supabaseClient.js',
+  './js/services/recipeImageAI.js',
   './js/auth.js',
   './js/permissions.js',
   './js/db.js',

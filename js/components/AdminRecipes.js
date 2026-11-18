@@ -11,6 +11,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [importSummary, setImportSummary] = useState(null);
+    const [imageProgress, setImageProgress] = useState(null);
     const [selected, setSelected] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState(null); // null = all
@@ -140,14 +141,18 @@ window.MacroChef.components = window.MacroChef.components || {};
 
         const existing = (await repository.getAllRecipes()) || [];
         const plan = window.MacroChef.recipeCsv.planRecipeImport(parsedRecipes, existing);
-        for (const recipe of plan.recipes) {
+        const processed = await window.MacroChef.recipeImageAI.processBatch(plan.recipes, {
+          onProgress: (current, total) => setImageProgress({ current, total }),
+          onStatus: () => {}
+        });
+        for (const recipe of processed) {
           await repository.saveRecipe(recipe);
         }
 
-        const saved = new Map(plan.recipes.map((r) => [r.id, r]));
+        const saved = new Map(processed.map((r) => [r.id, r]));
         setRecipes([
           ...existing.map((r) => saved.get(r.id) || r),
-          ...plan.recipes.filter((r) => !existing.some((e) => e.id === r.id))
+          ...processed.filter((r) => !existing.some((e) => e.id === r.id))
         ]);
         setImportSummary({ total: plan.total, added: plan.added, updated: plan.updated });
         event.target.value = '';
@@ -155,6 +160,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         setError(err.message || (t.importError || 'Failed to import recipes'));
         console.error('Import error:', err);
       } finally {
+        setImageProgress(null);
         setLoading(false);
       }
     };
@@ -206,6 +212,12 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;;"Rozgrzej masło na pateln
             >
               ×
             </button>
+          </div>
+        )}
+
+        {imageProgress && (
+          <div role="status" aria-live="polite" className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            {t.processingRecipeImages}: {imageProgress.current}/{imageProgress.total}
           </div>
         )}
 

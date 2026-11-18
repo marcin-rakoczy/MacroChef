@@ -72,4 +72,12 @@ window.MacroChef = window.MacroChef || {};
     reason: state.reason,
     environment: window.MacroChef.ENV
   };
+  window.MacroChef.AI_CONFIG = {
+    functionName: 'generate-recipe-image',
+    storageBucket: 'recipe-images',
+    imageSize: 1024,
+    maxUploadBytes: 12 * 1024 * 1024,
+    timeoutMs: 120000,
+    enabled: state.enabled
+  };
 })();

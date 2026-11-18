@@ -21,6 +21,7 @@ const filesToBundle = [
   '../src/core/nutrition/calculations.js',
   'utils/shoppingAggregator.js',
   'supabaseClient.js',
+  'services/recipeImageAI.js',
   'auth.js',
   'permissions.js',
   'db.js',

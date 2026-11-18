@@ -49,6 +49,11 @@ window.MacroChef.components = window.MacroChef.components || {};
         ]
       };
     });
+    const [imageChanged, setImageChanged] = React.useState(false);
+    const [imageReady, setImageReady] = React.useState(false);
+    const [imageBusy, setImageBusy] = React.useState(false);
+    const [imageStatus, setImageStatus] = React.useState('');
+    const fileInputRef = React.useRef(null);
 
     // Lidl Products Catalog State
     const productQuery = window.MacroChef.useRepositoryQuery(
@@ -227,9 +232,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     };
 
     // Submit Recipe
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
       e.preventDefault();
-      if (!formData.name.trim()) return;
+      if (!formData.name.trim() || imageBusy) return;
 
       const altLang = lang === 'en' ? 'pl' : 'en';
 
@@ -270,7 +275,67 @@ window.MacroChef.components = window.MacroChef.components || {};
         }
       };
 
-      onSave(formattedRecipe);
+      setImageBusy(true);
+      try {
+        const processed = imageReady ? formattedRecipe : await window.MacroChef.recipeImageAI.processRecipeImage(formattedRecipe, {
+          originalRecipe: editingRecipe,
+          force: imageChanged,
+          changed: imageChanged,
+          onStatus: (status) => setImageStatus(t[status])
+        });
+        setFormData((current) => ({ ...current, imageUrl: processed.imageUrl }));
+        await onSave(processed);
+      } finally {
+        setImageBusy(false);
+        setImageStatus('');
+      }
+    };
+
+    const handleImageFile = async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      setImageBusy(true);
+      setImageStatus(t.preparingRecipeImage);
+      try {
+        const imageUrl = await window.MacroChef.recipeImageAI.prepareFile(file);
+        setFormData((current) => ({ ...current, imageUrl }));
+        setImageChanged(true);
+        setImageReady(false);
+      } catch (error) {
+        window.alert(`${t.recipeImageError}: ${error.message}`);
+      } finally {
+        setImageBusy(false);
+        setImageStatus('');
+        event.target.value = '';
+      }
+    };
+
+    const buildCurrentRecipe = () => ({
+      id: formData.id,
+      name: { [lang]: formData.name, [lang === 'pl' ? 'en' : 'pl']: formData.name },
+      category: { [lang]: formData.category, [lang === 'pl' ? 'en' : 'pl']: formData.category },
+      ingredients: formData.ingredients
+        .filter((ingredient) => ingredient.name && ingredient.name.trim())
+        .map((ingredient) => ({
+          ...ingredient,
+          name: { [lang]: ingredient.name, [lang === 'pl' ? 'en' : 'pl']: ingredient.name }
+        })),
+      description: formData.steps.join(' ')
+    });
+
+    const handleRegenerate = async () => {
+      if (imageBusy) return;
+      setImageBusy(true);
+      try {
+        setImageStatus(t.generatingRecipeImage);
+        const imageUrl = await window.MacroChef.recipeImageAI.generateRecipeImage(buildCurrentRecipe());
+        setFormData((current) => ({ ...current, imageUrl }));
+        setImageChanged(true);
+        setImageReady(true);
+      } finally {
+        setImageBusy(false);
+        setImageStatus('');
+      }
     };
 
     const productCategories = [
@@ -344,7 +409,11 @@ window.MacroChef.components = window.MacroChef.components || {};
                   type="text"
                   inputMode="url"
                   value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, imageUrl: e.target.value });
+                    setImageChanged(true);
+                    setImageReady(false);
+                  }}
                   placeholder="https://..."
                   className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
@@ -358,6 +427,38 @@ window.MacroChef.components = window.MacroChef.components || {};
                   className="w-full h-full object-cover"
                 />
               </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleImageFile}
+              />
+              <button
+                type="button"
+                disabled={imageBusy}
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                <Icon name="image-plus" className="w-4 h-4" />
+                <span>{t.changeRecipeImage}</span>
+              </button>
+              <button
+                type="button"
+                disabled={imageBusy || !formData.name.trim()}
+                onClick={handleRegenerate}
+                className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-4 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50"
+              >
+                <Icon name="sparkles" className="w-4 h-4" />
+                <span>{t.regenerateRecipeImage}</span>
+              </button>
+              {imageBusy && (
+                <span role="status" className="self-center text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                  {imageStatus || t.processingRecipeImage}
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -756,7 +857,8 @@ window.MacroChef.components = window.MacroChef.components || {};
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-md shadow-emerald-500/20 transition-all"
+                disabled={imageBusy}
+                className="px-6 py-2.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl shadow-md shadow-emerald-500/20 transition-all"
               >
                 {t.saveRecipe}
               </button>

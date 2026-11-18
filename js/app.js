@@ -88,6 +88,20 @@ window.MacroChef = window.MacroChef || {};
     }, [canManageRecipes]);
 
     useEffect(() => {
+      const saveRetriedImage = async (event) => {
+        if (!event.detail || !event.detail.id) return;
+        try {
+          await repositories.saveRecipe(event.detail);
+        } catch (error) {
+          console.error('Could not save retried recipe image:', error);
+        }
+      };
+      window.addEventListener('macrochef:recipe-image-ready', saveRetriedImage);
+      window.MacroChef.recipeImageAI.processQueue();
+      return () => window.removeEventListener('macrochef:recipe-image-ready', saveRetriedImage);
+    }, [repositories]);
+
+    useEffect(() => {
       document.documentElement.setAttribute('data-color-theme', colorTheme);
 
       // Update mobile status bar theme-color
@@ -174,7 +188,8 @@ window.MacroChef = window.MacroChef || {};
 
     const handleImportRecipes = async (recipeData) => {
       requireRecipePermission();
-      await repositories.saveRecipes(recipeData);
+      const processed = await window.MacroChef.recipeImageAI.processBatch(recipeData);
+      await repositories.saveRecipes(processed);
     };
 
     const handleDeleteRecipe = async (id) => {

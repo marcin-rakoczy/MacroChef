@@ -7303,6 +7303,15 @@ window.MacroChef.TRANSLATIONS = {
     recipeName: 'Recipe Name',
     recipeImageUrl: 'Recipe image URL',
     recipeImageHint: 'Use a direct, square-friendly image URL. A local placeholder is used when empty or unavailable.',
+    processingRecipeImages: 'Processing recipe images',
+    processingRecipeImage: 'Processing recipe image...',
+    preparingRecipeImage: 'Preparing image...',
+    verifyingRecipeImage: 'Verifying image...',
+    restylizingRecipeImage: 'Applying MacroChef AI style...',
+    generatingRecipeImage: 'Generating dish image...',
+    changeRecipeImage: 'Change image',
+    regenerateRecipeImage: 'Regenerate with AI',
+    recipeImageError: 'Could not process recipe image',
     noRecipeImage: 'No image',
     viewRecipe: 'View recipe',
     category: 'Category',
@@ -7590,6 +7599,15 @@ window.MacroChef.TRANSLATIONS = {
     recipeName: 'Nazwa Przepisu',
     recipeImageUrl: 'Adres URL zdjęcia przepisu',
     recipeImageHint: 'Podaj bezpośredni adres zdjęcia. Gdy pole jest puste lub obraz niedostępny, używany jest lokalny placeholder.',
+    processingRecipeImages: 'Przetwarzanie zdjęć przepisów',
+    processingRecipeImage: 'Przetwarzanie zdjęcia przepisu...',
+    preparingRecipeImage: 'Przygotowywanie zdjęcia...',
+    verifyingRecipeImage: 'Weryfikacja obrazu...',
+    restylizingRecipeImage: 'Stylizowanie AI...',
+    generatingRecipeImage: 'Generowanie zdjęcia dania...',
+    changeRecipeImage: 'Zmień zdjęcie',
+    regenerateRecipeImage: 'Wygeneruj ponownie AI',
+    recipeImageError: 'Nie udało się przetworzyć zdjęcia przepisu',
     noRecipeImage: 'Brak zdjęcia',
     viewRecipe: 'Zobacz przepis',
     category: 'Kategoria',
@@ -7932,6 +7950,7 @@ window.MacroChef = window.MacroChef || {};
   const isUsableUrl = (value) => {
     if (typeof value !== 'string' || !value.trim()) return false;
     const url = value.trim();
+    if (/^data:image\/(webp|png|jpeg|jpg);base64,/i.test(url)) return true;
     if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../') || url.startsWith('images/')) return true;
     if (!/^https?:\/\//i.test(url) && !/^file:\/\//i.test(url)) return false;
     try {
@@ -8636,6 +8655,293 @@ window.MacroChef = window.MacroChef || {};
     mode: state.mode,
     reason: state.reason,
     environment: window.MacroChef.ENV
+  };
+  window.MacroChef.AI_CONFIG = {
+    functionName: 'generate-recipe-image',
+    storageBucket: 'recipe-images',
+    imageSize: 1024,
+    maxUploadBytes: 12 * 1024 * 1024,
+    timeoutMs: 120000,
+    enabled: state.enabled
+  };
+})();
+
+
+// ==========================================
+// File: services/recipeImageAI.js
+// ==========================================
+// Configurable AI verification, generation and style harmonization for recipe images
+window.MacroChef = window.MacroChef || {};
+
+(function () {
+  const SIGNATURE_STYLE = {
+    name: 'MacroChef Signature Food Photography Style',
+    prompt: [
+      'Editorial commercial food photography, hyper-photorealistic, appetizing and mouth-watering.',
+      'Warm natural directional morning daylight, 85mm f/2.8 lens look, shallow depth of field.',
+      'Crisp fresh ingredients, realistic steam and texture highlights, clean modern ceramic tableware.',
+      'Bright minimalist stone or wooden kitchen surface, subtle fresh herbs and garnish matching the ingredients.',
+      'Accurate dish identity, square 1:1 composition, no text, labels, logos or watermarks.'
+    ].join(' ')
+  };
+  const QUEUE_KEY = 'macrochef_recipe_image_ai_queue';
+  const config = window.MacroChef.AI_CONFIG || {};
+  const listeners = new Set();
+  let processingQueue = false;
+
+  const localizedText = (value, lang = 'pl') => {
+    if (value && typeof value === 'object') return value[lang] || value.pl || value.en || '';
+    return value || '';
+  };
+  const ingredientNames = (recipe) => (recipe.ingredients || [])
+    .map((ingredient) => localizedText(ingredient.name))
+    .filter(Boolean);
+  const buildPrompt = (recipe) => {
+    const ingredients = ingredientNames(recipe);
+    return `${SIGNATURE_STYLE.prompt} Photograph: ${localizedText(recipe.name) || 'a recipe'}. ` +
+      `Category: ${localizedText(recipe.category) || 'meal'}. ` +
+      (recipe.description ? `Description: ${recipe.description}. ` : '') +
+      (ingredients.length ? `Use and accurately represent: ${ingredients.join(', ')}. ` : '') +
+      'Avoid invented dishes and omit the listed garnish if it does not belong to the recipe.';
+  };
+  const notify = (status) => listeners.forEach((listener) => listener(status));
+  const hasClient = () => Boolean(window.MacroChef.supabaseClient);
+  const online = () => navigator.onLine !== false;
+  const canCallProvider = () => hasClient() && online() && config.enabled !== false;
+  const isPlaceholder = (source) => !source ||
+    source === window.MacroChef.recipeImages.DEFAULT_IMAGE_URL;
+
+  const readQueue = () => {
+    try {
+      const value = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch (error) {
+      console.warn('Could not read recipe image AI queue:', error);
+      return [];
+    }
+  };
+  const writeQueue = (queue) => {
+    try {
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    } catch (error) {
+      console.warn('Could not persist recipe image AI queue:', error);
+    }
+  };
+  const enqueue = (recipe, operation, imageSource) => {
+    const queue = readQueue();
+    if (queue.some((item) => item.recipe.id === recipe.id && item.operation === operation &&
+      item.imageSource === imageSource)) return;
+    queue.push({
+      recipe: { ...recipe, ingredients: (recipe.ingredients || []).map((item) => ({ ...item })) },
+      operation,
+      imageSource,
+      attempts: 0,
+      queuedAt: Date.now()
+    });
+    writeQueue(queue);
+  };
+
+  async function invokeProvider(operation, recipe, imageSource) {
+    if (!canCallProvider()) throw new Error('AI provider unavailable');
+    const client = window.MacroChef.supabaseClient;
+    const invocation = client.functions.invoke(config.functionName || 'generate-recipe-image', {
+      body: {
+        operation,
+        recipe: {
+          id: recipe.id,
+          name: recipe.name,
+          category: recipe.category,
+          description: recipe.description || '',
+          ingredients: recipe.ingredients || []
+        },
+        imageSource: imageSource || null,
+        prompt: buildPrompt(recipe),
+        style: SIGNATURE_STYLE
+      }
+    });
+    const timeout = Number(config.timeoutMs) || 120000;
+    const result = await Promise.race([
+      invocation,
+      new Promise((resolve, reject) => setTimeout(
+        () => reject(new Error('AI provider timed out')),
+        timeout
+      ))
+    ]);
+    if (result.error) throw result.error;
+    return result.data || {};
+  }
+
+  async function dataUrlToBlob(dataUrl) {
+    const response = await fetch(dataUrl);
+    return await response.blob();
+  }
+
+  async function persistImage(result, recipe) {
+    const source = result.imageUrl || result.imageDataUrl || result.dataUrl;
+    if (!source) throw new Error('AI provider returned no image');
+    if (!String(source).startsWith('data:') || !hasClient() || !online()) return source;
+    const userResult = await window.MacroChef.supabaseClient.auth.getUser();
+    if (userResult.error || !userResult.data.user) return source;
+    const blob = await dataUrlToBlob(source);
+    const safeId = recipe.id || window.crypto.randomUUID();
+    const path = `${userResult.data.user.id}/${safeId}-${Date.now()}.webp`;
+    const upload = await window.MacroChef.supabaseClient.storage
+      .from(config.storageBucket || 'recipe-images')
+      .upload(path, blob, { contentType: blob.type || 'image/webp', upsert: true });
+    if (upload.error) throw upload.error;
+    const publicUrl = window.MacroChef.supabaseClient.storage
+      .from(config.storageBucket || 'recipe-images')
+      .getPublicUrl(path);
+    return publicUrl.data.publicUrl;
+  }
+
+  const fallback = (recipe, imageSource) => {
+    if (imageSource && !isPlaceholder(imageSource)) return imageSource;
+    return window.MacroChef.recipeImages.categoryImage(recipe.category);
+  };
+
+  async function verifyRecipeImage(imageSource, recipe) {
+    if (isPlaceholder(imageSource)) return { valid: false, matchesRecipe: false, matchesStyle: false, reason: 'placeholder' };
+    try {
+      const result = await invokeProvider('verify', recipe, imageSource);
+      return {
+        valid: result.valid !== false,
+        matchesRecipe: result.matchesRecipe !== false,
+        matchesStyle: result.matchesStyle === true,
+        reason: result.reason || '',
+        providerAvailable: true
+      };
+    } catch (error) {
+      console.warn('Recipe image verification unavailable:', error);
+      return {
+        valid: Boolean(imageSource),
+        matchesRecipe: false,
+        matchesStyle: false,
+        reason: error.message,
+        providerAvailable: false
+      };
+    }
+  }
+
+  async function restylizeRecipeImage(imageSource, recipe) {
+    if (!imageSource || isPlaceholder(imageSource)) return generateRecipeImage(recipe);
+    try {
+      const result = await invokeProvider('restylize', recipe, imageSource);
+      return await persistImage(result, recipe);
+    } catch (error) {
+      enqueue(recipe, 'restylize', imageSource);
+      console.warn('Recipe image restyling queued:', error);
+      return fallback(recipe, imageSource);
+    }
+  }
+
+  async function generateRecipeImage(recipe) {
+    try {
+      const result = await invokeProvider('generate', recipe, null);
+      return await persistImage(result, recipe);
+    } catch (error) {
+      enqueue(recipe, 'generate', null);
+      console.warn('Recipe image generation queued:', error);
+      return fallback(recipe);
+    }
+  }
+
+  async function processRecipeImage(recipe, options = {}) {
+    const originalImage = options.originalRecipe && options.originalRecipe.imageUrl;
+    const imageChanged = options.force === true ||
+      (options.changed !== undefined
+        ? options.changed
+        : (!options.originalRecipe ? true : recipe.imageUrl !== originalImage));
+    if (!imageChanged && options.originalRecipe) return { ...recipe, imageUrl: originalImage };
+    const report = options.onStatus || (() => {});
+    const source = recipe.imageUrl;
+    let verification;
+    let imageUrl;
+    if (source && !isPlaceholder(source)) {
+      report('verifyingRecipeImage');
+      verification = await verifyRecipeImage(source, recipe);
+      if (verification.providerAvailable !== false &&
+          (!verification.valid || !verification.matchesRecipe)) {
+        report('generatingRecipeImage');
+        imageUrl = await generateRecipeImage(recipe);
+      } else {
+        report('restylizingRecipeImage');
+        imageUrl = await restylizeRecipeImage(source, recipe);
+      }
+    } else {
+      report('generatingRecipeImage');
+      imageUrl = await generateRecipeImage(recipe);
+    }
+    return { ...recipe, imageUrl, imageVerification: verification || null };
+  }
+
+  async function processBatch(recipes, options = {}) {
+    const results = [];
+    for (let index = 0; index < recipes.length; index++) {
+      notify({ current: index + 1, total: recipes.length, recipe: recipes[index] });
+      if (options.onProgress) options.onProgress(index + 1, recipes.length, recipes[index]);
+      results.push(await processRecipeImage(recipes[index], {
+        onStatus: (status) => options.onStatus && options.onStatus(status, index + 1, recipes.length)
+      }));
+    }
+    return results;
+  }
+
+  async function processQueue() {
+    if (processingQueue || !canCallProvider()) return;
+    processingQueue = true;
+    const queue = readQueue();
+    const remaining = [];
+    try {
+      for (const item of queue) {
+        try {
+          const processed = await processRecipeImage({
+            ...item.recipe,
+            imageUrl: item.imageSource || window.MacroChef.recipeImages.DEFAULT_IMAGE_URL
+          }, { force: true });
+          window.dispatchEvent(new CustomEvent('macrochef:recipe-image-ready', { detail: processed }));
+        } catch (error) {
+          remaining.push({ ...item, attempts: item.attempts + 1 });
+        }
+      }
+      writeQueue(remaining);
+    } finally {
+      processingQueue = false;
+    }
+  }
+
+  async function prepareFile(file) {
+    if (!file || !file.type.startsWith('image/')) throw new TypeError('An image file is required');
+    const maxBytes = Number(config.maxUploadBytes) || 12 * 1024 * 1024;
+    if (file.size > maxBytes) throw new Error('Recipe image is too large');
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    const size = Math.min(Number(config.imageSize) || 1024, bitmap.width, bitmap.height);
+    canvas.width = size;
+    canvas.height = size;
+    const side = Math.min(bitmap.width, bitmap.height);
+    const sourceX = (bitmap.width - side) / 2;
+    const sourceY = (bitmap.height - side) / 2;
+    canvas.getContext('2d').drawImage(bitmap, sourceX, sourceY, side, side, 0, 0, size, size);
+    bitmap.close();
+    return canvas.toDataURL('image/webp', 0.86);
+  }
+
+  window.addEventListener('online', () => processQueue());
+  window.MacroChef.recipeImageAI = {
+    SIGNATURE_STYLE,
+    buildPrompt,
+    verifyRecipeImage,
+    restylizeRecipeImage,
+    generateRecipeImage,
+    processRecipeImage,
+    processBatch,
+    processQueue,
+    prepareFile,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }
   };
 })();
 
@@ -13325,6 +13631,11 @@ window.MacroChef.components = window.MacroChef.components || {};
         ]
       };
     });
+    const [imageChanged, setImageChanged] = React.useState(false);
+    const [imageReady, setImageReady] = React.useState(false);
+    const [imageBusy, setImageBusy] = React.useState(false);
+    const [imageStatus, setImageStatus] = React.useState('');
+    const fileInputRef = React.useRef(null);
 
     // Lidl Products Catalog State
     const productQuery = window.MacroChef.useRepositoryQuery(
@@ -13503,9 +13814,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     };
 
     // Submit Recipe
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
       e.preventDefault();
-      if (!formData.name.trim()) return;
+      if (!formData.name.trim() || imageBusy) return;
 
       const altLang = lang === 'en' ? 'pl' : 'en';
 
@@ -13546,7 +13857,67 @@ window.MacroChef.components = window.MacroChef.components || {};
         }
       };
 
-      onSave(formattedRecipe);
+      setImageBusy(true);
+      try {
+        const processed = imageReady ? formattedRecipe : await window.MacroChef.recipeImageAI.processRecipeImage(formattedRecipe, {
+          originalRecipe: editingRecipe,
+          force: imageChanged,
+          changed: imageChanged,
+          onStatus: (status) => setImageStatus(t[status])
+        });
+        setFormData((current) => ({ ...current, imageUrl: processed.imageUrl }));
+        await onSave(processed);
+      } finally {
+        setImageBusy(false);
+        setImageStatus('');
+      }
+    };
+
+    const handleImageFile = async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      setImageBusy(true);
+      setImageStatus(t.preparingRecipeImage);
+      try {
+        const imageUrl = await window.MacroChef.recipeImageAI.prepareFile(file);
+        setFormData((current) => ({ ...current, imageUrl }));
+        setImageChanged(true);
+        setImageReady(false);
+      } catch (error) {
+        window.alert(`${t.recipeImageError}: ${error.message}`);
+      } finally {
+        setImageBusy(false);
+        setImageStatus('');
+        event.target.value = '';
+      }
+    };
+
+    const buildCurrentRecipe = () => ({
+      id: formData.id,
+      name: { [lang]: formData.name, [lang === 'pl' ? 'en' : 'pl']: formData.name },
+      category: { [lang]: formData.category, [lang === 'pl' ? 'en' : 'pl']: formData.category },
+      ingredients: formData.ingredients
+        .filter((ingredient) => ingredient.name && ingredient.name.trim())
+        .map((ingredient) => ({
+          ...ingredient,
+          name: { [lang]: ingredient.name, [lang === 'pl' ? 'en' : 'pl']: ingredient.name }
+        })),
+      description: formData.steps.join(' ')
+    });
+
+    const handleRegenerate = async () => {
+      if (imageBusy) return;
+      setImageBusy(true);
+      try {
+        setImageStatus(t.generatingRecipeImage);
+        const imageUrl = await window.MacroChef.recipeImageAI.generateRecipeImage(buildCurrentRecipe());
+        setFormData((current) => ({ ...current, imageUrl }));
+        setImageChanged(true);
+        setImageReady(true);
+      } finally {
+        setImageBusy(false);
+        setImageStatus('');
+      }
     };
 
     const productCategories = [
@@ -13620,7 +13991,11 @@ window.MacroChef.components = window.MacroChef.components || {};
                   type="text"
                   inputMode="url"
                   value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, imageUrl: e.target.value });
+                    setImageChanged(true);
+                    setImageReady(false);
+                  }}
                   placeholder="https://..."
                   className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
@@ -13634,6 +14009,38 @@ window.MacroChef.components = window.MacroChef.components || {};
                   className="w-full h-full object-cover"
                 />
               </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleImageFile}
+              />
+              <button
+                type="button"
+                disabled={imageBusy}
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+              >
+                <Icon name="image-plus" className="w-4 h-4" />
+                <span>{t.changeRecipeImage}</span>
+              </button>
+              <button
+                type="button"
+                disabled={imageBusy || !formData.name.trim()}
+                onClick={handleRegenerate}
+                className="min-h-11 inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-4 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50"
+              >
+                <Icon name="sparkles" className="w-4 h-4" />
+                <span>{t.regenerateRecipeImage}</span>
+              </button>
+              {imageBusy && (
+                <span role="status" className="self-center text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                  {imageStatus || t.processingRecipeImage}
+                </span>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -14032,7 +14439,8 @@ window.MacroChef.components = window.MacroChef.components || {};
               </button>
               <button
                 type="submit"
-                className="px-6 py-2.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-md shadow-emerald-500/20 transition-all"
+                disabled={imageBusy}
+                className="px-6 py-2.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl shadow-md shadow-emerald-500/20 transition-all"
               >
                 {t.saveRecipe}
               </button>
@@ -14593,6 +15001,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [importSummary, setImportSummary] = useState(null);
+    const [imageProgress, setImageProgress] = useState(null);
     const [selected, setSelected] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState(null); // null = all
@@ -14722,14 +15131,18 @@ window.MacroChef.components = window.MacroChef.components || {};
 
         const existing = (await repository.getAllRecipes()) || [];
         const plan = window.MacroChef.recipeCsv.planRecipeImport(parsedRecipes, existing);
-        for (const recipe of plan.recipes) {
+        const processed = await window.MacroChef.recipeImageAI.processBatch(plan.recipes, {
+          onProgress: (current, total) => setImageProgress({ current, total }),
+          onStatus: () => {}
+        });
+        for (const recipe of processed) {
           await repository.saveRecipe(recipe);
         }
 
-        const saved = new Map(plan.recipes.map((r) => [r.id, r]));
+        const saved = new Map(processed.map((r) => [r.id, r]));
         setRecipes([
           ...existing.map((r) => saved.get(r.id) || r),
-          ...plan.recipes.filter((r) => !existing.some((e) => e.id === r.id))
+          ...processed.filter((r) => !existing.some((e) => e.id === r.id))
         ]);
         setImportSummary({ total: plan.total, added: plan.added, updated: plan.updated });
         event.target.value = '';
@@ -14737,6 +15150,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         setError(err.message || (t.importError || 'Failed to import recipes'));
         console.error('Import error:', err);
       } finally {
+        setImageProgress(null);
         setLoading(false);
       }
     };
@@ -14788,6 +15202,12 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;;"Rozgrzej masło na pateln
             >
               ×
             </button>
+          </div>
+        )}
+
+        {imageProgress && (
+          <div role="status" aria-live="polite" className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            {t.processingRecipeImages}: {imageProgress.current}/{imageProgress.total}
           </div>
         )}
 
@@ -15662,6 +16082,20 @@ window.MacroChef = window.MacroChef || {};
     }, [canManageRecipes]);
 
     useEffect(() => {
+      const saveRetriedImage = async (event) => {
+        if (!event.detail || !event.detail.id) return;
+        try {
+          await repositories.saveRecipe(event.detail);
+        } catch (error) {
+          console.error('Could not save retried recipe image:', error);
+        }
+      };
+      window.addEventListener('macrochef:recipe-image-ready', saveRetriedImage);
+      window.MacroChef.recipeImageAI.processQueue();
+      return () => window.removeEventListener('macrochef:recipe-image-ready', saveRetriedImage);
+    }, [repositories]);
+
+    useEffect(() => {
       document.documentElement.setAttribute('data-color-theme', colorTheme);
 
       // Update mobile status bar theme-color
@@ -15748,7 +16182,8 @@ window.MacroChef = window.MacroChef || {};
 
     const handleImportRecipes = async (recipeData) => {
       requireRecipePermission();
-      await repositories.saveRecipes(recipeData);
+      const processed = await window.MacroChef.recipeImageAI.processBatch(recipeData);
+      await repositories.saveRecipes(processed);
     };
 
     const handleDeleteRecipe = async (id) => {
