@@ -11717,13 +11717,15 @@ window.MacroChef.components = window.MacroChef.components || {};
                   }`}
                 >
                   <div>
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-3 pb-2 sm:pb-3 border-b border-slate-100 dark:border-slate-700/60 mb-2 sm:mb-3">
+                    <div className="h-20 sm:h-[4.75rem] md:h-[5rem] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-3 pb-2 sm:pb-3 border-b border-slate-100 dark:border-slate-700/60 mb-2 sm:mb-3">
                       <div className="min-w-0">
-                        {relativeLabel && (
-                          <span className="inline-flex max-w-full mb-1 sm:mb-1.5 px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-tight sm:tracking-wide bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 truncate">
-                            {relativeLabel}
-                          </span>
-                        )}
+                        <div className="h-4 sm:h-5">
+                          {relativeLabel && (
+                            <span className="inline-flex max-w-full px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-tight sm:tracking-wide bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 truncate">
+                              {relativeLabel}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs sm:text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 capitalize truncate">
                           {formattedDate}
                         </div>
@@ -11764,19 +11766,26 @@ window.MacroChef.components = window.MacroChef.components || {};
                             </div>
 
                             {!recipe ? (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, '')}
-                                className="w-full min-w-0 group py-1.5 sm:py-2 px-1 sm:px-3 rounded-lg sm:rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400 bg-white/70 dark:bg-slate-800/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1 sm:gap-2 text-[9px] sm:text-[11px] font-semibold cursor-pointer shadow-none hover:shadow-sm"
-                              >
-                                <div className="hidden sm:flex w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 items-center justify-center group-hover:scale-110 transition-transform">
-                                  <Icon name="plus" className="w-3.5 h-3.5" />
-                                </div>
-                                <span className="truncate">
+                              <div className="min-w-0 bg-white/70 dark:bg-slate-800/60 rounded-lg sm:rounded-xl border border-dashed border-slate-300 dark:border-slate-700 overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, '')}
+                                  className="w-full aspect-square group text-slate-500 dark:text-slate-400 hover:border-emerald-500 dark:hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 hover:text-emerald-600 dark:hover:text-emerald-400 transition-all flex items-center justify-center gap-1 sm:gap-2 text-[9px] sm:text-[11px] font-semibold cursor-pointer"
+                                >
                                   <span className="sm:hidden">+ {t.addShort}</span>
-                                  <span className="hidden sm:inline">+ {t.selectFromLibrary || 'Wybierz z biblioteki'}</span>
-                                </span>
-                              </button>
+                                  <span className="hidden sm:inline-flex items-center gap-2">
+                                    <span className="w-5 h-5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                      <Icon name="plus" className="w-3.5 h-3.5" />
+                                    </span>
+                                    + {t.selectFromLibrary || 'Wybierz z biblioteki'}
+                                  </span>
+                                </button>
+                                <div className="h-[3.75rem] sm:h-20 md:h-24 border-t border-dashed border-slate-200 dark:border-slate-700 p-1.5 sm:p-2.5 flex items-end">
+                                  <span className="text-[9px] sm:text-[11px] text-slate-400 dark:text-slate-500">
+                                    {slot.label}
+                                  </span>
+                                </div>
+                              </div>
                             ) : (
                               <div
                                 className="min-w-0 bg-white dark:bg-slate-800 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors overflow-hidden"
@@ -11792,19 +11801,19 @@ window.MacroChef.components = window.MacroChef.components || {};
                                   />
                                 </div>
 
-                                <div className="p-1.5 sm:p-2.5 min-w-0">
-                                  <div className="min-w-0 mb-1 sm:mb-1.5">
+                                <div className="h-[3.75rem] sm:h-20 md:h-24 p-1.5 sm:p-2.5 min-w-0 flex flex-col">
+                                  <div className="h-7 sm:h-[1.875rem] md:h-10 min-w-0 mb-1 sm:mb-1.5 shrink-0">
                                   <button
                                     type="button"
                                     onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, assignedId)}
-                                    className="block w-full min-w-0 text-left text-[11px] sm:text-xs md:text-sm font-semibold text-slate-800 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 leading-tight whitespace-normal break-words transition-colors"
+                                    className="meal-title-clamp block w-full h-7 sm:h-[1.875rem] md:h-10 min-w-0 text-left text-[11px] sm:text-xs md:text-sm font-semibold text-slate-800 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 leading-[0.875rem] sm:leading-[0.9375rem] md:leading-5 whitespace-normal break-words transition-colors"
                                     title={getLocalized(recipe.name, lang)}
                                   >
                                     {getLocalized(recipe.name, lang)}
                                   </button>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-1">
+                                  <div className="mt-auto flex items-center justify-between gap-1 min-h-4">
                                     <span className="text-[9px] sm:text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                                       {recipe.calories} kcal
                                     </span>
@@ -11834,7 +11843,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                                     </div>
                                   </div>
 
-                                  <div className="hidden md:flex items-center justify-between gap-1 text-[11px] text-slate-500 dark:text-slate-400 min-w-0 mt-1">
+                                  <div className="hidden md:flex h-4 items-center justify-between gap-1 text-[11px] text-slate-500 dark:text-slate-400 min-w-0 mt-1">
                                   <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                                     B:{recipe.protein} | W:{recipe.carbs} | T:{recipe.fats}
                                   </span>
