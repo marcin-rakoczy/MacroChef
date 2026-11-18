@@ -57,20 +57,20 @@
       renderHeader(root, { onSignOut: async () => { signedOut = true; } });
       await waitFor(() => rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]'));
       rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]').click();
-      await waitFor(() => rootElement.querySelector('#macrochef-settings-drawer'));
-      const drawer = rootElement.querySelector('#macrochef-settings-drawer');
+      await waitFor(() => document.querySelector('#macrochef-settings-drawer'));
+      const drawer = document.querySelector('#macrochef-settings-drawer');
       assert(drawer.textContent.includes(session.email), 'Email is missing');
       assert(drawer.textContent.includes(window.MacroChef.TRANSLATIONS.en.authRoleAdmin), 'Role badge is missing');
       const signOut = Array.from(drawer.querySelectorAll('button'))
         .find((button) => button.textContent.includes(window.MacroChef.TRANSLATIONS.en.authSignOut));
       assert(signOut, 'Sign-out button is missing');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      await waitFor(() => !rootElement.querySelector('#macrochef-settings-drawer'));
+      await waitFor(() => !document.querySelector('#macrochef-settings-drawer'));
       rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]').click();
-      await waitFor(() => rootElement.querySelector('#macrochef-settings-drawer'));
-      Array.from(rootElement.querySelectorAll('#macrochef-settings-drawer button'))
+      await waitFor(() => document.querySelector('#macrochef-settings-drawer'));
+      Array.from(document.querySelectorAll('#macrochef-settings-drawer button'))
         .find((button) => button.textContent.includes(window.MacroChef.TRANSLATIONS.en.authSignOut)).click();
-      await waitFor(() => signedOut && !rootElement.querySelector('#macrochef-settings-drawer'));
+      await waitFor(() => signedOut && !document.querySelector('#macrochef-settings-drawer'));
     } finally {
       root.unmount();
     }
@@ -83,9 +83,9 @@
       renderHeader(root);
       await waitFor(() => rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]'));
       rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]').click();
-      await waitFor(() => rootElement.querySelector('.macrochef-drawer-backdrop'));
-      rootElement.querySelector('.macrochef-drawer-backdrop').click();
-      await waitFor(() => !rootElement.querySelector('#macrochef-settings-drawer'));
+      await waitFor(() => document.querySelector('.macrochef-drawer-backdrop'));
+      document.querySelector('.macrochef-drawer-backdrop').click();
+      await waitFor(() => !document.querySelector('#macrochef-settings-drawer'));
     } finally {
       root.unmount();
     }
@@ -99,8 +99,8 @@
       await waitFor(() => rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]'));
       assert(!rootElement.textContent.includes(`v${window.MacroChef.APP_VERSION}`), 'PROD header version is visible');
       rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]').click();
-      await waitFor(() => rootElement.querySelector('#macrochef-settings-drawer'));
-      assert(rootElement.querySelector('#macrochef-settings-drawer').textContent.includes(window.MacroChef.APP_VERSION),
+      await waitFor(() => document.querySelector('#macrochef-settings-drawer'));
+      assert(document.querySelector('#macrochef-settings-drawer').textContent.includes(window.MacroChef.APP_VERSION),
         'PROD mobile drawer version is missing');
     } finally {
       root.unmount();
@@ -118,6 +118,31 @@
       assert(current[0].textContent.includes(window.MacroChef.TRANSLATIONS.en.recipes), 'Wrong active page');
     } finally {
       root.unmount();
+    }
+  });
+
+  test('Drawer restores settings controls and fills the viewport', async () => {
+    window.MacroChef.ENV = 'TEST';
+    const root = ReactDOM.createRoot(rootElement);
+    try {
+      renderHeader(root);
+      await waitFor(() => rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]'));
+      rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]').click();
+      await waitFor(() => document.querySelector('#macrochef-settings-drawer'));
+      const drawer = document.querySelector('#macrochef-settings-drawer');
+      const text = drawer.textContent;
+      assert(text.includes(window.MacroChef.TRANSLATIONS.en.colorPalette), 'Color palette section missing');
+      assert(text.includes(window.MacroChef.TRANSLATIONS.en.theme), 'Theme section missing');
+      assert(text.includes(window.MacroChef.TRANSLATIONS.en.language), 'Language section missing');
+      assert(text.includes(session.email) && text.includes(window.MacroChef.TRANSLATIONS.en.authSignOut),
+        'Account section missing');
+      equal(Math.round(drawer.getBoundingClientRect().height), window.innerHeight, 'Drawer does not fill viewport');
+      const scrollBody = drawer.children[1];
+      equal(scrollBody.style.overflowY, 'auto', 'Drawer body is not scrollable');
+      assert(scrollBody.classList.contains('min-h-0'), 'Drawer body cannot shrink inside the viewport');
+    } finally {
+      root.unmount();
+      window.MacroChef.ENV = 'TEST';
     }
   });
 

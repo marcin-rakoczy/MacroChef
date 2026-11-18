@@ -18,11 +18,15 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const [signingOut, setSigningOut] = React.useState(false);
     const menuRef = React.useRef(null);
+    const drawerRef = React.useRef(null);
 
     // Close menu when clicking outside or pressing Escape
     React.useEffect(() => {
       function handleClickOutside(event) {
-        if (menuRef.current && !menuRef.current.contains(event.target)) {
+        if (
+          menuRef.current && !menuRef.current.contains(event.target) &&
+          drawerRef.current && !drawerRef.current.contains(event.target)
+        ) {
           setIsMenuOpen(false);
         }
       }
@@ -117,8 +121,8 @@ window.MacroChef.components = window.MacroChef.components || {};
               <Icon name={isMenuOpen ? 'x' : 'menu'} className="w-5 h-5" />
             </button>
 
-            {/* DROPDOWN MENU */}
-            {isMenuOpen && (
+            {/* DRAWER PORTAL: keep fixed positioning outside the blurred header containing block */}
+            {isMenuOpen && ReactDOM.createPortal(
               <>
                 <button
                   type="button"
@@ -129,12 +133,14 @@ window.MacroChef.components = window.MacroChef.components || {};
                 />
                 <aside
                   id="macrochef-settings-drawer"
+                  ref={drawerRef}
                   role="dialog"
                   aria-modal="true"
                   aria-label={t.settingsMenu || 'Settings menu'}
-                  className="macrochef-drawer fixed inset-y-0 right-0 z-50 w-[min(320px,calc(100vw-2rem))] md:w-80 overflow-y-auto bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-2xl p-4 space-y-4"
+                  style={{ height: '100vh', minHeight: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                  className="macrochef-drawer fixed inset-y-0 right-0 z-50 w-[min(320px,calc(100vw-2rem))] md:w-80 h-full min-h-screen flex flex-col bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3">
                     <h2 className="text-sm font-bold text-slate-900 dark:text-white">
                       {t.settingsMenu || 'Menu'}
                     </h2>
@@ -148,6 +154,10 @@ window.MacroChef.components = window.MacroChef.components || {};
                     </button>
                   </div>
 
+                  <div
+                    className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-4"
+                    style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}
+                  >
                   <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3.5">
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
@@ -179,7 +189,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     </button>
                   </section>
 
-                  <div className="h-px bg-slate-200/80 dark:bg-slate-700/80" />
+                  <div className="border-t border-slate-200/80 dark:border-slate-700/80" />
                 {/* 1. COLOR TONE / PALETTE SELECTION */}
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 px-1">
@@ -334,14 +344,16 @@ window.MacroChef.components = window.MacroChef.components || {};
 
                 {window.MacroChef.ENV === 'PROD' && (
                   <>
-                    <div className="h-px bg-slate-200/80 dark:bg-slate-700/80" />
-                    <div className="md:hidden pb-2 text-center text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                    <div className="border-t border-slate-200/80 dark:border-slate-700/80 mt-auto" />
+                    <div className="md:hidden shrink-0 pb-2 text-center text-[11px] font-medium text-slate-400 dark:text-slate-500">
                       MacroChef • {t.version || 'Version'} {window.MacroChef.APP_VERSION || '0.0.0'}
                     </div>
                   </>
                 )}
+                  </div>
                 </aside>
-              </>
+              </>,
+              document.body
             )}
           </div>
         </div>

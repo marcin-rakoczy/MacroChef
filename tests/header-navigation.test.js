@@ -14,6 +14,12 @@ const versionSource = read('js/data/appVersion.js');
 assert.match(header, /session,\s*onSignOut/, 'Header must receive the account session and sign-out callback');
 assert.doesNotMatch(header, /onOpenAuth/, 'Standalone account modal trigger must be removed');
 assert.match(header, /id="macrochef-settings-drawer"/, 'Hamburger menu must render the account drawer');
+assert.match(header, /ReactDOM\.createPortal/, 'Drawer must render outside the filtered header containing block');
+assert.match(header, /h-full min-h-screen flex flex-col/, 'Drawer must fill the viewport');
+assert.match(header, /flex-1 min-h-0 overflow-y-auto/, 'Drawer content must remain scrollable');
+assert.match(header, /themeEmerald[\s\S]*themeMono[\s\S]*themeViolet/, 'All palette controls must be restored');
+assert.match(header, /themeLight[\s\S]*themeDark[\s\S]*setLang\('pl'\)[\s\S]*setLang\('en'\)/,
+  'Theme and language controls must be restored');
 assert.match(header, /session\?\.email/, 'Drawer must display the signed-in email');
 assert.match(header, /authRole\$\{session\.role\}/, 'Drawer must display the localized role');
 assert.match(header, /onClick=\{handleSignOut\}/, 'Drawer must provide sign-out');
