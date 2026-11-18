@@ -5,6 +5,11 @@ window.MacroChef.components = window.MacroChef.components || {};
 (function () {
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
+  const normalizeImageUrl = (value) => window.MacroChef.recipeImages
+    ? window.MacroChef.recipeImages.normalizeUrl(value)
+    : (typeof value === 'string' && value.trim()
+      ? value.trim()
+      : 'images/no-recipe-image.svg');
 
   const normalizeHeader = (value) => value
     .trim()
@@ -77,6 +82,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       protein: ['protein', 'bialko', 'proteinperserving', 'bialkonaporcje'],
       carbs: ['carbs', 'carbohydrates', 'weglowodany', 'carbsperserving', 'weglowodanynaporcje'],
       fats: ['fats', 'fat', 'tluszcze', 'fatsperserving', 'tluszczenaporcje'],
+      imageUrl: ['imageurl', 'image', 'zdjecie', 'urlzdjecia', 'urlobrazu'],
       steps: ['steps', 'instructions', 'kroki']
     };
     const headerIndexes = new Map();
@@ -209,6 +215,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         protein: numberCell(cell(row, 'protein'), 'protein', rowNumber),
         carbs: numberCell(cell(row, 'carbs'), 'carbs', rowNumber),
         fats: numberCell(cell(row, 'fats'), 'fats', rowNumber),
+        imageUrl: normalizeImageUrl(cell(row, 'imageUrl')),
         ingredients,
         steps: { en: steps, pl: steps }
       };
@@ -229,6 +236,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [page, setPage] = React.useState(0);
     const [searchQuery, setSearchQuery] = React.useState('');
     const [selectedCategory, setSelectedCategory] = React.useState(null); // null = all
+    const [viewingRecipe, setViewingRecipe] = React.useState(null);
     const RECIPES_PER_PAGE = 12;
 
     // Get all unique categories with counts
@@ -367,6 +375,20 @@ window.MacroChef.components = window.MacroChef.components || {};
               key={rec.id}
               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
             >
+              <button
+                type="button"
+                onClick={() => setViewingRecipe(rec)}
+                aria-label={`${t.viewRecipe}: ${getLocalized(rec.name, lang)}`}
+                className="block aspect-square w-full overflow-hidden rounded-xl mb-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:ring-2 hover:ring-emerald-400 transition"
+              >
+                <img
+                  src={window.MacroChef.recipeImages.getUrl(rec)}
+                  onError={window.MacroChef.recipeImages.handleError}
+                  alt={getLocalized(rec.name, lang)}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </button>
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
@@ -378,9 +400,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </div>
                 </div>
 
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-1">
+                <button
+                  type="button"
+                  onClick={() => setViewingRecipe(rec)}
+                  className="font-bold text-base text-left text-slate-900 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 mb-1 transition-colors"
+                >
                   {getLocalized(rec.name, lang)}
-                </h3>
+                </button>
 
                 <div className="flex items-center gap-3 my-3 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl">
                   <div className="flex items-center gap-1.5 text-amber-500 font-bold text-sm">
@@ -467,6 +493,80 @@ window.MacroChef.components = window.MacroChef.components || {};
               >
                 {t.next || 'Next'} →
               </button>
+            </div>
+          </div>
+        )}
+
+        {viewingRecipe && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setViewingRecipe(null);
+            }}
+          >
+            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    {getLocalized(viewingRecipe.category, lang)}
+                  </p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {getLocalized(viewingRecipe.name, lang)}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingRecipe(null)}
+                  aria-label={t.close || t.cancel}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-100 dark:hover:bg-slate-700"
+                >
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[14rem_minmax(0,1fr)] gap-5">
+                <div className="aspect-square overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100">
+                  <img
+                    src={window.MacroChef.recipeImages.getUrl(viewingRecipe)}
+                    onError={window.MacroChef.recipeImages.handleError}
+                    alt={getLocalized(viewingRecipe.name, lang)}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    {[
+                      [t.calories, `${viewingRecipe.calories} kcal`],
+                      [t.protein, `${viewingRecipe.protein}g`],
+                      [t.carbs, `${viewingRecipe.carbs}g`],
+                      [t.fats, `${viewingRecipe.fats}g`]
+                    ].map(([label, value]) => (
+                      <div key={label} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/60">
+                        <span className="block text-[10px] text-slate-400">{label}</span>
+                        <strong className="text-slate-800 dark:text-slate-100">{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">{t.addedIngredients}</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                      {(viewingRecipe.ingredients || []).map((ingredient, index) => (
+                        <li key={`${ingredient.name}-${index}`}>
+                          {getLocalized(ingredient.name, lang)} — {ingredient.amount} {ingredient.unit}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">{t.cookingSteps}</h3>
+                    <ol className="list-decimal pl-5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      {(getLocalized(viewingRecipe.steps, lang) || []).map((step, index) => (
+                        <li key={`${step}-${index}`}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

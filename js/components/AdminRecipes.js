@@ -161,8 +161,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Download CSV template
     const handleDownloadTemplate = () => {
-      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
-Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3"`;;
+      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;urlZdjecia;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
+Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3"`;;
       const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -360,7 +360,16 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
                       />
                     </td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">
-                      {window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl')}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={window.MacroChef.recipeImages.getUrl(recipe)}
+                          onError={window.MacroChef.recipeImages.handleError}
+                          alt={getLocalized(recipe.name, lang)}
+                          loading="lazy"
+                          className="w-11 h-11 shrink-0 aspect-square object-cover rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100"
+                        />
+                        <span className="truncate">{getLocalized(recipe.name, lang)}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white">
                       {window.MacroChef.helpers.getLocalized(recipe.category, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl') || '-'}

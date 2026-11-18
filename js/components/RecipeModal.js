@@ -13,6 +13,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         return {
           id: editingRecipe.id,
           name: getLocalized(editingRecipe.name, lang),
+          imageUrl: editingRecipe.imageUrl || '',
           category: getLocalized(editingRecipe.category, lang),
           prepTime: editingRecipe.prepTime || '20 min',
           servings: editingRecipe.servings || 2,
@@ -32,6 +33,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
       return {
         name: '',
+        imageUrl: '',
         category: 'Lunch',
         prepTime: '20 min',
         servings: 2,
@@ -237,6 +239,7 @@ window.MacroChef.components = window.MacroChef.components || {};
           [lang]: formData.name,
           [altLang]: editingRecipe ? getLocalized(editingRecipe.name, altLang) : formData.name
         },
+        imageUrl: window.MacroChef.recipeImages.normalizeUrl(formData.imageUrl),
         category: {
           [lang]: formData.category,
           [altLang]: editingRecipe ? getLocalized(editingRecipe.category, altLang) : formData.category
@@ -330,6 +333,31 @@ window.MacroChef.components = window.MacroChef.components || {};
                 placeholder={lang === 'pl' ? 'np. Kurczak curry z warzywami i ryżem' : 'e.g. Teriyaki Chicken & Basmati Rice'}
                 className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_6rem] sm:grid-cols-[minmax(0,1fr)_8rem] gap-3 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  {t.recipeImageUrl}
+                </label>
+                <input
+                  type="text"
+                  inputMode="url"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <p className="mt-1 text-[10px] text-slate-400">{t.recipeImageHint}</p>
+              </div>
+              <div className="aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
+                <img
+                  src={window.MacroChef.recipeImages.normalizeUrl(formData.imageUrl)}
+                  onError={window.MacroChef.recipeImages.handleError}
+                  alt={formData.name || t.noRecipeImage}
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

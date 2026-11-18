@@ -410,6 +410,17 @@ window.MacroChef = window.MacroChef || {};
             updated = true;
           }
 
+          const normalizedImageUrl = window.MacroChef.recipeImages.isUsableUrl(
+            normalized.imageUrl || normalized.image_url
+          )
+            ? (normalized.imageUrl || normalized.image_url).trim()
+            : window.MacroChef.recipeImages.categoryImage(normalized.category);
+          if (normalized.imageUrl !== normalizedImageUrl) {
+            normalized.imageUrl = normalizedImageUrl;
+            delete normalized.image_url;
+            updated = true;
+          }
+
           if (updated) {
             needsUpdate = true;
             await this.db.recipes.put(normalized);
@@ -555,7 +566,10 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async saveRecipe(recipeData) {
-      const recipe = { ...recipeData };
+      const recipe = {
+        ...recipeData,
+        imageUrl: window.MacroChef.recipeImages.normalizeUrl(recipeData.imageUrl || recipeData.image_url)
+      };
       if (recipe.id === undefined || recipe.id === null || recipe.id === '') recipe.id = createId('rec');
       assertStringKey(recipe.id, 'Recipe');
       await this.mutations.transaction([this.db.recipes], ({ put }) => {
@@ -572,6 +586,7 @@ window.MacroChef = window.MacroChef || {};
       const recipes = recipeData.map((data) => ({
         ...data,
         id: createId('rec'),
+        imageUrl: window.MacroChef.recipeImages.normalizeUrl(data.imageUrl || data.image_url),
         updatedAt: new Date().toISOString()
       }));
       await this.mutations.transaction([this.db.recipes], async ({ put }) => {

@@ -290,6 +290,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                             ) : (
                               <div className="min-w-0 bg-white dark:bg-slate-800 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors">
                                 <div className="flex items-start justify-between gap-0.5 sm:gap-1.5 mb-1 sm:mb-1.5 min-w-0">
+                                  <img
+                                    src={window.MacroChef.recipeImages.getUrl(recipe)}
+                                    onError={window.MacroChef.recipeImages.handleError}
+                                    alt={getLocalized(recipe.name, lang)}
+                                    loading="lazy"
+                                    className="w-7 h-7 sm:w-10 sm:h-10 md:w-12 md:h-12 aspect-square object-cover rounded-md sm:rounded-lg shrink-0 bg-slate-100"
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, assignedId)}
@@ -298,7 +305,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                                   >
                                     {getLocalized(recipe.name, lang)}
                                   </button>
-                                  <div className="flex items-center gap-0.5 shrink-0">
+                                  <div className="flex flex-col sm:flex-row items-center gap-0 sm:gap-0.5 shrink-0">
                                     <button
                                       type="button"
                                       onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, assignedId)}

@@ -52,6 +52,11 @@ window.MacroChef = window.MacroChef || {};
       delete result[legacy];
     });
     delete result.userId;
+    result.imageUrl = window.MacroChef.recipeImages.normalizeUrl(
+      result.imageUrl || result.ImageUrl || result.image_url
+    );
+    delete result.ImageUrl;
+    delete result.image_url;
     return result;
   }
 
@@ -63,7 +68,12 @@ window.MacroChef = window.MacroChef || {};
         packageSize: row.package_size, sourceUrl: row.source_url, sourceVerifiedAt: row.source_verified_at
       };
     }
-    const record = { ...row.data, id: row.id, ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}) };
+    const record = {
+      ...row.data,
+      id: row.id,
+      ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}),
+      ...(table === 'recipes' ? { imageUrl: row.image_url || row.data.imageUrl } : {})
+    };
     if (table === 'recipes') return normalizeRecipe(record);
     if (table === 'plannerEntries') {
       slots.forEach((slot) => { if (record[slot] === null) delete record[slot]; });
@@ -75,7 +85,8 @@ window.MacroChef = window.MacroChef || {};
     if (table === 'products') return productToRemote(record);
     return {
       id: record.id, user_id: userId, data: clean(record),
-      ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {})
+      ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {}),
+      ...(table === 'recipes' ? { image_url: window.MacroChef.recipeImages.normalizeUrl(record.imageUrl) } : {})
     };
   }
 

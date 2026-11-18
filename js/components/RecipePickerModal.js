@@ -255,6 +255,15 @@ window.MacroChef.components = window.MacroChef.components || {};
                       }`}
                     >
                       <div>
+                        <div className="aspect-square w-16 sm:w-20 float-right ml-3 mb-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
+                          <img
+                            src={window.MacroChef.recipeImages.getUrl(rec)}
+                            onError={window.MacroChef.recipeImages.handleError}
+                            alt={localizedName}
+                            loading="lazy"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                         {/* Top Meta */}
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">

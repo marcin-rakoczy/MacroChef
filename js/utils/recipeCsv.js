@@ -6,6 +6,12 @@
 window.MacroChef = window.MacroChef || {};
 
 (function () {
+  const normalizeImageUrl = (value) => window.MacroChef.recipeImages
+    ? window.MacroChef.recipeImages.normalizeUrl(value)
+    : (typeof value === 'string' && value.trim()
+      ? value.trim()
+      : 'images/no-recipe-image.svg');
+
   const parseCSV = (text, lang = 'pl') => {
     // Remove BOM if present
     const cleanText = text.replace(/^\uFEFF/, '');
@@ -159,6 +165,9 @@ window.MacroChef = window.MacroChef || {};
       protein,
       carbs,
       fats,
+      imageUrl: normalizeImageUrl(
+        get('imageUrl') || get('image') || get('zdjecie') || get('urlZdjecia')
+      ),
       ingredients: ingredients,
       steps: { en: parseSteps(get('kroki') || get('steps')), pl: parseSteps(get('kroki') || get('steps')) },
       createdAt: new Date().toISOString(),
@@ -209,25 +218,25 @@ window.MacroChef = window.MacroChef || {};
   const createTemplate = (lang = 'pl') => {
     const headers = lang === 'pl'
       ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
-         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje',
+         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje', 'urlZdjecia',
         'skladnik1Nazwa', 'skladnik1Ilosc', 'skladnik1Jednostka', 'skladnik1RozmiarOpakowania', 'skladnik1JednostkaOpakowania',
         'skladnik2Nazwa', 'skladnik2Ilosc', 'skladnik2Jednostka', 'skladnik2RozmiarOpakowania', 'skladnik2JednostkaOpakowania',
         'skladnik3Nazwa', 'skladnik3Ilosc', 'skladnik3Jednostka', 'skladnik3RozmiarOpakowania', 'skladnik3JednostkaOpakowania',
         'kroki']
       : ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing', 
-         'proteinPerServing', 'carbsPerServing', 'fatsPerServing',
+         'proteinPerServing', 'carbsPerServing', 'fatsPerServing', 'imageUrl',
         'ingredient1Name', 'ingredient1Amount', 'ingredient1Unit', 'ingredient1PackageSize', 'ingredient1PackageUnit',
         'ingredient2Name', 'ingredient2Amount', 'ingredient2Unit', 'ingredient2PackageSize', 'ingredient2PackageUnit',
         'ingredient3Name', 'ingredient3Amount', 'ingredient3Unit', 'ingredient3PackageSize', 'ingredient3PackageUnit',
         'steps'];
     
     const values = lang === 'pl'
-      ? ['Przykładowy przepis', 'Obiad', '20 min', '2', '450', '35', '40', '12',
+      ? ['Przykładowy przepis', 'Obiad', '20 min', '2', '450', '35', '40', '12', '',
         'Pierś z kurczaka', '200', 'g', '500', 'g',
         'Ryż', '100', 'g', '1000', 'g',
         'Sól', '5', 'g', '100', 'g', 
         'Ugotuj ryż|Usmaż kurczaka|Podawaj na talerzu']
-      : ['Example recipe', 'Lunch', '20 min', '2', '450', '35', '40', '12',
+      : ['Example recipe', 'Lunch', '20 min', '2', '450', '35', '40', '12', '',
         'Chicken breast', '200', 'g', '500', 'g',
         'Rice', '100', 'g', '1000', 'g',
         'Salt', '5', 'g', '100', 'g',
@@ -270,8 +279,17 @@ window.MacroChef = window.MacroChef || {};
       const key = recipeImportKey(parsed);
       const match = byKey.get(key);
       const recipe = match
-        ? { ...parsed, id: match.id, createdAt: match.createdAt || parsed.createdAt }
-        : { ...parsed, id: parsed.id || window.crypto.randomUUID() };
+        ? {
+            ...parsed,
+            imageUrl: normalizeImageUrl(parsed.imageUrl),
+            id: match.id,
+            createdAt: match.createdAt || parsed.createdAt
+          }
+        : {
+            ...parsed,
+            imageUrl: normalizeImageUrl(parsed.imageUrl),
+            id: parsed.id || window.crypto.randomUUID()
+          };
       if (match) updated++; else added++;
       byKey.set(key, recipe);
       return recipe;

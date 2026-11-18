@@ -7287,6 +7287,10 @@ window.MacroChef.TRANSLATIONS = {
     ofDailyTotal: 'of daily total',
     addNewMealRecipe: 'Add New Meal Recipe',
     recipeName: 'Recipe Name',
+    recipeImageUrl: 'Recipe image URL',
+    recipeImageHint: 'Use a direct, square-friendly image URL. A local placeholder is used when empty or unavailable.',
+    noRecipeImage: 'No image',
+    viewRecipe: 'View recipe',
     category: 'Category',
     prepTime: 'Prep Time',
     batchServings: 'Batch Servings',
@@ -7556,6 +7560,10 @@ window.MacroChef.TRANSLATIONS = {
     ofDailyTotal: 'dziennej sumy',
     addNewMealRecipe: 'Dodaj Nowy Przepis',
     recipeName: 'Nazwa Przepisu',
+    recipeImageUrl: 'Adres URL zdjęcia przepisu',
+    recipeImageHint: 'Podaj bezpośredni adres zdjęcia. Gdy pole jest puste lub obraz niedostępny, używany jest lokalny placeholder.',
+    noRecipeImage: 'Brak zdjęcia',
+    viewRecipe: 'Zobacz przepis',
     category: 'Kategoria',
     prepTime: 'Czas Przygotowania',
     batchServings: 'Liczba Porcji',
@@ -7868,6 +7876,67 @@ window.MacroChef.helpers = {
 
 
 // ==========================================
+// File: utils/recipeImages.js
+// ==========================================
+// Shared recipe image URL normalization and resilient fallback handling
+window.MacroChef = window.MacroChef || {};
+
+(function () {
+  const DEFAULT_IMAGE_URL = 'images/no-recipe-image.svg';
+  const CATEGORY_IMAGES = {
+    breakfast: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=900&h=900&q=85',
+    lunch: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&h=900&q=85',
+    dinner: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=900&h=900&q=85',
+    snack: 'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?auto=format&fit=crop&w=900&h=900&q=85',
+    fallback: 'https://images.unsplash.com/photo-1543362906-acfc16c67564?auto=format&fit=crop&w=900&h=900&q=85'
+  };
+
+  const normalizeCategory = (category) => {
+    const value = category && typeof category === 'object'
+      ? (category.en || category.pl || '')
+      : (category || '');
+    return String(value).trim().toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/ł/g, 'l');
+  };
+
+  const isUsableUrl = (value) => {
+    if (typeof value !== 'string' || !value.trim()) return false;
+    const url = value.trim();
+    if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../') || url.startsWith('images/')) return true;
+    if (!/^https?:\/\//i.test(url) && !/^file:\/\//i.test(url)) return false;
+    try {
+      const parsed = new URL(url, window.location.href);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' || parsed.protocol === 'file:';
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const normalizeUrl = (value) => isUsableUrl(value) ? value.trim() : DEFAULT_IMAGE_URL;
+  const categoryImage = (category) => CATEGORY_IMAGES[normalizeCategory(category)] || CATEGORY_IMAGES.fallback;
+  const getUrl = (recipe) => normalizeUrl(recipe && (recipe.imageUrl || recipe.ImageUrl || recipe.image_url));
+  const handleError = (event) => {
+    const image = event.currentTarget;
+    if (image.dataset.fallbackApplied === 'true') return;
+    image.dataset.fallbackApplied = 'true';
+    image.src = DEFAULT_IMAGE_URL;
+  };
+
+  window.MacroChef.recipeImages = {
+    DEFAULT_IMAGE_URL,
+    CATEGORY_IMAGES,
+    categoryImage,
+    getUrl,
+    handleError,
+    isUsableUrl,
+    normalizeUrl
+  };
+})();
+
+
+// ==========================================
 // File: utils/recipeCsv.js
 // ==========================================
 /**
@@ -7878,6 +7947,12 @@ window.MacroChef.helpers = {
 window.MacroChef = window.MacroChef || {};
 
 (function () {
+  const normalizeImageUrl = (value) => window.MacroChef.recipeImages
+    ? window.MacroChef.recipeImages.normalizeUrl(value)
+    : (typeof value === 'string' && value.trim()
+      ? value.trim()
+      : 'images/no-recipe-image.svg');
+
   const parseCSV = (text, lang = 'pl') => {
     // Remove BOM if present
     const cleanText = text.replace(/^\uFEFF/, '');
@@ -8031,6 +8106,9 @@ window.MacroChef = window.MacroChef || {};
       protein,
       carbs,
       fats,
+      imageUrl: normalizeImageUrl(
+        get('imageUrl') || get('image') || get('zdjecie') || get('urlZdjecia')
+      ),
       ingredients: ingredients,
       steps: { en: parseSteps(get('kroki') || get('steps')), pl: parseSteps(get('kroki') || get('steps')) },
       createdAt: new Date().toISOString(),
@@ -8081,25 +8159,25 @@ window.MacroChef = window.MacroChef || {};
   const createTemplate = (lang = 'pl') => {
     const headers = lang === 'pl'
       ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
-         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje',
+         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje', 'urlZdjecia',
         'skladnik1Nazwa', 'skladnik1Ilosc', 'skladnik1Jednostka', 'skladnik1RozmiarOpakowania', 'skladnik1JednostkaOpakowania',
         'skladnik2Nazwa', 'skladnik2Ilosc', 'skladnik2Jednostka', 'skladnik2RozmiarOpakowania', 'skladnik2JednostkaOpakowania',
         'skladnik3Nazwa', 'skladnik3Ilosc', 'skladnik3Jednostka', 'skladnik3RozmiarOpakowania', 'skladnik3JednostkaOpakowania',
         'kroki']
       : ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing', 
-         'proteinPerServing', 'carbsPerServing', 'fatsPerServing',
+         'proteinPerServing', 'carbsPerServing', 'fatsPerServing', 'imageUrl',
         'ingredient1Name', 'ingredient1Amount', 'ingredient1Unit', 'ingredient1PackageSize', 'ingredient1PackageUnit',
         'ingredient2Name', 'ingredient2Amount', 'ingredient2Unit', 'ingredient2PackageSize', 'ingredient2PackageUnit',
         'ingredient3Name', 'ingredient3Amount', 'ingredient3Unit', 'ingredient3PackageSize', 'ingredient3PackageUnit',
         'steps'];
     
     const values = lang === 'pl'
-      ? ['Przykładowy przepis', 'Obiad', '20 min', '2', '450', '35', '40', '12',
+      ? ['Przykładowy przepis', 'Obiad', '20 min', '2', '450', '35', '40', '12', '',
         'Pierś z kurczaka', '200', 'g', '500', 'g',
         'Ryż', '100', 'g', '1000', 'g',
         'Sól', '5', 'g', '100', 'g', 
         'Ugotuj ryż|Usmaż kurczaka|Podawaj na talerzu']
-      : ['Example recipe', 'Lunch', '20 min', '2', '450', '35', '40', '12',
+      : ['Example recipe', 'Lunch', '20 min', '2', '450', '35', '40', '12', '',
         'Chicken breast', '200', 'g', '500', 'g',
         'Rice', '100', 'g', '1000', 'g',
         'Salt', '5', 'g', '100', 'g',
@@ -8142,8 +8220,17 @@ window.MacroChef = window.MacroChef || {};
       const key = recipeImportKey(parsed);
       const match = byKey.get(key);
       const recipe = match
-        ? { ...parsed, id: match.id, createdAt: match.createdAt || parsed.createdAt }
-        : { ...parsed, id: parsed.id || window.crypto.randomUUID() };
+        ? {
+            ...parsed,
+            imageUrl: normalizeImageUrl(parsed.imageUrl),
+            id: match.id,
+            createdAt: match.createdAt || parsed.createdAt
+          }
+        : {
+            ...parsed,
+            imageUrl: normalizeImageUrl(parsed.imageUrl),
+            id: parsed.id || window.crypto.randomUUID()
+          };
       if (match) updated++; else added++;
       byKey.set(key, recipe);
       return recipe;
@@ -9139,6 +9226,17 @@ window.MacroChef = window.MacroChef || {};
             updated = true;
           }
 
+          const normalizedImageUrl = window.MacroChef.recipeImages.isUsableUrl(
+            normalized.imageUrl || normalized.image_url
+          )
+            ? (normalized.imageUrl || normalized.image_url).trim()
+            : window.MacroChef.recipeImages.categoryImage(normalized.category);
+          if (normalized.imageUrl !== normalizedImageUrl) {
+            normalized.imageUrl = normalizedImageUrl;
+            delete normalized.image_url;
+            updated = true;
+          }
+
           if (updated) {
             needsUpdate = true;
             await this.db.recipes.put(normalized);
@@ -9284,7 +9382,10 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async saveRecipe(recipeData) {
-      const recipe = { ...recipeData };
+      const recipe = {
+        ...recipeData,
+        imageUrl: window.MacroChef.recipeImages.normalizeUrl(recipeData.imageUrl || recipeData.image_url)
+      };
       if (recipe.id === undefined || recipe.id === null || recipe.id === '') recipe.id = createId('rec');
       assertStringKey(recipe.id, 'Recipe');
       await this.mutations.transaction([this.db.recipes], ({ put }) => {
@@ -9301,6 +9402,7 @@ window.MacroChef = window.MacroChef || {};
       const recipes = recipeData.map((data) => ({
         ...data,
         id: createId('rec'),
+        imageUrl: window.MacroChef.recipeImages.normalizeUrl(data.imageUrl || data.image_url),
         updatedAt: new Date().toISOString()
       }));
       await this.mutations.transaction([this.db.recipes], async ({ put }) => {
@@ -9465,6 +9567,11 @@ window.MacroChef = window.MacroChef || {};
       delete result[legacy];
     });
     delete result.userId;
+    result.imageUrl = window.MacroChef.recipeImages.normalizeUrl(
+      result.imageUrl || result.ImageUrl || result.image_url
+    );
+    delete result.ImageUrl;
+    delete result.image_url;
     return result;
   }
 
@@ -9476,7 +9583,12 @@ window.MacroChef = window.MacroChef || {};
         packageSize: row.package_size, sourceUrl: row.source_url, sourceVerifiedAt: row.source_verified_at
       };
     }
-    const record = { ...row.data, id: row.id, ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}) };
+    const record = {
+      ...row.data,
+      id: row.id,
+      ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}),
+      ...(table === 'recipes' ? { imageUrl: row.image_url || row.data.imageUrl } : {})
+    };
     if (table === 'recipes') return normalizeRecipe(record);
     if (table === 'plannerEntries') {
       slots.forEach((slot) => { if (record[slot] === null) delete record[slot]; });
@@ -9488,7 +9600,8 @@ window.MacroChef = window.MacroChef || {};
     if (table === 'products') return productToRemote(record);
     return {
       id: record.id, user_id: userId, data: clean(record),
-      ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {})
+      ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {}),
+      ...(table === 'recipes' ? { image_url: window.MacroChef.recipeImages.normalizeUrl(record.imageUrl) } : {})
     };
   }
 
@@ -11252,6 +11365,15 @@ window.MacroChef.components = window.MacroChef.components || {};
                       }`}
                     >
                       <div>
+                        <div className="aspect-square w-16 sm:w-20 float-right ml-3 mb-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
+                          <img
+                            src={window.MacroChef.recipeImages.getUrl(rec)}
+                            onError={window.MacroChef.recipeImages.handleError}
+                            alt={localizedName}
+                            loading="lazy"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                         {/* Top Meta */}
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
@@ -11663,6 +11785,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                             ) : (
                               <div className="min-w-0 bg-white dark:bg-slate-800 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors">
                                 <div className="flex items-start justify-between gap-0.5 sm:gap-1.5 mb-1 sm:mb-1.5 min-w-0">
+                                  <img
+                                    src={window.MacroChef.recipeImages.getUrl(recipe)}
+                                    onError={window.MacroChef.recipeImages.handleError}
+                                    alt={getLocalized(recipe.name, lang)}
+                                    loading="lazy"
+                                    className="w-7 h-7 sm:w-10 sm:h-10 md:w-12 md:h-12 aspect-square object-cover rounded-md sm:rounded-lg shrink-0 bg-slate-100"
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, assignedId)}
@@ -11671,7 +11800,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                                   >
                                     {getLocalized(recipe.name, lang)}
                                   </button>
-                                  <div className="flex items-center gap-0.5 shrink-0">
+                                  <div className="flex flex-col sm:flex-row items-center gap-0 sm:gap-0.5 shrink-0">
                                     <button
                                       type="button"
                                       onClick={() => handleOpenPicker(dayKey, dayTitle, slot.key, slot.label, assignedId)}
@@ -11754,6 +11883,11 @@ window.MacroChef.components = window.MacroChef.components || {};
 (function () {
   const { Icon } = window.MacroChef.components;
   const { getLocalized } = window.MacroChef.helpers;
+  const normalizeImageUrl = (value) => window.MacroChef.recipeImages
+    ? window.MacroChef.recipeImages.normalizeUrl(value)
+    : (typeof value === 'string' && value.trim()
+      ? value.trim()
+      : 'images/no-recipe-image.svg');
 
   const normalizeHeader = (value) => value
     .trim()
@@ -11826,6 +11960,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       protein: ['protein', 'bialko', 'proteinperserving', 'bialkonaporcje'],
       carbs: ['carbs', 'carbohydrates', 'weglowodany', 'carbsperserving', 'weglowodanynaporcje'],
       fats: ['fats', 'fat', 'tluszcze', 'fatsperserving', 'tluszczenaporcje'],
+      imageUrl: ['imageurl', 'image', 'zdjecie', 'urlzdjecia', 'urlobrazu'],
       steps: ['steps', 'instructions', 'kroki']
     };
     const headerIndexes = new Map();
@@ -11958,6 +12093,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         protein: numberCell(cell(row, 'protein'), 'protein', rowNumber),
         carbs: numberCell(cell(row, 'carbs'), 'carbs', rowNumber),
         fats: numberCell(cell(row, 'fats'), 'fats', rowNumber),
+        imageUrl: normalizeImageUrl(cell(row, 'imageUrl')),
         ingredients,
         steps: { en: steps, pl: steps }
       };
@@ -11978,6 +12114,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [page, setPage] = React.useState(0);
     const [searchQuery, setSearchQuery] = React.useState('');
     const [selectedCategory, setSelectedCategory] = React.useState(null); // null = all
+    const [viewingRecipe, setViewingRecipe] = React.useState(null);
     const RECIPES_PER_PAGE = 12;
 
     // Get all unique categories with counts
@@ -12116,6 +12253,20 @@ window.MacroChef.components = window.MacroChef.components || {};
               key={rec.id}
               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
             >
+              <button
+                type="button"
+                onClick={() => setViewingRecipe(rec)}
+                aria-label={`${t.viewRecipe}: ${getLocalized(rec.name, lang)}`}
+                className="block aspect-square w-full overflow-hidden rounded-xl mb-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:ring-2 hover:ring-emerald-400 transition"
+              >
+                <img
+                  src={window.MacroChef.recipeImages.getUrl(rec)}
+                  onError={window.MacroChef.recipeImages.handleError}
+                  alt={getLocalized(rec.name, lang)}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                />
+              </button>
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
@@ -12127,9 +12278,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                   </div>
                 </div>
 
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 mb-1">
+                <button
+                  type="button"
+                  onClick={() => setViewingRecipe(rec)}
+                  className="font-bold text-base text-left text-slate-900 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 mb-1 transition-colors"
+                >
                   {getLocalized(rec.name, lang)}
-                </h3>
+                </button>
 
                 <div className="flex items-center gap-3 my-3 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl">
                   <div className="flex items-center gap-1.5 text-amber-500 font-bold text-sm">
@@ -12216,6 +12371,80 @@ window.MacroChef.components = window.MacroChef.components || {};
               >
                 {t.next || 'Next'} →
               </button>
+            </div>
+          </div>
+        )}
+
+        {viewingRecipe && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setViewingRecipe(null);
+            }}
+          >
+            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-2xl p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    {getLocalized(viewingRecipe.category, lang)}
+                  </p>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    {getLocalized(viewingRecipe.name, lang)}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingRecipe(null)}
+                  aria-label={t.close || t.cancel}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-100 dark:hover:bg-slate-700"
+                >
+                  <Icon name="x" className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[14rem_minmax(0,1fr)] gap-5">
+                <div className="aspect-square overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100">
+                  <img
+                    src={window.MacroChef.recipeImages.getUrl(viewingRecipe)}
+                    onError={window.MacroChef.recipeImages.handleError}
+                    alt={getLocalized(viewingRecipe.name, lang)}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    {[
+                      [t.calories, `${viewingRecipe.calories} kcal`],
+                      [t.protein, `${viewingRecipe.protein}g`],
+                      [t.carbs, `${viewingRecipe.carbs}g`],
+                      [t.fats, `${viewingRecipe.fats}g`]
+                    ].map(([label, value]) => (
+                      <div key={label} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700/60">
+                        <span className="block text-[10px] text-slate-400">{label}</span>
+                        <strong className="text-slate-800 dark:text-slate-100">{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">{t.addedIngredients}</h3>
+                    <ul className="list-disc pl-5 space-y-1 text-sm text-slate-600 dark:text-slate-300">
+                      {(viewingRecipe.ingredients || []).map((ingredient, index) => (
+                        <li key={`${ingredient.name}-${index}`}>
+                          {getLocalized(ingredient.name, lang)} — {ingredient.amount} {ingredient.unit}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">{t.cookingSteps}</h3>
+                    <ol className="list-decimal pl-5 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                      {(getLocalized(viewingRecipe.steps, lang) || []).map((step, index) => (
+                        <li key={`${step}-${index}`}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -12915,6 +13144,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         return {
           id: editingRecipe.id,
           name: getLocalized(editingRecipe.name, lang),
+          imageUrl: editingRecipe.imageUrl || '',
           category: getLocalized(editingRecipe.category, lang),
           prepTime: editingRecipe.prepTime || '20 min',
           servings: editingRecipe.servings || 2,
@@ -12934,6 +13164,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
       return {
         name: '',
+        imageUrl: '',
         category: 'Lunch',
         prepTime: '20 min',
         servings: 2,
@@ -13139,6 +13370,7 @@ window.MacroChef.components = window.MacroChef.components || {};
           [lang]: formData.name,
           [altLang]: editingRecipe ? getLocalized(editingRecipe.name, altLang) : formData.name
         },
+        imageUrl: window.MacroChef.recipeImages.normalizeUrl(formData.imageUrl),
         category: {
           [lang]: formData.category,
           [altLang]: editingRecipe ? getLocalized(editingRecipe.category, altLang) : formData.category
@@ -13232,6 +13464,31 @@ window.MacroChef.components = window.MacroChef.components || {};
                 placeholder={lang === 'pl' ? 'np. Kurczak curry z warzywami i ryżem' : 'e.g. Teriyaki Chicken & Basmati Rice'}
                 className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_6rem] sm:grid-cols-[minmax(0,1fr)_8rem] gap-3 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  {t.recipeImageUrl}
+                </label>
+                <input
+                  type="text"
+                  inputMode="url"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="https://..."
+                  className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <p className="mt-1 text-[10px] text-slate-400">{t.recipeImageHint}</p>
+              </div>
+              <div className="aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
+                <img
+                  src={window.MacroChef.recipeImages.normalizeUrl(formData.imageUrl)}
+                  onError={window.MacroChef.recipeImages.handleError}
+                  alt={formData.name || t.noRecipeImage}
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -14341,8 +14598,8 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Download CSV template
     const handleDownloadTemplate = () => {
-      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
-Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3"`;;
+      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;urlZdjecia;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
+Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3"`;;
       const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -14540,7 +14797,16 @@ Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni
                       />
                     </td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white font-medium">
-                      {window.MacroChef.helpers.getLocalized(recipe.name, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl')}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={window.MacroChef.recipeImages.getUrl(recipe)}
+                          onError={window.MacroChef.recipeImages.handleError}
+                          alt={getLocalized(recipe.name, lang)}
+                          loading="lazy"
+                          className="w-11 h-11 shrink-0 aspect-square object-cover rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100"
+                        />
+                        <span className="truncate">{getLocalized(recipe.name, lang)}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-900 dark:text-white">
                       {window.MacroChef.helpers.getLocalized(recipe.category, localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl') || '-'}

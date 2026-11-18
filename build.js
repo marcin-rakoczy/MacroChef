@@ -15,6 +15,7 @@ const filesToBundle = [
   'i18n/days.js',
   'i18n/context.js',
   'utils/helpers.js',
+  'utils/recipeImages.js',
   'utils/recipeCsv.js',
   'utils/productCatalogCsv.js',
   '../src/core/nutrition/calculations.js',
