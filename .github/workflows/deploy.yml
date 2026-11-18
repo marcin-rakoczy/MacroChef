@@ -40,6 +40,7 @@ jobs:
           node tests/nutrition.test.js
           node tests/sw.test.js
           node tests/environment.test.js
+          node tests/header-navigation.test.js
 
   # ============================================================================
   # BUILD JOB - For all branches (Cloudflare Pages deploys automatically)
@@ -92,6 +93,7 @@ jobs:
           node tests/nutrition.test.js
           node tests/sw.test.js
           node tests/environment.test.js
+          node tests/header-navigation.test.js
           node tests/version.test.js
 
       - name: Bump version and build

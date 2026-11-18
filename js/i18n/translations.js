@@ -4,6 +4,8 @@ window.MacroChef = window.MacroChef || {};
 window.MacroChef.TRANSLATIONS = {
   en: {
     appTitle: 'MacroChef',
+    version: 'Version',
+    mainNavigation: 'Main navigation',
     authTitle: 'Account',
     authClose: 'Close',
     authEmail: 'Email',
@@ -277,6 +279,8 @@ window.MacroChef.TRANSLATIONS = {
   },
   pl: {
     appTitle: 'MacroChef',
+    version: 'Wersja',
+    mainNavigation: 'Nawigacja główna',
     authTitle: 'Konto',
     authClose: 'Zamknij',
     authEmail: 'E-mail',

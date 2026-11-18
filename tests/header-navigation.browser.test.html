@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>MacroChef header navigation tests</title></head>
+<body>
+  <pre id="result">Running...</pre>
+  <div id="test-root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    window.MacroChef = {
+      ENV: 'TEST',
+      APP_VERSION: '1.0.48',
+      components: {
+        Icon: function (props) {
+          return React.createElement('span', { 'data-icon': props.name, className: props.className });
+        }
+      }
+    };
+  </script>
+  <script src="../js/i18n/translations.js"></script>
+  <script src="../js/data/appVersion.js"></script>
+  <script src="browser-runner.js"></script>
+  <script type="text/babel" src="../js/components/Header.js"></script>
+  <script type="text/babel" src="../js/components/Navigation.js"></script>
+  <script type="text/babel" src="header-navigation.browser.test.js"></script>
+</body>
+</html>

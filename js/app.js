@@ -12,7 +12,6 @@ window.MacroChef = window.MacroChef || {};
     ShoppingList,
     MacroTracker,
     RecipeModal,
-    AuthModal,
     AdBanner,
     AdminPanel
   } = window.MacroChef.components;
@@ -21,7 +20,7 @@ window.MacroChef = window.MacroChef || {};
   const { DAYS_KEYS } = window.MacroChef;
   const { useRepositoryQuery } = window.MacroChef;
 
-  function App({ repositories, shoppingStorageKey, session, syncManager }) {
+  function App({ repositories, shoppingStorageKey, session, syncManager, onSignOut }) {
     const [activeTab, setActiveTab] = useState('planner');
     const { lang, t, darkMode, setDarkMode, colorTheme, setColorTheme } = window.MacroChef.useI18n();
     const role = session ? session.role : 'Guest';
@@ -80,7 +79,6 @@ window.MacroChef = window.MacroChef || {};
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
-    const [showAuthModal, setShowAuthModal] = useState(false);
 
     useEffect(() => {
       if (!canManageRecipes) {
@@ -226,20 +224,21 @@ window.MacroChef = window.MacroChef || {};
 
     return (
       <div className={darkMode ? 'dark' : ''}>
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200 pb-24 md:pb-8">
+        <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200 pb-24 md:pb-0">
           {/* Header */}
           <Header
             darkMode={darkMode}
             setDarkMode={setDarkMode}
             colorTheme={colorTheme}
             setColorTheme={setColorTheme}
-            onOpenAuth={() => setShowAuthModal(true)}
+            session={session}
+            onSignOut={onSignOut}
             syncStatus={syncStatus}
           />
           <AdBanner role={role} />
 
           {/* Main Layout Container */}
-          <main className="max-w-7xl mx-auto px-4 pt-6">
+          <main className="w-full max-w-7xl mx-auto px-4 pt-6 flex-1">
             {/* Desktop Tabs */}
             <Navigation
               activeTab={activeTab}
@@ -344,7 +343,13 @@ window.MacroChef = window.MacroChef || {};
               onSave={handleSaveRecipe}
             />
           )}
-          {showAuthModal && <AuthModal session={session} onClose={() => setShowAuthModal(false)} />}
+          {window.MacroChef.ENV === 'PROD' && (
+            <footer className="hidden md:block w-full border-t border-slate-200 dark:border-slate-800 mt-8">
+              <div className="max-w-7xl mx-auto px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+                MacroChef • {t.version || 'Version'} {window.MacroChef.APP_VERSION || '0.0.0'}
+              </div>
+            </footer>
+          )}
 
           {/* Mobile Bottom Navigation */}
           <Navigation

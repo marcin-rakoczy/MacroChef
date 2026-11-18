@@ -209,7 +209,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       const appContent = (
         <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
           {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
-          <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} />
+          <window.MacroChef.App repositories={active.repository} shoppingStorageKey={active.shoppingStorageKey} session={active.session} syncManager={active.syncManager} onSignOut={handleSignOut} />
         </window.MacroChef.I18nProvider>
       );
 

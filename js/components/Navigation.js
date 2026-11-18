@@ -29,6 +29,7 @@ window.MacroChef.components = window.MacroChef.components || {};
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                aria-current={isActive ? 'page' : undefined}
                 className={`flex flex-col items-center justify-center space-y-1 py-1 px-2 rounded-xl transition-all ${
                   isActive
                     ? 'text-emerald-500 font-bold'
@@ -45,13 +46,14 @@ window.MacroChef.components = window.MacroChef.components || {};
     }
 
     return (
-      <div className="hidden md:flex space-x-2 border-b border-slate-200 dark:border-slate-800 mb-6 pb-2">
+      <nav aria-label={t.mainNavigation || 'Main navigation'} className="hidden md:flex space-x-2 border-b border-slate-200 dark:border-slate-800 mb-6 pb-2">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              aria-current={isActive ? 'page' : undefined}
               className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all ${
                 isActive
                   ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
@@ -63,7 +65,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             </button>
           );
         })}
-      </div>
+      </nav>
     );
   }
 
