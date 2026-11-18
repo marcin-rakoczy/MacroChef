@@ -159,3 +159,43 @@ html {
 button, select, input {
   transition: all 0.15s ease-in-out;
 }
+
+.meal-planner-swipe {
+  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+}
+
+.meal-planner-grid {
+  will-change: transform, opacity;
+  transition: transform 180ms ease-out;
+}
+
+.planner-grid-next {
+  animation: planner-slide-next 220ms ease-out;
+}
+
+.planner-grid-previous {
+  animation: planner-slide-previous 220ms ease-out;
+}
+
+@keyframes planner-slide-next {
+  from {
+    opacity: 0.45;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes planner-slide-previous {
+  from {
+    opacity: 0.45;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
