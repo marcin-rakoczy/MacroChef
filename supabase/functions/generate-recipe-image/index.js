@@ -9,9 +9,10 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
   headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 });
 
-const providerHeaders = (key) => ({
+const providerHeaders = (key, isCloudflare) => ({
   'Content-Type': 'application/json',
-  Authorization: `Bearer ${key}`
+  Authorization: `Bearer ${key}`,
+  ...(isCloudflare ? { 'X-Requested-With': 'MacroChef' } : {})
 });
 
 const base64FromBytes = (bytes) => {
@@ -58,9 +59,13 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const endpoint = Deno.env.get('RECIPE_IMAGE_AI_ENDPOINT');
-  const providerKey = Deno.env.get('RECIPE_IMAGE_AI_KEY');
+  const accountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID');
+  const cloudflareKey = Deno.env.get('CLOUDFLARE_API_TOKEN');
+  const configuredEndpoint = Deno.env.get('RECIPE_IMAGE_AI_ENDPOINT');
+  const providerKey = cloudflareKey || Deno.env.get('RECIPE_IMAGE_AI_KEY');
   const model = Deno.env.get('RECIPE_IMAGE_AI_MODEL') || '@cf/black-forest-labs/flux-1-schnell';
+  const endpoint = configuredEndpoint ||
+    (accountId ? `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}` : '');
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !endpoint || !providerKey) {
     return json({ error: 'Recipe image AI provider is not configured' }, 503);
   }
@@ -101,11 +106,11 @@ Deno.serve(async (request) => {
   }
 
   const providerPayload = isCloudflare && payload.operation !== 'verify'
-    ? { model, prompt: payload.prompt }
+    ? { prompt: payload.prompt }
     : payload;
   const providerResponse = await fetch(endpoint, {
     method: 'POST',
-    headers: providerHeaders(providerKey),
+    headers: providerHeaders(providerKey, isCloudflare),
     body: JSON.stringify(providerPayload)
   });
   if (!providerResponse.ok) {
