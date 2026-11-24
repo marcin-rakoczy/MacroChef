@@ -177,6 +177,9 @@ window.MacroChef = window.MacroChef || {};
 
     const handleEditRecipe = (recipe) => {
       requireRecipePermission();
+      if (!window.MacroChef.permissions.canEditRecipe(roleRef.current, repositories.userId, recipe)) {
+        throw new Error(t.recipesReadOnly);
+      }
       setEditingRecipe(recipe);
       setShowRecipeModal(true);
     };
@@ -287,6 +290,7 @@ window.MacroChef = window.MacroChef || {};
               <RecipeLibrary
                 recipes={recipes}
                 canManageRecipes={canManageRecipes}
+                canEditRecipe={(recipe) => window.MacroChef.permissions.canEditRecipe(role, repositories.userId, recipe)}
                 onCreateRecipe={handleCreateRecipe}
                 onEditRecipe={handleEditRecipe}
                 onDeleteRecipe={handleDeleteRecipe}

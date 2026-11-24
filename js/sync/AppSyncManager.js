@@ -81,10 +81,18 @@ window.MacroChef = window.MacroChef || {};
     const record = {
       ...row.data,
       id: row.id,
+      userId: row.user_id,
       ...(table === 'plannerEntries' ? { dayKey: row.day_key } : {}),
       ...(table === 'recipes' ? { imageUrl: row.image_url || row.data.imageUrl } : {})
     };
-    if (table === 'recipes') return normalizeRecipe(record);
+    if (table === 'recipes') {
+      const recipe = normalizeRecipe(record);
+      recipe.userId = row.user_id;
+      delete recipe.ownerUnverified;
+      if (row.shared === 1) recipe.shared = 1;
+      else delete recipe.shared;
+      return recipe;
+    }
     if (table === 'plannerEntries') {
       slots.forEach((slot) => { if (record[slot] === null) delete record[slot]; });
     }
@@ -93,8 +101,9 @@ window.MacroChef = window.MacroChef || {};
 
   function toRemote(table, record, userId, legacyProductColumns) {
     if (table === 'products') return productToRemote(record, legacyProductColumns);
+    const { userId: localOwner, shared, ownerUnverified, ...data } = record;
     return {
-      id: record.id, user_id: userId, data: sanitizeJsonbPayload(record),
+      id: record.id, user_id: userId, data: sanitizeJsonbPayload(data),
       ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {}),
       ...(table === 'recipes' ? { image_url: window.MacroChef.recipeImages.normalizeUrl(record.imageUrl) } : {})
     };
@@ -179,9 +188,11 @@ window.MacroChef = window.MacroChef || {};
     async retryPermissionErrors() {
       if (this.stopped) return;
       const queue = this.scope.repository.db.OutboxQueue;
-      for (const entry of await queue.toArray()) {
-        if (entry.permissionError) await queue.update(entry.id, { permissionError: null });
-      }
+      await this.scope.repository.db.transaction('rw', queue, async () => {
+        for (const entry of await queue.where('userId').equals(this.scope.userId).toArray()) {
+          if (entry.permissionError) await queue.update(entry.id, { permissionError: null });
+        }
+      });
       this.requestSync();
     }
 
@@ -308,7 +319,7 @@ window.MacroChef = window.MacroChef || {};
 
     async readRemote() {
       const result = {};
-      const states = await this.scope.repository.db.SyncState.toArray();
+      const states = await this.scope.repository.db.SyncState.where('userId').equals(this.scope.userId).toArray();
       for (const [local, remote] of Object.entries(remoteTables)) {
         result[local] = await this.readAll(remote);
         const ids = new Set(result[local].map((row) => row.id));
@@ -326,9 +337,24 @@ window.MacroChef = window.MacroChef || {};
               typeof row.updated_at !== 'string' || Number.isNaN(Date.parse(row.updated_at)) ||
               (local !== 'products' && (!row.data || typeof row.data !== 'object' || Array.isArray(row.data))) ||
               (local === 'plannerEntries' && typeof row.day_key !== 'string') ||
+              (local !== 'products' && (typeof row.user_id !== 'string' || !row.user_id)) ||
               ((local === 'plannerEntries' || local === 'goals') && row.user_id !== this.scope.userId)) {
             throw new Error(`Invalid ${remote} record`);
           }
+        }
+        if (local === 'recipes') {
+          const owners = [...new Set(result[local].map((row) => row.user_id)
+            .filter((userId) => userId !== this.scope.userId))];
+          const admins = new Set();
+          for (const owner of owners) {
+            const response = await this.request('rpc/is_admin', {}, 'POST', { check_user: owner });
+            if (response.status !== 200 || typeof response.data !== 'boolean') {
+              throw new Error('Invalid shared recipe owner response');
+            }
+            if (response.data) admins.add(owner);
+          }
+          result[local] = result[local].filter((row) => row.user_id === this.scope.userId || admins.has(row.user_id))
+            .map((row) => ({ ...row, shared: row.user_id !== this.scope.userId ? 1 : 0 }));
         }
       }
       return result;
@@ -364,7 +390,7 @@ window.MacroChef = window.MacroChef || {};
       }
       let remote = await this.readRemote();
       const db = this.scope.repository.db;
-      const queue = await db.OutboxQueue.toArray();
+      const queue = await db.OutboxQueue.where('userId').equals(this.scope.userId).toArray();
       queue.sort((a, b) => (a.sequence || 0) - (b.sequence || 0) || a.timestamp - b.timestamp);
       const conflicts = [];
       const blocked = new Set();
@@ -372,7 +398,7 @@ window.MacroChef = window.MacroChef || {};
       for (const queued of queue) {
         this.checkActive();
         const entry = await db.OutboxQueue.get(queued.id);
-        if (!entry) continue;
+        if (!entry || entry.userId !== this.scope.userId) continue;
         if (!remoteTables[entry.table]) {
           addConflict(conflicts, entry.table, entry.payload.id, `Unsupported queued table: ${entry.table}`,
             queuedUpdatedAt(entry));
@@ -395,7 +421,13 @@ window.MacroChef = window.MacroChef || {};
           blocked.add(key);
           if (error.permissionError) {
             const message = `${entry.table}/${entry.payload.id}: ${error.message}`;
-            await db.OutboxQueue.update(entry.id, { permissionError: message });
+            await db.transaction('rw', db.OutboxQueue, async () => {
+              const currentEntry = await db.OutboxQueue.get(entry.id);
+              if (!currentEntry || currentEntry.userId !== this.scope.userId) {
+                throw new Error('Queued change ownership changed');
+              }
+              await db.OutboxQueue.update(entry.id, { permissionError: message });
+            });
             permissionErrors = true;
             addConflict(conflicts, entry.table, entry.payload.id, message,
               queuedUpdatedAt(entry), current ? current.updated_at : null);
@@ -408,7 +440,7 @@ window.MacroChef = window.MacroChef || {};
       remote = await this.readRemote();
       await this.pull(remote, conflicts);
       this.checkActive();
-      const pendingCount = (await db.OutboxQueue.toArray()).length;
+      const pendingCount = await db.OutboxQueue.where('userId').equals(this.scope.userId).count();
       this.checkActive();
       this.setStatus(conflicts.length ? 'conflict' : pendingCount ? 'pending' : 'synced',
         conflicts.map((conflict) => conflict.message).join('; ') || null, permissionErrors,
@@ -419,16 +451,32 @@ window.MacroChef = window.MacroChef || {};
       const db = this.scope.repository.db;
       const table = entry.table;
       const id = entry.payload.id;
+      if (entry.userId !== this.scope.userId) throw new Error('Queued change belongs to another user');
       if (!['create', 'update', 'delete'].includes(entry.action)) {
         throw new Error(`Invalid queued action: ${table}/${id}`);
       }
       if (!entry.sequence) throw new Error(`Legacy queued change requires review: ${table}/${id}`);
       const current = remote[table].find((row) => row.id === id);
+      const state = await db.SyncState.get(`${table}:${id}`);
+      if (state && state.userId !== this.scope.userId) {
+        throw new Error(`Synchronization baseline belongs to another user: ${table}/${id}`);
+      }
+      if (table !== 'products') {
+        const local = await db.table(table).get(id);
+        const verifiedLegacy = local && local.ownerUnverified === true && state &&
+          state.userId === this.scope.userId && current && current.user_id === this.scope.userId;
+        if (local && local.userId !== this.scope.userId && !verifiedLegacy) {
+          throw new Error(`Local record belongs to another user: ${table}/${id}`);
+        }
+      }
       if (entry.baseUpdatedAt && (!current || current.updated_at !== entry.baseUpdatedAt)) {
         throw new Error(`Server version changed: ${table}/${id}`);
       }
       if (!entry.baseUpdatedAt && current && entry.action !== 'create') {
         throw new Error(`Missing server baseline: ${table}/${id}`);
+      }
+      if (table !== 'products' && current && current.user_id !== this.scope.userId) {
+        throw new Error(`Server record belongs to another user: ${table}/${id}`);
       }
       let record;
       if (entry.action !== 'delete') {
@@ -437,6 +485,9 @@ window.MacroChef = window.MacroChef || {};
         else if (entry.payload.changes && current) record = applyChanges(fromRemote(table, current), entry.payload.changes);
         else if (entry.payload.changes && entry.snapshot) record = applyChanges(entry.snapshot, entry.payload.changes);
         else throw new Error(`Invalid queued change: ${table}/${id}`);
+        if (table !== 'products' && record.userId !== undefined && record.userId !== this.scope.userId) {
+          throw new Error(`Queued record belongs to another user: ${table}/${id}`);
+        }
         if (table === 'plannerEntries') {
           const known = new Set(remote.recipes.map((row) => row.id));
           if (slots.some((slot) => record[slot] && !known.has(record[slot]))) {
@@ -465,7 +516,7 @@ window.MacroChef = window.MacroChef || {};
         method = entry.action === 'delete' ? 'DELETE' : 'PATCH';
         params.id = `eq.${id}`;
         params.updated_at = `eq.${current.updated_at}`;
-        if (table !== 'products' && table !== 'recipes') params.user_id = `eq.${this.scope.userId}`;
+        if (table !== 'products') params.user_id = `eq.${this.scope.userId}`;
       }
       const response = await this.request(remoteTables[table], params, method, method === 'DELETE' ? undefined : payload);
       let acknowledged;
@@ -474,7 +525,7 @@ window.MacroChef = window.MacroChef || {};
           acknowledged = current;
         } else {
           const lookup = { select: '*', id: `eq.${id}` };
-          if (table !== 'products' && table !== 'recipes') lookup.user_id = `eq.${this.scope.userId}`;
+          if (table !== 'products') lookup.user_id = `eq.${this.scope.userId}`;
           const verification = await this.request(remoteTables[table], lookup);
           const candidate = Array.isArray(verification.data) && verification.data.length === 1
             ? verification.data[0] : null;
@@ -489,15 +540,30 @@ window.MacroChef = window.MacroChef || {};
       if (!acknowledged || acknowledged.id !== id ||
           typeof acknowledged.updated_at !== 'string' ||
           Number.isNaN(Date.parse(acknowledged.updated_at)) ||
-          (table !== 'products' && table !== 'recipes' && acknowledged.user_id !== this.scope.userId)) {
+          (table !== 'products' && acknowledged.user_id !== this.scope.userId)) {
         throw new Error(`Write not acknowledged: ${table}/${id}`);
       }
-      await db.transaction('rw', db.OutboxQueue, db.SyncState, async () => {
+      const tables = [db.OutboxQueue, db.SyncState];
+      if (table !== 'products') tables.push(db.table(table));
+      await db.transaction('rw', ...tables, async () => {
         this.checkActive();
+        const queuedEntry = await db.OutboxQueue.get(entry.id);
+        const state = await db.SyncState.get(`${table}:${id}`);
+        if (!queuedEntry || queuedEntry.userId !== this.scope.userId || (state && state.userId !== this.scope.userId)) {
+          throw new Error(`Synchronization ownership changed: ${table}/${id}`);
+        }
+        if (table !== 'products') {
+          const local = await db.table(table).get(id);
+          const verifiedLegacy = local && local.ownerUnverified === true && state &&
+            state.userId === this.scope.userId && current && current.user_id === this.scope.userId;
+          if (local && local.userId !== this.scope.userId && !verifiedLegacy) {
+            throw new Error(`Local record belongs to another user: ${table}/${id}`);
+          }
+        }
         if (entry.action === 'delete') await db.SyncState.delete(`${table}:${id}`);
-        else await db.SyncState.put({ id: `${table}:${id}`, table, recordId: id, updatedAt: acknowledged.updated_at });
+        else await db.SyncState.put({ id: `${table}:${id}`, userId: this.scope.userId, table, recordId: id, updatedAt: acknowledged.updated_at });
         await db.OutboxQueue.delete(entry.id);
-        const pending = await db.OutboxQueue.toArray();
+        const pending = await db.OutboxQueue.where('userId').equals(this.scope.userId).toArray();
         for (const later of pending) {
           if (later.table === table && later.payload.id === id && later.sequence > entry.sequence &&
               later.baseUpdatedAt === entry.baseUpdatedAt) {
@@ -514,11 +580,21 @@ window.MacroChef = window.MacroChef || {};
       const db = this.scope.repository.db;
       await db.transaction('rw', db.products, db.recipes, db.plannerEntries, db.goals, db.OutboxQueue, db.SyncState, async () => {
         this.checkActive();
-        const queued = await db.OutboxQueue.toArray();
-        const states = await db.SyncState.toArray();
+        const queued = await db.OutboxQueue.where('userId').equals(this.scope.userId).toArray();
+        const states = await db.SyncState.where('userId').equals(this.scope.userId).toArray();
         for (const [table, rows] of Object.entries(remote)) {
+          if (table !== 'products' && rows.some((row) =>
+            row.user_id !== this.scope.userId && !(table === 'recipes' && row.shared === 1))) {
+            throw new Error(`Remote ${table} record belongs to another user`);
+          }
           const seen = new Set(rows.map((row) => row.id));
           for (const state of states.filter((item) => item.table === table && !seen.has(item.recordId))) {
+            const existing = await db.table(table).get(state.recordId);
+            if (existing && table !== 'products' && existing.userId !== this.scope.userId &&
+                !(table === 'recipes' && existing.shared === 1)) {
+              addConflict(conflicts, table, state.recordId, `Local record belongs to another user: ${table}/${state.recordId}`);
+              continue;
+            }
             const pending = queued.find((item) => item.table === table && item.payload.id === state.recordId);
             if (pending) {
               const local = await db.table(table).get(state.recordId);
@@ -551,8 +627,8 @@ window.MacroChef = window.MacroChef || {};
             }
             if (table === 'plannerEntries' || table === 'goals') {
               const others = table === 'plannerEntries'
-                ? await db.plannerEntries.where('dayKey').equals(value.dayKey).toArray()
-                : await db.goals.toArray();
+                ? await db.plannerEntries.where('userId').equals(this.scope.userId).filter((item) => item.dayKey === value.dayKey).toArray()
+                : await db.goals.where('userId').equals(this.scope.userId).toArray();
               if (others.some((item) => item.id !== row.id)) {
                 addConflict(conflicts, table, row.id, `Local and server records differ: ${table}/${row.id}`,
                   null, row.updated_at);
@@ -561,13 +637,22 @@ window.MacroChef = window.MacroChef || {};
             }
             const existing = await db.table(table).get(row.id);
             const state = await db.SyncState.get(`${table}:${row.id}`);
+            const verifiedLegacy = existing && existing.ownerUnverified === true &&
+              state && state.userId === this.scope.userId;
+            if ((state && state.userId !== this.scope.userId) ||
+                (existing && table !== 'products' && existing.userId !== this.scope.userId &&
+                  !(table === 'recipes' && (verifiedLegacy ||
+                    (existing.shared === 1 && row.shared === 1 && existing.userId === row.user_id))))) {
+              addConflict(conflicts, table, row.id, `Local record belongs to another user: ${table}/${row.id}`);
+              continue;
+            }
             if (existing && !state && !same(existing, value)) {
               addConflict(conflicts, table, row.id, `Local record has no server baseline: ${table}/${row.id}`,
                 existing.updatedAt || null, row.updated_at);
               continue;
             }
             await db.table(table).put(value);
-            await db.SyncState.put({ id: `${table}:${row.id}`, table, recordId: row.id, updatedAt: row.updated_at });
+            await db.SyncState.put({ id: `${table}:${row.id}`, userId: this.scope.userId, table, recordId: row.id, updatedAt: row.updated_at });
           }
         }
       });

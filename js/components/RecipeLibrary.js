@@ -185,7 +185,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     onDeleteRecipe,
     onImportRecipes,
     onStartBatchCooking,
-    canManageRecipes
+    canManageRecipes,
+    canEditRecipe
   }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [page, setPage] = React.useState(0);
@@ -402,7 +403,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <span>{t.cookBatch}</span>
                 </button>
 
-                {canManageRecipes && (
+                {canManageRecipes && (!canEditRecipe || canEditRecipe(rec)) && (
                   <>
                     <button
                       onClick={() => onEditRecipe(rec)}

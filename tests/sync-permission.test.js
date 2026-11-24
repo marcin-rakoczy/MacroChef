@@ -7,19 +7,23 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'sync', 'AppSync
 
 async function checkRejection(status, body, permission = true, legacyColumns = false) {
   const entries = [{
-    id: 'outbox-1', table: 'products', action: 'create', sequence: 1, timestamp: 1,
+    id: 'outbox-1', userId: 'user-1', table: 'products', action: 'create', sequence: 1, timestamp: 1,
     payload: { id: 'product-1', name: { pl: 'Produkt', en: 'Product' } }
   }];
   const queue = {
     async toArray() { return entries.map((entry) => ({ ...entry })); },
     async get(id) { return entries.find((entry) => entry.id === id); },
+    where(field) { return { equals(value) { return {
+      async toArray() { return entries.filter((entry) => entry[field] === value); },
+      async count() { return entries.filter((entry) => entry[field] === value).length; }
+    }; } }; },
     async update(id, values) { Object.assign(entries.find((entry) => entry.id === id), values); },
     async delete(id) { entries.splice(entries.findIndex((entry) => entry.id === id), 1); }
   };
   const db = {
     OutboxQueue: queue,
-    SyncState: { async put() {}, async delete() {} },
-    async transaction(_mode, _queue, _state, callback) { return callback(); }
+    SyncState: { async get() {}, async put() {}, async delete() {} },
+    async transaction(_mode, ...args) { return args[args.length - 1](); }
   };
   let responseStatus = status;
   let responseBody = body;

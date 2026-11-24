@@ -34,6 +34,95 @@
     assert(product.id !== 'lidl-1' && product.name === 'Old product', 'Product migration failed');
     assert(typeof plan.id === 'string' && await db.planner.count() === 0, 'Planner migration failed');
 
+    const ownerMigrationName = `${name}-owner-migration`;
+    scopedDatabases.add(ownerMigrationName);
+    const oldOwnerDb = new Dexie(ownerMigrationName);
+    oldOwnerDb.version(8).stores({
+      recipes: 'id', planner: 'dayKey', plannerEntries: 'id, dayKey', goals: 'id',
+      products: 'id, name, category', OutboxQueue: 'id, timestamp', SyncState: 'id',
+      settings: 'id, userId', migrationState: 'id, userId'
+    });
+    await oldOwnerDb.open();
+    await oldOwnerDb.recipes.bulkAdd([
+      { id: 'legacy-local', name: 'Local' },
+      { id: 'legacy-synced', name: 'Unknown remote owner' },
+      { id: 'legacy-foreign', userId: 'other-user', name: 'Foreign' }
+    ]);
+    await oldOwnerDb.SyncState.put({
+      id: 'recipes:legacy-synced', table: 'recipes', recordId: 'legacy-synced', updatedAt: '2026-01-01T00:00:00Z'
+    });
+    await oldOwnerDb.OutboxQueue.put({
+      id: 'legacy-queue', table: 'recipes', action: 'update',
+      payload: { id: 'legacy-synced', value: { id: 'legacy-synced', name: 'Local edit' } },
+      sequence: 1, timestamp: 1, baseUpdatedAt: '2026-01-01T00:00:00Z'
+    });
+    oldOwnerDb.close();
+    const ownerMigrated = new window.MacroChef.DexieCalorieRepository(ownerMigrationName, {
+      seedDefaults: false, userId: 'migration-owner'
+    });
+    scopedRepositories.push(ownerMigrated);
+    await ownerMigrated.initialize();
+    const migratedVisible = await ownerMigrated.getAllRecipes();
+    assert(migratedVisible.length === 1 && migratedVisible[0].id === 'legacy-local' &&
+      migratedVisible[0].userId === 'migration-owner', 'Legacy private records were not scoped');
+    const unverified = await ownerMigrated.db.recipes.get('legacy-synced');
+    assert(unverified.ownerUnverified && unverified.userId === '@unverified' &&
+      (await ownerMigrated.db.recipes.get('legacy-foreign')).userId === 'other-user',
+      'Unknown or foreign legacy ownership was reassigned');
+    assert((await ownerMigrated.db.OutboxQueue.get('legacy-queue')).userId === 'migration-owner' &&
+      (await ownerMigrated.db.SyncState.get('recipes:legacy-synced')).userId === 'migration-owner',
+      'Legacy outbox or sync state was not preserved and scoped');
+    const migrationManager = new window.MacroChef.AppSyncManager();
+    migrationManager.start({ repository: ownerMigrated, userId: 'migration-owner', client: {} });
+    const migratedRemote = {
+      products: [], plannerEntries: [], goals: [],
+      recipes: [{ id: 'legacy-synced', user_id: 'migration-owner',
+        data: { id: 'legacy-synced', name: 'Old server' }, updated_at: '2026-01-01T00:00:00Z' }]
+    };
+    try {
+      await migrationManager.pull(migratedRemote, []);
+      assert((await ownerMigrated.db.recipes.get('legacy-synced')).ownerUnverified &&
+        await ownerMigrated.db.OutboxQueue.get('legacy-queue'), 'Pending legacy edit was overwritten');
+      migrationManager.request = async (_table, _params, _method, payload) => ({
+        status: 200, data: [{ ...payload, updated_at: '2026-01-02T00:00:00Z' }]
+      });
+      await migrationManager.push(await ownerMigrated.db.OutboxQueue.get('legacy-queue'), migratedRemote);
+      await migrationManager.pull(migratedRemote, []);
+      assert(!(await ownerMigrated.db.OutboxQueue.get('legacy-queue')) &&
+        (await ownerMigrated.db.recipes.get('legacy-synced')).userId === 'migration-owner' &&
+        (await ownerMigrated.db.recipes.get('legacy-synced')).name === 'Local edit',
+        'Verified legacy edit was not preserved and re-scoped');
+    } finally {
+      await migrationManager.stop();
+    }
+    const markerName = `${name}-foreign-marker`;
+    scopedDatabases.add(markerName);
+    const markerRepo = new window.MacroChef.DexieCalorieRepository(markerName, {
+      seedDefaults: false, userId: 'migration-owner', legacyDatabaseName: `${name}-legacy`
+    });
+    scopedRepositories.push(markerRepo);
+    await markerRepo.db.open();
+    await markerRepo.db.migrationState.put({ id: '@scoped-database-migration', userId: 'other-user' });
+    let markerRejected = false;
+    try {
+      await markerRepo.migrateLegacyDatabase();
+    } catch (error) {
+      markerRejected = /another user/.test(error.message);
+    }
+    assert(markerRejected && (await markerRepo.db.migrationState.get('@scoped-database-migration')).userId === 'other-user',
+      'Foreign migration marker was not rejected');
+    await markerRepo.db.migrationState.delete('@scoped-database-migration');
+    await markerRepo.db.recipes.put({ id: 'foreign-destination', userId: 'other-user', name: 'Keep' });
+    markerRepo.legacyDatabaseName = ownerMigrated.db.name;
+    let foreignDestinationRejected = false;
+    try {
+      await markerRepo.migrateLegacyDatabase();
+    } catch (error) {
+      foreignDestinationRejected = /another user/.test(error.message);
+    }
+    assert(foreignDestinationRejected && (await markerRepo.db.recipes.get('foreign-destination')).name === 'Keep',
+      'Migration did not preserve foreign destination records');
+
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
     const newRecipe = await repository.saveRecipe({ name: 'New recipe' });
     await repository.savePlannerSlot('Monday', {}, 'Lunch', newRecipe.id);
@@ -112,11 +201,11 @@
       assert(await fresh.db.OutboxQueue.count() === 0, 'Initial data was journaled');
 
       await fresh.db.recipes.bulkAdd([
-        { id: 'rec-demo-local', name: { en: 'Berry Protein Oats Bowl', pl: 'Owsianka' } },
-        { id: 'rec-demo-synced', name: { en: 'Greek Yogurt & Almond Snack', pl: 'Jogurt' } },
-        { id: 'rec-user', name: { en: 'My recipe', pl: 'Mój przepis' } }
+        { id: 'rec-demo-local', userId: 'guest', name: { en: 'Berry Protein Oats Bowl', pl: 'Owsianka' } },
+        { id: 'rec-demo-synced', userId: 'guest', name: { en: 'Greek Yogurt & Almond Snack', pl: 'Jogurt' } },
+        { id: 'rec-user', userId: 'guest', name: { en: 'My recipe', pl: 'Mój przepis' } }
       ]);
-      await fresh.db.SyncState.put({ id: 'recipes:rec-demo-synced', table: 'recipes', recordId: 'rec-demo-synced', updatedAt: '2026-01-01T00:00:00Z' });
+      await fresh.db.SyncState.put({ id: 'recipes:rec-demo-synced', userId: 'guest', table: 'recipes', recordId: 'rec-demo-synced', updatedAt: '2026-01-01T00:00:00Z' });
       await fresh.initialize();
       const remaining = (await fresh.db.recipes.toArray()).map((r) => r.id).sort();
       assert(JSON.stringify(remaining) === JSON.stringify(['rec-demo-synced', 'rec-user']), `Legacy demo recipes not purged: ${remaining}`);
@@ -181,7 +270,8 @@
       scopedDatabases.add(item.repository.db.name);
     });
     assert(a.repository.db.name === aAgain.repository.db.name, 'Same scope must reopen the same database');
-    assert(scopedDatabases.size === 4, 'Accounts, tenants or issuers share a database');
+    assert(new Set([a, b, otherTenant, otherIssuer].map((item) => item.repository.db.name)).size === 4,
+      'Accounts, tenants or issuers share a database');
     assert(a.shoppingStorageKey !== b.shoppingStorageKey, 'Shopping keys are shared between accounts');
     await a.repository.initialize();
     await b.repository.initialize();
@@ -319,6 +409,10 @@
     window.fetch = async (input, options) => {
       const url = new URL(input);
       const table = url.pathname.split('/').pop();
+      if (url.pathname.endsWith('/rpc/is_admin')) {
+        const owner = JSON.parse(options.body).check_user;
+        return new Response(JSON.stringify(owner === 'other-admin'), { status: 200 });
+      }
       const rows = tables[table];
       assert(rows, `Unexpected remote table: ${table}`);
       const method = options.method;
@@ -389,6 +483,60 @@
       assert(tables.recipes.length === 2 && tables.planner.length === 1, 'Remote records were not created');
       assert((await syncRepo.db.products.get('shared-product')).name.pl === 'Produkt' &&
         await syncRepo.db.recipes.get('admin-global'), 'Shared products or global recipes were not pulled');
+      await syncRepo.db.recipes.put({ id: 'foreign-private', userId: 'other-user', name: 'Private' });
+      await syncRepo.db.plannerEntries.put({ id: 'foreign-plan', userId: 'other-user', dayKey: 'Tuesday', Breakfast: 'foreign-private' });
+      await syncRepo.db.goals.put({ id: 'foreign-goal', userId: 'other-user', calories: 9999 });
+      await syncRepo.db.OutboxQueue.put({
+        id: 'foreign-outbox', userId: 'other-user', table: 'recipes', action: 'create',
+        payload: { id: 'foreign-outbox-recipe', name: 'Private' }, sequence: 999, timestamp: 1
+      });
+      await syncRepo.db.SyncState.put({
+        id: 'recipes:foreign-ghost', userId: 'other-user', table: 'recipes',
+        recordId: 'foreign-ghost', updatedAt: '2025-01-01T00:00:00Z'
+      });
+      tables.recipes.push({
+        id: 'remote-private', user_id: 'other-user', data: { id: 'remote-private', name: 'Remote private' },
+        updated_at: '2025-01-01T00:00:00Z'
+      });
+      const visibleRecipes = await syncRepo.getAllRecipes();
+      assert(visibleRecipes.some((item) => item.id === 'admin-global') &&
+        !visibleRecipes.some((item) => item.id === 'foreign-private'),
+        'Recipe query leaked a private record or hid the Admin library');
+      const observedData = await new Promise((resolve, reject) => {
+        const subscription = syncRepo.watchAppData().subscribe({
+          next(value) { subscription.unsubscribe(); resolve(value); }, error: reject
+        });
+      });
+      assert(!observedData.plan.Tuesday && observedData.goals.calories !== 9999,
+        'Planner or goals query leaked another account');
+      let deniedForeign = false;
+      try { await syncRepo.saveRecipe({ id: 'foreign-private', name: 'Overwrite' }); }
+      catch (error) { deniedForeign = /another user/.test(error.message); }
+      assert(deniedForeign, 'Another user recipe could be overwritten');
+      deniedForeign = false;
+      try { await syncRepo.deleteRecipe('foreign-private'); }
+      catch (error) { deniedForeign = /another user/.test(error.message); }
+      assert(deniedForeign && (await syncRepo.db.recipes.get('foreign-private')).name === 'Private',
+        'Another user recipe could be deleted');
+      await syncRepo.saveGoals({ calories: 1770 });
+      const ownQueue = await syncRepo.db.OutboxQueue.where('userId').equals('account-sync').toArray();
+      assert(ownQueue.length === 1 && ownQueue[0].table === 'goals' &&
+        (ownQueue[0].payload.value || ownQueue[0].payload).userId === 'account-sync', 'Owned changes were not stamped');
+      await manager.sync();
+      assert(await syncRepo.db.OutboxQueue.get('foreign-outbox') &&
+        !tables.recipes.some((row) => row.id === 'foreign-outbox-recipe') &&
+        !await syncRepo.db.recipes.get('remote-private') &&
+        (await syncRepo.db.goals.get('foreign-goal')).calories === 9999 &&
+        (await syncRepo.db.plannerEntries.get('foreign-plan')).Breakfast === 'foreign-private' &&
+        manager.getStatus().pendingCount === 0, 'Sync applied another user data or queue');
+      assert(!requests.some((item) => item.table === 'recipes' && item.method !== 'GET' &&
+        item.payload && item.payload.id === 'foreign-outbox-recipe'), 'Foreign outbox was flushed');
+      await syncRepo.db.OutboxQueue.delete('foreign-outbox');
+      await syncRepo.db.SyncState.delete('recipes:foreign-ghost');
+      await syncRepo.db.recipes.delete('foreign-private');
+      await syncRepo.db.plannerEntries.delete('foreign-plan');
+      await syncRepo.db.goals.delete('foreign-goal');
+      tables.recipes = tables.recipes.filter((row) => row.id !== 'remote-private');
       const preparedAt = new Date('2025-02-03T04:05:06.000Z');
       const changes = {
         title: 'Oats', imageUrl: undefined, nutrition: { fiber: undefined, protein: 30 },
@@ -484,18 +632,20 @@
       await manager.sync();
       assert(await syncRepo.db.OutboxQueue.count() === 0 && manager.getStatus().state === 'synced',
         'Acknowledged goal update remained queued');
-      const localRecipe = await syncRepo.db.recipes.get('admin-global');
+      const ownRecipe = await syncRepo.saveRecipe({ name: 'Own conflict recipe' });
+      await manager.sync();
+      const localRecipe = await syncRepo.db.recipes.get(ownRecipe.id);
       const editedRecipe = await syncRepo.saveRecipe({ ...localRecipe, name: 'Local edit' });
-      const remoteGlobal = tables.recipes.find((item) => item.id === 'admin-global');
+      const remoteGlobal = tables.recipes.find((item) => item.id === ownRecipe.id);
       remoteGlobal.updated_at = '2026-03-01T00:00:00Z';
       remoteGlobal.data.name = 'Server edit';
       await manager.sync();
       const recipeConflict = manager.getStatus();
-      assert((await syncRepo.db.recipes.get('admin-global')).name === 'Local edit' &&
+      assert((await syncRepo.db.recipes.get(ownRecipe.id)).name === 'Local edit' &&
         await syncRepo.db.OutboxQueue.count() === 1, 'Recipe conflict lost the local edit or outbox entry');
       assert(recipeConflict.conflictCount === 1 && recipeConflict.pendingCount === 1 &&
         recipeConflict.conflicts[0].table === 'recipes' &&
-        recipeConflict.conflicts[0].recordId === 'admin-global' &&
+        recipeConflict.conflicts[0].recordId === ownRecipe.id &&
         recipeConflict.conflicts[0].localUpdatedAt === editedRecipe.updatedAt &&
         recipeConflict.conflicts[0].serverUpdatedAt === '2026-03-01T00:00:00Z',
         'Recipe conflict metadata is incorrect');

@@ -66,6 +66,9 @@ window.MacroChef = window.MacroChef || {};
     }
   };
 
+  const privateTables = new Set(['recipes', 'plannerEntries', 'goals', 'settings', 'migrationState']);
+  const ownedRows = (table, userId) => table.where('userId').equals(userId);
+
   class OfflineMutationDecorator {
     constructor(db, userId) {
       this.db = db;
@@ -82,18 +85,27 @@ window.MacroChef = window.MacroChef || {};
         put: async (table, value) => {
           assertStringKey(value.id, table.name);
           const exists = await table.get(value.id);
-          await table.put(value);
+          if (privateTables.has(table.name) && exists && exists.userId !== this.userId) {
+            throw new Error(`Cannot modify another user's ${table.name} record`);
+          }
+          const saved = privateTables.has(table.name) ? { ...value, userId: this.userId } : value;
+          await table.put(saved);
           if (shouldJournal(table)) {
             await this.enqueue(table.name, exists ? 'update' : 'create',
-              exists ? { id: value.id, value } : value, value);
+              exists ? { id: saved.id, value: saved } : saved, saved);
             changed = true;
           }
         },
         update: async (table, id, changes) => {
           assertStringKey(id, table.name);
-          const count = await table.update(id, changes);
+          const existing = await table.get(id);
+          if (privateTables.has(table.name) && existing && existing.userId !== this.userId) {
+            throw new Error(`Cannot modify another user's ${table.name} record`);
+          }
+          const scopedChanges = privateTables.has(table.name) ? { ...changes, userId: this.userId } : changes;
+          const count = await table.update(id, scopedChanges);
           if (count && shouldJournal(table)) {
-            await this.enqueue(table.name, 'update', { id, changes }, await table.get(id));
+            await this.enqueue(table.name, 'update', { id, changes: scopedChanges }, await table.get(id));
             changed = true;
           }
         },
@@ -101,6 +113,9 @@ window.MacroChef = window.MacroChef || {};
           assertStringKey(id, table.name);
           const exists = await table.get(id);
           if (exists === undefined) return;
+          if (privateTables.has(table.name) && exists.userId !== this.userId) {
+            throw new Error(`Cannot delete another user's ${table.name} record`);
+          }
           await table.delete(id);
           if (shouldJournal(table)) {
             await this.enqueue(table.name, 'delete', { id });
@@ -122,11 +137,14 @@ window.MacroChef = window.MacroChef || {};
     async enqueue(table, action, payload, snapshot) {
       const id = payload.id;
       const baseline = await this.db.SyncState.get(`${table}:${id}`);
+      if (baseline && baseline.userId !== this.userId) throw new Error('Synchronization baseline belongs to another user');
       const counter = await this.db.SyncState.get('@outbox-sequence');
+      if (counter && counter.userId !== this.userId) throw new Error('Outbox sequence belongs to another user');
       const sequence = counter ? counter.sequence + 1 : 1;
-      await this.db.SyncState.put({ id: '@outbox-sequence', sequence });
+      await this.db.SyncState.put({ id: '@outbox-sequence', userId: this.userId, sequence });
       return this.db.OutboxQueue.add({
         id: createId('outbox'),
+        userId: this.userId,
         table,
         action,
         payload: Dexie.deepClone(payload),
@@ -266,6 +284,32 @@ window.MacroChef = window.MacroChef || {};
           await tx.table('recipes').put(migrated);
         }
       });
+      if (!options.readLegacy) {
+        this.db.version(9).stores({
+          recipes: 'id, userId, shared',
+          planner: 'dayKey, userId',
+          plannerEntries: 'id, dayKey, userId',
+          goals: 'id, userId',
+          products: 'id, name, category, userId',
+          OutboxQueue: 'id, timestamp, userId',
+          SyncState: 'id, userId',
+          settings: 'id, userId',
+          migrationState: 'id, userId'
+        }).upgrade(async (tx) => {
+          const syncedRecipes = new Set((await tx.table('SyncState').toArray())
+            .filter((row) => row.table === 'recipes').map((row) => row.recordId));
+          for (const name of ['recipes', 'planner', 'plannerEntries', 'goals', 'OutboxQueue', 'SyncState']) {
+            await tx.table(name).toCollection().modify((row) => {
+              if (row.userId === undefined || row.userId === null) {
+                if (name === 'recipes' && syncedRecipes.has(row.id)) {
+                  row.userId = '@unverified';
+                  row.ownerUnverified = true;
+                } else row.userId = this.userId;
+              }
+            });
+          }
+        });
+      }
       this.mutations = new OfflineMutationDecorator(this.db, this.userId);
 
       this.db.on('populate', async () => {
@@ -277,18 +321,18 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async seedInitialData() {
-      if (window.MacroChef.DEFAULT_GOALS && await this.db.goals.count() === 0) {
-        await this.db.goals.add({ ...window.MacroChef.DEFAULT_GOALS, id: createId('goal') });
+      if (window.MacroChef.DEFAULT_GOALS && await ownedRows(this.db.goals, this.userId).count() === 0) {
+        await this.db.goals.add({ ...window.MacroChef.DEFAULT_GOALS, id: createId('goal'), userId: this.userId });
       }
     }
 
     // Older builds seeded these demo recipes locally; the shared library now comes only from Supabase.
     async removeLegacyDemoRecipes() {
       await this.db.transaction('rw', this.db.recipes, this.db.SyncState, async () => {
-        const syncedIds = new Set((await this.db.SyncState.toArray())
+        const syncedIds = new Set((await ownedRows(this.db.SyncState, this.userId).toArray())
           .filter((state) => state.table === 'recipes')
           .map((state) => state.recordId));
-        const demoIds = (await this.db.recipes.toArray())
+        const demoIds = (await ownedRows(this.db.recipes, this.userId).toArray())
           .filter((recipe) => {
             const name = recipe.name && typeof recipe.name === 'object' ? recipe.name.en : recipe.name;
             return LEGACY_DEMO_RECIPE_NAMES.has(name) && !syncedIds.has(recipe.id);
@@ -302,7 +346,7 @@ window.MacroChef = window.MacroChef || {};
       const catalog = window.MacroChef.LIDL_PRODUCTS || [];
       await this.db.transaction('rw', this.db.products, this.db.SyncState, async () => {
         const existing = await this.db.products.toArray();
-        const syncedIds = new Set((await this.db.SyncState.toArray())
+        const syncedIds = new Set((await ownedRows(this.db.SyncState, this.userId).toArray())
           .filter((state) => state.table === 'products')
           .map((state) => state.recordId));
         const managedProducts = existing.filter((product) =>
@@ -347,7 +391,7 @@ window.MacroChef = window.MacroChef || {};
     async normalizeRecipes() {
       // Normalize all recipes to have consistent field structure
       try {
-        const recipes = await this.db.recipes.toArray();
+        const recipes = await ownedRows(this.db.recipes, this.userId).toArray();
         let needsUpdate = false;
 
         for (const recipe of recipes) {
@@ -446,28 +490,56 @@ window.MacroChef = window.MacroChef || {};
     async migrateLegacyDatabase() {
       if (!this.legacyDatabaseName) return;
       const marker = '@scoped-database-migration';
-      if (await this.db.migrationState.get(marker)) return;
+      const migrationCompleted = async () => {
+        const existing = await this.db.migrationState.get(marker);
+        if (existing && existing.userId !== this.userId) {
+          throw new Error('Migration marker belongs to another user');
+        }
+        return Boolean(existing);
+      };
+      if (await migrationCompleted()) return;
       let data = null;
       if (await Dexie.exists(this.legacyDatabaseName)) {
-        const legacy = new DexieCalorieRepository(this.legacyDatabaseName, {
-          exactDatabaseName: true, seedDefaults: false, userId: this.userId, role: this.role
-        });
+        let legacy = new Dexie(this.legacyDatabaseName);
         try {
-          await legacy.db.open();
-          data = await legacy.db.transaction('r', ...legacy.db.tables, async () => {
-            const rows = await Promise.all(legacy.db.tables.map((table) => table.toArray()));
-            return Object.fromEntries(legacy.db.tables.map((table, index) => [table.name, rows[index]]));
+          await legacy.open();
+          if (legacy.verno < 8) {
+            legacy.close();
+            legacy = new DexieCalorieRepository(this.legacyDatabaseName, {
+              exactDatabaseName: true, seedDefaults: false, userId: this.userId, role: this.role, readLegacy: true
+            }).db;
+            await legacy.open();
+          }
+          data = await legacy.transaction('r', ...legacy.tables, async () => {
+            const rows = await Promise.all(legacy.tables.map((table) => table.toArray()));
+            return Object.fromEntries(legacy.tables.map((table, index) => [table.name, rows[index]]));
           });
         } finally {
           legacy.close();
         }
       }
       await this.db.transaction('rw', ...this.db.tables, async () => {
-        if (await this.db.migrationState.get(marker)) return;
+        if (await migrationCompleted()) return;
         if (data) {
+          const syncedRecipes = new Set((data.SyncState || [])
+            .filter((row) => row.table === 'recipes').map((row) => row.recordId));
           for (const table of this.db.tables) {
+            if (table.name !== 'products') {
+              const foreign = (await table.toArray()).some((row) => row.userId && row.userId !== this.userId);
+              if (foreign) throw new Error(`Migration destination contains records belonging to another user: ${table.name}`);
+            }
             await table.clear();
-            if (data[table.name] && data[table.name].length) await table.bulkPut(data[table.name]);
+            if (data[table.name] && data[table.name].length) {
+              const rows = data[table.name].map((row) => {
+                if (!['recipes', 'planner', 'plannerEntries', 'goals', 'OutboxQueue', 'SyncState'].includes(table.name) ||
+                    (row.userId !== undefined && row.userId !== null)) return row;
+                if (table.name === 'recipes' && syncedRecipes.has(row.id)) {
+                  return { ...row, userId: '@unverified', ownerUnverified: true };
+                }
+                return { ...row, userId: this.userId };
+              });
+              await table.bulkPut(rows);
+            }
           }
         }
         await this.db.migrationState.put({ id: marker, userId: this.userId });
@@ -517,9 +589,9 @@ window.MacroChef = window.MacroChef || {};
     watchAppData() {
       return this.trackQuery(Dexie.liveQuery(async () => {
         const [recipes, plannerRows, storedGoals] = await Promise.all([
-          this.db.recipes.toArray(),
-          this.db.plannerEntries.toArray(),
-          this.db.goals.toCollection().first()
+          this.visibleRecipes().toArray(),
+          ownedRows(this.db.plannerEntries, this.userId).toArray(),
+          ownedRows(this.db.goals, this.userId).first()
         ]);
         const plan = {};
         plannerRows.forEach((item) => {
@@ -568,7 +640,11 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async getAllRecipes() {
-      return await this.db.recipes.toArray();
+      return await this.visibleRecipes().toArray();
+    }
+
+    visibleRecipes() {
+      return ownedRows(this.db.recipes, this.userId).or('shared').equals(1);
     }
 
     async getAllProducts() {
@@ -578,8 +654,8 @@ window.MacroChef = window.MacroChef || {};
     async getGuestMigrationData() {
       return this.db.transaction('r', this.db.recipes, this.db.plannerEntries, this.db.settings, async () => {
         const [recipes, plans, settings] = await Promise.all([
-          this.db.recipes.toArray(),
-          this.db.plannerEntries.toArray(),
+          ownedRows(this.db.recipes, this.userId).toArray(),
+          ownedRows(this.db.plannerEntries, this.userId).toArray(),
           this.db.settings.where('userId').equals(this.userId).first()
         ]);
         return { recipes, plans, lang: settings && settings.lang };
@@ -587,18 +663,19 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async hasGuestMigrationDecision() {
-      return Boolean(await this.db.migrationState.get('guest-import'));
+      return Boolean(await ownedRows(this.db.migrationState, this.userId).filter((row) => row.id === 'guest-import').first());
     }
 
     async finishGuestMigration(data, accepted) {
       return this.mutations.transaction(
         [this.db.recipes, this.db.plannerEntries, this.db.migrationState],
         async ({ put, update }) => {
-          if (await this.db.migrationState.get('guest-import')) return;
+          if (await ownedRows(this.db.migrationState, this.userId).filter((row) => row.id === 'guest-import').first()) return;
           if (accepted) {
             const ids = new Map();
             for (const recipe of data.recipes) {
-              const copied = { ...recipe, id: createId('rec') };
+              const copied = { ...recipe, id: createId('rec'), userId: this.userId };
+              delete copied.shared;
               ids.set(recipe.id, copied.id);
               if (this.role === 'Tester' || this.role === 'UserWithAdvertisement') {
                 await this.db.recipes.put(copied);
@@ -607,7 +684,8 @@ window.MacroChef = window.MacroChef || {};
               }
             }
             for (const source of data.plans) {
-              const current = await this.db.plannerEntries.where('dayKey').equals(source.dayKey).first();
+              const current = await ownedRows(this.db.plannerEntries, this.userId)
+                .filter((row) => row.dayKey === source.dayKey).first();
               const changes = {};
               slots.forEach((slot) => {
                 if ((!current || !current[slot]) && source[slot] && !ids.has(source[slot])) {
@@ -633,6 +711,7 @@ window.MacroChef = window.MacroChef || {};
     async saveRecipe(recipeData) {
       const recipe = {
         ...recipeData,
+        userId: this.userId,
         imageUrl: window.MacroChef.recipeImages.normalizeUrl(recipeData.imageUrl || recipeData.image_url)
       };
       if (recipe.id === undefined || recipe.id === null || recipe.id === '') recipe.id = createId('rec');
@@ -650,6 +729,7 @@ window.MacroChef = window.MacroChef || {};
       }
       const recipes = recipeData.map((data) => ({
         ...data,
+        userId: this.userId,
         id: createId('rec'),
         imageUrl: window.MacroChef.recipeImages.normalizeUrl(data.imageUrl || data.image_url),
         updatedAt: new Date().toISOString()
@@ -666,7 +746,7 @@ window.MacroChef = window.MacroChef || {};
       assertStringKey(id, 'Recipe');
       await this.mutations.transaction([this.db.recipes, this.db.plannerEntries], async ({ update, delete: remove }) => {
         await remove(this.db.recipes, id);
-        const plans = await this.db.plannerEntries.toArray();
+        const plans = await ownedRows(this.db.plannerEntries, this.userId).toArray();
         for (const plan of plans) {
           const changes = {};
           slots.forEach((slot) => {
@@ -681,22 +761,22 @@ window.MacroChef = window.MacroChef || {};
       assertStringKey(dayKey, 'Planner day');
       if (!slots.includes(mealType)) throw new TypeError('Invalid planner meal type');
       return await this.mutations.transaction([this.db.plannerEntries], async ({ put, update }) => {
-        const current = await this.db.plannerEntries.where('dayKey').equals(dayKey).first();
+        const current = await ownedRows(this.db.plannerEntries, this.userId).filter((row) => row.dayKey === dayKey).first();
         const updated = { ...(current || { id: createId('plan'), dayKey }), [mealType]: recipeId };
         if (current) {
           await update(this.db.plannerEntries, current.id, { [mealType]: recipeId });
         } else {
           await put(this.db.plannerEntries, updated);
         }
-        const { id, dayKey: savedDay, ...plan } = updated;
+        const { id, dayKey: savedDay, userId, ...plan } = updated;
         return plan;
       });
     }
 
     async saveGoals(goals) {
       return await this.mutations.transaction([this.db.goals], async ({ put }) => {
-        const current = await this.db.goals.toCollection().first();
-        const toSave = { ...goals, id: current ? current.id : createId('goal') };
+        const current = await ownedRows(this.db.goals, this.userId).first();
+        const toSave = { ...goals, id: current ? current.id : createId('goal'), userId: this.userId };
         await put(this.db.goals, toSave);
         return toSave;
       });

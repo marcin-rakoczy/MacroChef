@@ -88,15 +88,17 @@ CREATE POLICY products_update_admin ON public.products
 CREATE POLICY products_delete_admin ON public.products
   FOR DELETE TO authenticated USING (public.is_admin());
 
-CREATE POLICY recipes_select_all ON public.recipes
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY recipes_select_own_or_admin_library ON public.recipes
+  FOR SELECT TO authenticated USING ((SELECT auth.uid()) = user_id OR public.is_admin(user_id));
 CREATE POLICY recipes_insert_admin ON public.recipes
   FOR INSERT TO authenticated
   WITH CHECK (public.is_admin() AND (SELECT auth.uid()) = user_id);
-CREATE POLICY recipes_update_admin ON public.recipes
-  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
-CREATE POLICY recipes_delete_admin ON public.recipes
-  FOR DELETE TO authenticated USING (public.is_admin());
+CREATE POLICY recipes_update_admin_owner ON public.recipes
+  FOR UPDATE TO authenticated
+  USING (public.is_admin() AND (SELECT auth.uid()) = user_id)
+  WITH CHECK (public.is_admin() AND (SELECT auth.uid()) = user_id);
+CREATE POLICY recipes_delete_admin_owner ON public.recipes
+  FOR DELETE TO authenticated USING (public.is_admin() AND (SELECT auth.uid()) = user_id);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.planner, public.goals TO authenticated;
 CREATE POLICY planner_owner_all ON public.planner
@@ -150,6 +152,9 @@ BEGIN
   ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;
   INSERT INTO public.products (id, name_english) VALUES (product_id, 'RLS audit');
   INSERT INTO public.recipes (id, user_id, data) VALUES (recipe_id, admin_id, '{}'::JSONB);
+  INSERT INTO public.recipes (id, user_id, data) VALUES
+    (recipe_id || '-tester', tester_id, '{}'::JSONB),
+    (recipe_id || '-ads', ads_id, '{}'::JSONB);
   INSERT INTO public.planner (id, user_id, day_key, data)
     VALUES ('rls-audit-plan-' || admin_id::TEXT, admin_id, 'audit', '{}'::JSONB);
   INSERT INTO public.goals (id, user_id, data)
@@ -166,7 +171,11 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = actor AND role = actor_role)
       OR EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = admin_id)
       OR NOT EXISTS (SELECT 1 FROM public.products WHERE id = product_id)
-      OR NOT EXISTS (SELECT 1 FROM public.recipes WHERE id = recipe_id) THEN
+      OR NOT EXISTS (SELECT 1 FROM public.recipes WHERE id = recipe_id)
+      OR NOT EXISTS (SELECT 1 FROM public.recipes WHERE id =
+        CASE WHEN actor = tester_id THEN recipe_id || '-tester' ELSE recipe_id || '-ads' END)
+      OR EXISTS (SELECT 1 FROM public.recipes WHERE id =
+        CASE WHEN actor = tester_id THEN recipe_id || '-ads' ELSE recipe_id || '-tester' END) THEN
       RAISE EXCEPTION 'Incorrect SELECT visibility for %', actor_role;
     END IF;
 
@@ -289,6 +298,15 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = tester_id AND role = 'Admin') THEN
     RAISE EXCEPTION 'Admin could not change another role';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.recipes WHERE id = recipe_id || '-tester') THEN
+    RAISE EXCEPTION 'Admin could not read another Admin''s shared recipe';
+  END IF;
+  UPDATE public.recipes SET data = '{"forbidden":true}'::JSONB WHERE id = recipe_id || '-tester';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN RAISE EXCEPTION 'Admin could update another user''s recipe'; END IF;
+  DELETE FROM public.recipes WHERE id = recipe_id || '-tester';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 0 THEN RAISE EXCEPTION 'Admin could delete another user''s recipe'; END IF;
   INSERT INTO public.products (id, name_english) VALUES (product_id || '-admin', 'admin');
   UPDATE public.products SET name_english = 'admin' WHERE id = product_id || '-admin';
   GET DIAGNOSTICS affected = ROW_COUNT;

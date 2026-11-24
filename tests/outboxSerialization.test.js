@@ -17,7 +17,7 @@ function setup(table, mode = 'ack200', action = 'update', changes = null) {
     ...(table === 'plannerEntries' ? { dayKey: 'Monday' } : {})
   };
   const entry = {
-    id: 'queued', table, action, sequence: 1, timestamp: 1,
+    id: 'queued', userId: 'user-1', table, action, sequence: 1, timestamp: 1,
     payload: action === 'create' ? record : changes ? { id: record.id, changes } : { id: record.id, value: record },
     snapshot: record,
     baseUpdatedAt: action === 'create' ? null : baseline
@@ -27,13 +27,19 @@ function setup(table, mode = 'ack200', action = 'update', changes = null) {
   const db = {
     OutboxQueue: {
       async delete(id) { entries.delete(id); },
+      async get(id) { return entries.get(id); },
       async toArray() { return [...entries.values()]; },
-      async update(id, values) { Object.assign(entries.get(id), values); }
+      async update(id, values) { Object.assign(entries.get(id), values); },
+      where(field) { return { equals(value) { return {
+        async toArray() { return [...entries.values()].filter((entry) => entry[field] === value); }
+      }; } }; }
     },
     SyncState: {
       async put(value) { states.set(value.id, value); },
+      async get(id) { return states.get(id); },
       async delete(id) { states.delete(id); }
     },
+    table() { return { async get() {} }; },
     async transaction(_mode, ...args) { return args[args.length - 1](); }
   };
   const prior = {

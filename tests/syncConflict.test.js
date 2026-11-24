@@ -19,9 +19,14 @@ function table(initial = []) {
     async toArray() { return [...rows.values()].map((row) => structuredClone(row)); },
     async update(id, values) { if (rows.has(id)) Object.assign(rows.get(id), values); },
     where(field) {
-      return { equals(value) { return { async toArray() {
-        return [...rows.values()].filter((row) => row[field] === value);
-      } }; } };
+      return { equals(value) {
+        const collection = (predicate = () => true) => ({
+          async toArray() { return [...rows.values()].filter((row) => row[field] === value && predicate(row)); },
+          async count() { return (await this.toArray()).length; },
+          filter(next) { return collection((row) => predicate(row) && next(row)); }
+        });
+        return collection();
+      } };
     }
   };
 }
@@ -36,7 +41,7 @@ function remoteRow(name, updatedAt = remoteTime) {
 }
 
 function setup(name, action, serverTime = remoteTime) {
-  const local = { id: 'item', name: 'Local', updatedAt: localTime,
+  const local = { id: 'item', userId: 'user-1', name: 'Local', updatedAt: localTime,
     ...(name === 'plannerEntries' ? { dayKey: 'Monday' } : {}) };
   const db = {
     products: table(), recipes: table(), plannerEntries: table(), goals: table(),
@@ -92,11 +97,11 @@ function setup(name, action, serverTime = remoteTime) {
     async initialize() {
       if (action !== 'delete') await db[name].put(local);
       if (action !== 'create') {
-        await db.SyncState.put({ id: `${name}:item`, table: name, recordId: 'item', updatedAt: baseline });
+        await db.SyncState.put({ id: `${name}:item`, userId: 'user-1', table: name, recordId: 'item', updatedAt: baseline });
       }
       if (action) {
         await db.OutboxQueue.put({
-          id: 'queued', table: name, action, sequence: 1, timestamp: 1,
+          id: 'queued', userId: 'user-1', table: name, action, sequence: 1, timestamp: 1,
           payload: action === 'create' ? local : action === 'delete' ? { id: 'item' } : { id: 'item', value: local },
           snapshot: action === 'delete' ? undefined : local,
           baseUpdatedAt: action === 'create' ? null : baseline
@@ -157,7 +162,7 @@ function setup(name, action, serverTime = remoteTime) {
       const result = await readRemote();
       if (++reads === 2) {
         await late.db.OutboxQueue.put({
-          id: 'late', table: 'recipes', action: 'update', sequence: 1, timestamp: 1,
+          id: 'late', userId: 'user-1', table: 'recipes', action: 'update', sequence: 1, timestamp: 1,
           payload: { id: 'item', value: late.local }, snapshot: late.local, baseUpdatedAt: baseline
         });
       }

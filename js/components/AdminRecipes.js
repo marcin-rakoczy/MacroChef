@@ -75,6 +75,10 @@ window.MacroChef.components = window.MacroChef.components || {};
     const totalPages = Math.ceil(filteredRecipes.length / RECIPES_PER_PAGE);
     const startIndex = page * RECIPES_PER_PAGE;
     const paginatedRecipes = filteredRecipes.slice(startIndex, startIndex + RECIPES_PER_PAGE);
+    const canEdit = (recipe) => window.MacroChef.permissions.canEditRecipe(
+      session ? session.role : 'Guest', repository.userId, recipe
+    );
+    const editablePage = paginatedRecipes.filter(canEdit);
 
     // Delete recipe
     const deleteRecipe = async (recipeId) => {
@@ -140,7 +144,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         }
 
         const existing = (await repository.getAllRecipes()) || [];
-        const plan = window.MacroChef.recipeCsv.planRecipeImport(parsedRecipes, existing);
+        const plan = window.MacroChef.recipeCsv.planRecipeImport(parsedRecipes, existing.filter(canEdit));
         const processed = await window.MacroChef.recipeImageAI.processBatch(plan.recipes, {
           onProgress: (current, total) => setImageProgress({ current, total }),
           onStatus: () => {}
@@ -329,15 +333,16 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={paginatedRecipes.length > 0 && paginatedRecipes.every(r => selected.has(r.id))}
+                      checked={editablePage.length > 0 && editablePage.every(r => selected.has(r.id))}
+                      disabled={editablePage.length === 0}
                       onChange={(e) => {
                         if (e.target.checked) {
                           const newSet = new Set(selected);
-                          paginatedRecipes.forEach(r => newSet.add(r.id));
+                          editablePage.forEach(r => newSet.add(r.id));
                           setSelected(newSet);
                         } else {
                           const newSet = new Set(selected);
-                          paginatedRecipes.forEach(r => newSet.delete(r.id));
+                          editablePage.forEach(r => newSet.delete(r.id));
                           setSelected(newSet);
                         }
                       }}
@@ -359,6 +364,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
+                        disabled={!canEdit(recipe)}
                         checked={selected.has(recipe.id)}
                         onChange={(e) => {
                           const newSet = new Set(selected);
@@ -393,6 +399,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                     <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">{Math.round(recipe.fatPerServing || recipe.fats || 0)}g</td>
                     <td className="px-4 py-3 text-center">
                       <button
+                        disabled={!canEdit(recipe)}
                         onClick={() => deleteRecipe(recipe.id)}
                         className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition"
                       >

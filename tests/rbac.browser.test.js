@@ -8,7 +8,7 @@
   });
   const rootElement = document.getElementById('test-root');
   const recipe = {
-    id: 'recipe-1', name: { en: 'Meal', pl: 'Posiłek' },
+    id: 'recipe-1', userId: 'account-test', name: { en: 'Meal', pl: 'Posiłek' },
     category: { en: 'Lunch', pl: 'Obiad' }, prepTime: '10 min',
     calories: 300, servings: 1, protein: 10, carbs: 20, fats: 5
   };
@@ -102,6 +102,21 @@
     }
   });
 
+  test('Shared recipes remain readable but cannot be edited by another account', async () => {
+    const root = ReactDOM.createRoot(rootElement);
+    try {
+      root.render(<components.RecipeLibrary recipes={[recipe, { ...recipe, id: 'shared', userId: 'other-admin' }]}
+        canManageRecipes={true} canEditRecipe={(item) => permissions.canEditRecipe('Admin', 'account-test', item)}
+        onCreateRecipe={() => {}} onEditRecipe={() => {}} onDeleteRecipe={() => {}}
+        onStartBatchCooking={() => {}} />);
+      await waitFor(() => rootElement.querySelectorAll('[title="Edit Recipe"]').length === 1);
+      equal(rootElement.querySelectorAll('[title="Delete Recipe"]').length, 1, 'Foreign delete was shown');
+      assert(!permissions.canEditRecipe('Admin', undefined, recipe), 'Missing account passed ownership check');
+    } finally {
+      root.unmount();
+    }
+  });
+
   test('Ad slot follows role and network changes', async () => {
     const original = Object.getOwnPropertyDescriptor(navigator, 'onLine');
     const root = ReactDOM.createRoot(rootElement);
@@ -137,6 +152,7 @@
     const shoppingKey = `rbac-test-${crypto.randomUUID()}`;
     window.rbacRecipes = [recipe];
     const repository = {
+      userId: 'account-test',
       async saveRecipe() { saved++; }
     };
     const root = ReactDOM.createRoot(rootElement);
