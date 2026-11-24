@@ -139,30 +139,6 @@ test('TEST environment: unknown hostname defaults to TEST', () => {
   assert.equal(env, 'TEST', 'Should default to TEST for unknown hostnames');
 });
 
-// Test 8: Database name prefixing for PROD
-test('Database naming: PROD uses MacroChefDB (no prefix)', () => {
-  const env = 'PROD';
-  const dbName = env !== 'PROD' ? `${env}_MacroChefDB` : 'MacroChefDB';
-  
-  assert.equal(dbName, 'MacroChefDB', 'PROD should not have environment prefix');
-});
-
-// Test 9: Database name prefixing for TEST
-test('Database naming: TEST uses TEST_MacroChefDB', () => {
-  const env = 'TEST';
-  const dbName = env !== 'PROD' ? `${env}_MacroChefDB` : 'MacroChefDB';
-  
-  assert.equal(dbName, 'TEST_MacroChefDB', 'TEST should have TEST_ prefix');
-});
-
-// Test 10: Database name prefixing for LOCAL
-test('Database naming: LOCAL uses LOCAL_MacroChefDB', () => {
-  const env = 'LOCAL';
-  const dbName = env !== 'PROD' ? `${env}_MacroChefDB` : 'MacroChefDB';
-  
-  assert.equal(dbName, 'LOCAL_MacroChefDB', 'LOCAL should have LOCAL_ prefix');
-});
-
 // Test 13: Badge styling for TEST environment
 test('UI: TEST environment badge is amber-colored', () => {
   const env = 'TEST';

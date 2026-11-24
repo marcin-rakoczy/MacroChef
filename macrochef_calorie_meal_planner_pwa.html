@@ -9403,12 +9403,16 @@ window.MacroChef = window.MacroChef || {};
       super();
       // Prefix database name with environment if not PROD
       const env = window.MacroChef.ENV;
-      const prefixedDbName = env !== 'PROD' ? `${env}_${databaseName}` : databaseName;
+      const prefixedDbName = options.exactDatabaseName
+        ? databaseName : env !== 'PROD' ? `${env}_${databaseName}` : databaseName;
       this.db = new Dexie(prefixedDbName);
       this.seedDefaults = options.seedDefaults !== false;
       this.userId = options.userId || 'guest';
       this.role = options.role;
       this.environment = env;
+      this.legacyDatabaseName = options.legacyDatabaseName;
+      this.subscriptions = new Set();
+      this.closed = false;
 
       this.db.version(1).stores({
         recipes: 'id',
@@ -9688,7 +9692,9 @@ window.MacroChef = window.MacroChef || {};
     }
 
     async initialize() {
+      if (this.closed) throw new Error('Repository is closed');
       await this.db.open();
+      await this.migrateLegacyDatabase();
       await this.removeLegacyDemoRecipes();
       if (!this.seedDefaults) return;
       await this.db.transaction('rw', this.db.goals, () => this.seedInitialData());
@@ -9697,12 +9703,79 @@ window.MacroChef = window.MacroChef || {};
       await this.normalizeRecipes();
     }
 
+    async migrateLegacyDatabase() {
+      if (!this.legacyDatabaseName) return;
+      const marker = '@scoped-database-migration';
+      if (await this.db.migrationState.get(marker)) return;
+      let data = null;
+      if (await Dexie.exists(this.legacyDatabaseName)) {
+        const legacy = new DexieCalorieRepository(this.legacyDatabaseName, {
+          exactDatabaseName: true, seedDefaults: false, userId: this.userId, role: this.role
+        });
+        try {
+          await legacy.db.open();
+          data = await legacy.db.transaction('r', ...legacy.db.tables, async () => {
+            const rows = await Promise.all(legacy.db.tables.map((table) => table.toArray()));
+            return Object.fromEntries(legacy.db.tables.map((table, index) => [table.name, rows[index]]));
+          });
+        } finally {
+          legacy.close();
+        }
+      }
+      await this.db.transaction('rw', ...this.db.tables, async () => {
+        if (await this.db.migrationState.get(marker)) return;
+        if (data) {
+          for (const table of this.db.tables) {
+            await table.clear();
+            if (data[table.name] && data[table.name].length) await table.bulkPut(data[table.name]);
+          }
+        }
+        await this.db.migrationState.put({ id: marker, userId: this.userId });
+      });
+    }
+
+    trackQuery(observable) {
+      return {
+        subscribe: (observer, onError, onComplete) => {
+          if (this.closed) throw new Error('Repository is closed');
+          const receiver = typeof observer === 'function'
+            ? { next: observer, error: onError, complete: onComplete } : observer || {};
+          let active = true;
+          const subscription = observable.subscribe({
+            next: (value) => { if (active && receiver.next) receiver.next(value); },
+            error: (error) => {
+              if (!active) return;
+              if (receiver.error) receiver.error(error);
+              else console.error('Repository subscription failed:', error);
+            },
+            complete: () => { if (active && receiver.complete) receiver.complete(); }
+          });
+          const tracked = {
+            unsubscribe: () => {
+              if (!active) return;
+              active = false;
+              this.subscriptions.delete(tracked);
+              subscription.unsubscribe();
+            }
+          };
+          this.subscriptions.add(tracked);
+          return tracked;
+        }
+      };
+    }
+
+    disposeSubscriptions() {
+      this.closed = true;
+      for (const subscription of this.subscriptions) subscription.unsubscribe();
+    }
+
     close() {
-      this.db.close();
+      this.disposeSubscriptions();
+      return this.db.close();
     }
 
     watchAppData() {
-      return Dexie.liveQuery(async () => {
+      return this.trackQuery(Dexie.liveQuery(async () => {
         const [recipes, plannerRows, storedGoals] = await Promise.all([
           this.db.recipes.toArray(),
           this.db.plannerEntries.toArray(),
@@ -9718,15 +9791,15 @@ window.MacroChef = window.MacroChef || {};
           };
         });
         return { recipes, plan, goals: storedGoals || window.MacroChef.DEFAULT_GOALS };
-      });
+      }));
     }
 
     watchProducts() {
-      return Dexie.liveQuery(() => this.db.products.toArray());
+      return this.trackQuery(Dexie.liveQuery(() => this.db.products.toArray()));
     }
 
     watchSettings() {
-      return Dexie.liveQuery(() => this.db.settings.where('userId').equals(this.userId).first());
+      return this.trackQuery(Dexie.liveQuery(() => this.db.settings.where('userId').equals(this.userId).first()));
     }
 
     async initializeSettings(defaults) {
@@ -9905,7 +9978,11 @@ window.MacroChef = window.MacroChef || {};
 
   window.MacroChef.ICalorieRepository = ICalorieRepository;
   window.MacroChef.DexieCalorieRepository = DexieCalorieRepository;
-  window.MacroChef.guestDatabaseExists = () => Dexie.exists('MacroChefDB');
+  window.MacroChef.guestDatabaseExists = async () => {
+    const env = window.MacroChef.ENV;
+    return await Dexie.exists(`${env}_guest_MacroChefDB`) ||
+      await Dexie.exists(env === 'PROD' ? 'MacroChefDB' : `${env}_MacroChefDB`);
+  };
   window.MacroChef.repositories = new DexieCalorieRepository();
 })();
 
@@ -9933,16 +10010,73 @@ window.MacroChef = window.MacroChef || {};
     const identity = JSON.stringify([scope.issuer, scope.tenantId, scope.userId]);
     const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity));
     const suffix = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-    const databaseName = `MacroChef-account-${suffix}`;
+    const env = window.MacroChef.ENV;
+    const legacyName = `MacroChef-account-${suffix}`;
     return {
-      repository: new window.MacroChef.DexieCalorieRepository(databaseName, {
+      repository: new window.MacroChef.DexieCalorieRepository(`${env}_account-${suffix}`, {
+        exactDatabaseName: true, legacyDatabaseName: env === 'PROD' ? legacyName : `${env}_${legacyName}`,
         seedDefaults: true, userId: scope.userId, role: scope.role
       }),
       shoppingStorageKey: `macrochef_checked_${suffix}`
     };
   }
 
+  function createGuestRepository(options = {}) {
+    const env = window.MacroChef.ENV;
+    return new window.MacroChef.DexieCalorieRepository(`${env}_guest_MacroChefDB`, {
+      ...options, exactDatabaseName: true,
+      legacyDatabaseName: env === 'PROD' ? 'MacroChefDB' : `${env}_MacroChefDB`, userId: 'guest'
+    });
+  }
+
+  class RepositoryScopeLifecycle {
+    constructor() {
+      this.current = null;
+      this.pending = Promise.resolve();
+      this.generation = 0;
+    }
+
+    stopCurrent() {
+      const current = this.current;
+      if (current && current.syncManager && !current.stopping) {
+        current.stopping = current.syncManager.stop();
+        current.stopping.catch((error) => console.error('Could not stop account synchronization:', error));
+      }
+    }
+
+    async dispose(scope) {
+      if (scope.syncManager) await (scope.stopping || scope.syncManager.stop());
+      scope.repository.disposeSubscriptions();
+      await scope.repository.close();
+    }
+
+    switchTo(create) {
+      const generation = ++this.generation;
+      this.stopCurrent();
+      const stale = () => generation !== this.generation;
+      const operation = this.pending.then(async () => {
+        if (this.current) {
+          await this.dispose(this.current);
+          this.current = null;
+        }
+        if (stale() || !create) return null;
+        const next = await create(stale);
+        if (!next) return null;
+        if (stale()) {
+          await this.dispose(next);
+          return null;
+        }
+        this.current = next;
+        return next;
+      });
+      this.pending = operation.catch(() => {});
+      return operation;
+    }
+  }
+
   window.MacroChef.createScopedRepository = createScopedRepository;
+  window.MacroChef.createGuestRepository = createGuestRepository;
+  window.MacroChef.RepositoryScopeLifecycle = RepositoryScopeLifecycle;
 })();
 
 
@@ -16646,7 +16780,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [target, setTarget] = useState(null);
     const [error, setError] = useState(null);
     const [attempt, setAttempt] = useState(0);
-    const activeRef = useRef(null);
+    const lifecycleRef = useRef(null);
+    if (!lifecycleRef.current) lifecycleRef.current = new window.MacroChef.RepositoryScopeLifecycle();
+    const lifecycle = lifecycleRef.current;
     const wantedRef = useRef(null);
     const latestSession = useRef(null);
     const sequence = useRef(0);
@@ -16666,6 +16802,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             return;
           }
           wantedRef.current = key;
+          lifecycle.stopCurrent();
           setActive(null);
           setTarget({ key, session });
         } catch (err) {
@@ -16678,7 +16815,10 @@ window.MacroChef.components = window.MacroChef.components || {};
         if (event === 'changing') {
           sequence.current++;
           wantedRef.current = null;
-          if (activeRef.current && activeRef.current.syncManager) activeRef.current.syncManager.stop();
+          lifecycle.switchTo(null).catch((err) => {
+            console.error('Account teardown failed:', err);
+            if (!disposed) setError('authDataError');
+          });
           setActive(null);
           setTarget({ suspended: true });
         } else {
@@ -16691,68 +16831,43 @@ window.MacroChef.components = window.MacroChef.components || {};
         sequence.current++;
         unsubscribe();
       };
-    }, [attempt]);
+    }, [attempt, lifecycle]);
 
     useEffect(() => {
       if (!target) return;
       let cancelled = false;
-      let next;
-      const stale = () => cancelled || wantedRef.current !== target.key;
-      async function open() {
+      const create = target.suspended ? null : async (isStale) => {
+        let next;
+        const stale = () => cancelled || isStale() || wantedRef.current !== target.key;
         try {
-          if (activeRef.current) {
-            const previous = activeRef.current;
-            activeRef.current = null;
-            if (previous.syncManager) await previous.syncManager.stop();
-            previous.repository.close();
-          }
-          if (target.suspended) return;
           next = target.session
             ? await window.MacroChef.createScopedRepository(target.session)
-            : { repository: new window.MacroChef.DexieCalorieRepository(), shoppingStorageKey: 'macrochef_checked' };
-          if (stale()) {
-            next.repository.close();
-            return;
-          }
+            : { repository: window.MacroChef.createGuestRepository(), shoppingStorageKey: 'macrochef_checked' };
+          if (stale()) return next;
           await next.repository.initialize();
-          if (stale()) {
-            next.repository.close();
-            return;
-          }
+          if (stale()) return next;
           if (target.session) await next.repository.seedProducts();
-          if (stale()) {
-            next.repository.close();
-            return;
-          }
+          if (stale()) return next;
           if (target.session && !await next.repository.hasGuestMigrationDecision()) {
-            if (stale()) {
-              next.repository.close();
-              return;
-            }
+            if (stale()) return next;
             let data = { recipes: [], plans: [] };
             if (await window.MacroChef.guestDatabaseExists()) {
-              const guest = new window.MacroChef.DexieCalorieRepository('MacroChefDB', { seedDefaults: false });
+              const guest = window.MacroChef.createGuestRepository({ seedDefaults: false });
               try {
                 await guest.initialize();
                 data = await guest.getGuestMigrationData();
               } finally {
-                guest.close();
+                await guest.close();
               }
             }
-            if (stale()) {
-              next.repository.close();
-              return;
-            }
+            if (stale()) return next;
             const hasData = data.recipes.length > 0 || data.plans.some((plan) =>
               ['Breakfast', 'Lunch', 'Dinner', 'Snack'].some((slot) => plan[slot]));
             const lang = (data.lang || localStorage.getItem('macrochef_lang')) === 'en' ? 'en' : 'pl';
             const accepted = hasData && window.confirm(window.MacroChef.TRANSLATIONS[lang].authMigrationPrompt);
             await next.repository.finishGuestMigration(data, accepted);
           }
-          if (stale()) {
-            next.repository.close();
-            return;
-          }
+          if (stale()) return next;
           if (target.session) {
             next.syncManager = new window.MacroChef.AppSyncManager();
             next.syncManager.start({
@@ -16761,36 +16876,31 @@ window.MacroChef.components = window.MacroChef.components || {};
               client: window.MacroChef.supabaseClient
             });
           }
-          activeRef.current = next;
-          setActive({ ...next, key: target.key, session: latestSession.current });
+          return next;
         } catch (err) {
-          if (next) next.repository.close();
-          if (!stale()) {
-            console.error('Account repository initialization failed:', err);
-            wantedRef.current = null;
-            setError(err.message === 'Guest plan references a missing recipe'
-              ? 'authGuestDataError'
-              : 'authDataError');
-          }
-        }
-      }
-      open();
-      return () => {
-        cancelled = true;
-        if (next && activeRef.current !== next) {
-          if (next.syncManager) next.syncManager.stop().then(() => next.repository.close());
-          else next.repository.close();
+          if (next) await lifecycle.dispose(next);
+          throw err;
         }
       };
-    }, [target]);
+      lifecycle.switchTo(create).then((next) => {
+        if (next && !cancelled) setActive({ ...next, key: target.key, session: latestSession.current });
+      }).catch((err) => {
+        if (!cancelled) {
+          console.error('Account repository initialization failed:', err);
+          wantedRef.current = null;
+          setError(err.message === 'Guest plan references a missing recipe'
+            ? 'authGuestDataError'
+            : 'authDataError');
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [target, lifecycle]);
 
     useEffect(() => () => {
-      if (activeRef.current) {
-        const previous = activeRef.current;
-        if (previous.syncManager) previous.syncManager.stop().then(() => previous.repository.close());
-        else previous.repository.close();
-      }
-    }, []);
+      lifecycle.switchTo(null).catch((err) => console.error('Account teardown failed:', err));
+    }, [lifecycle]);
 
     const handleSignOut = async () => {
       try {

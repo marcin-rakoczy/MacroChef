@@ -195,6 +195,112 @@
     try { await window.MacroChef.createScopedRepository({ issuer: 'test', tenantId: '', userId: 'a' }); }
     catch (error) { invalidScopeRejected = error instanceof TypeError; }
     assert(invalidScopeRejected, 'Invalid scope was accepted');
+
+    const migrationScope = await window.MacroChef.createScopedRepository({ ...identity, userId: 'migration-account' });
+    const migrationName = migrationScope.repository.db.name;
+    const legacyName = migrationName.replace(/^PROD_account-/, 'MacroChef-account-');
+    scopedRepositories.push(migrationScope.repository);
+    scopedDatabases.add(migrationName);
+    scopedDatabases.add(legacyName);
+    const legacy = new window.MacroChef.DexieCalorieRepository(legacyName, {
+      exactDatabaseName: true, seedDefaults: false, userId: 'migration-account'
+    });
+    await legacy.initialize();
+    const privateRecipe = await legacy.saveRecipe({ name: 'Private migration recipe' });
+    await legacy.savePlannerSlot('Monday', {}, 'Breakfast', privateRecipe.id);
+    await legacy.saveGoals({ calories: 1777 });
+    const legacyQueue = await legacy.db.OutboxQueue.count();
+    legacy.close();
+    await migrationScope.repository.initialize();
+    const migratedRecipe = await migrationScope.repository.db.recipes.get(privateRecipe.id);
+    assert(migratedRecipe && (migratedRecipe.name.en || migratedRecipe.name) === 'Private migration recipe',
+      'Scoped migration lost the private recipe');
+    assert((await migrationScope.repository.db.plannerEntries.toArray())[0].Breakfast === privateRecipe.id,
+      'Scoped migration lost the plan');
+    assert((await migrationScope.repository.db.goals.toArray())[0].calories === 1777,
+      'Scoped migration lost the goals');
+    assert(await migrationScope.repository.db.OutboxQueue.count() === legacyQueue,
+      'Scoped migration lost pending writes');
+    await legacy.db.open();
+    await legacy.db.recipes.put({ id: 'legacy-late', name: 'Old tab write' });
+    legacy.close();
+    migrationScope.repository.close();
+    const reopenedMigration = await window.MacroChef.createScopedRepository({ ...identity, userId: 'migration-account' });
+    scopedRepositories.push(reopenedMigration.repository);
+    await reopenedMigration.repository.initialize();
+    assert(!await reopenedMigration.repository.db.recipes.get('legacy-late') &&
+      await reopenedMigration.repository.db.recipes.get(privateRecipe.id), 'Scoped migration repeated after completion');
+
+    const originalEnvironment = window.MacroChef.ENV;
+    const guestEnvironment = `TEST-${crypto.randomUUID()}`;
+    window.MacroChef.ENV = guestEnvironment;
+    try {
+      const oldGuestName = `${guestEnvironment}_MacroChefDB`;
+      const oldGuest = new window.MacroChef.DexieCalorieRepository(oldGuestName, {
+        exactDatabaseName: true, seedDefaults: false
+      });
+      scopedDatabases.add(oldGuestName);
+      await oldGuest.initialize();
+      const oldGuestRecipe = await oldGuest.saveRecipe({ name: 'Guest migration recipe' });
+      oldGuest.close();
+      assert(await window.MacroChef.guestDatabaseExists(), 'Legacy guest database was not detected');
+      const migratedGuest = window.MacroChef.createGuestRepository({ seedDefaults: false });
+      scopedRepositories.push(migratedGuest);
+      scopedDatabases.add(migratedGuest.db.name);
+      await migratedGuest.initialize();
+      assert(await migratedGuest.db.recipes.get(oldGuestRecipe.id), 'Guest migration lost the recipe');
+    } finally {
+      window.MacroChef.ENV = originalEnvironment;
+    }
+
+    const lifecycle = new window.MacroChef.RepositoryScopeLifecycle();
+    const lifecycleEvents = [];
+    const isolatedA = await lifecycle.switchTo(async () => {
+      const scope = await window.MacroChef.createScopedRepository({ ...identity, userId: 'isolated-a' });
+      scopedRepositories.push(scope.repository);
+      scopedDatabases.add(scope.repository.db.name);
+      await scope.repository.initialize();
+      scope.syncManager = { async stop() { lifecycleEvents.push('stop'); } };
+      return scope;
+    });
+    const isolatedRecipe = await isolatedA.repository.saveRecipe({ name: 'Isolated private recipe' });
+    await isolatedA.repository.savePlannerSlot('Monday', {}, 'Breakfast', isolatedRecipe.id);
+    await isolatedA.repository.saveGoals({ calories: 1888 });
+    const subscription = isolatedA.repository.watchAppData().subscribe({ next() {} });
+    const dispose = isolatedA.repository.disposeSubscriptions.bind(isolatedA.repository);
+    isolatedA.repository.disposeSubscriptions = () => { lifecycleEvents.push('unsubscribe'); dispose(); };
+    const close = isolatedA.repository.close.bind(isolatedA.repository);
+    isolatedA.repository.close = () => { lifecycleEvents.push('close'); return close(); };
+    const isolatedB = await lifecycle.switchTo(async () => {
+      lifecycleEvents.push('create-b');
+      const scope = await window.MacroChef.createScopedRepository({ ...identity, userId: 'isolated-b' });
+      scopedRepositories.push(scope.repository);
+      scopedDatabases.add(scope.repository.db.name);
+      await scope.repository.initialize();
+      return scope;
+    });
+    assert(lifecycleEvents.indexOf('stop') < lifecycleEvents.indexOf('unsubscribe') &&
+      lifecycleEvents.indexOf('unsubscribe') < lifecycleEvents.indexOf('close') &&
+      lifecycleEvents.indexOf('close') < lifecycleEvents.indexOf('create-b') &&
+      isolatedA.repository.subscriptions.size === 0, 'Account teardown order was not enforced');
+    subscription.unsubscribe();
+    assert(await isolatedB.repository.db.recipes.count() === 0 &&
+      await isolatedB.repository.db.plannerEntries.count() === 0 &&
+      (await isolatedB.repository.db.goals.toArray()).every((item) => item.calories !== 1888),
+      'Private account data leaked into another scope');
+    const isolatedGuest = await lifecycle.switchTo(async () => {
+      const guest = new window.MacroChef.DexieCalorieRepository(`${name}-guest`, { seedDefaults: false });
+      scopedRepositories.push(guest);
+      scopedDatabases.add(guest.db.name);
+      await guest.initialize();
+      return { repository: guest };
+    });
+    assert(await isolatedGuest.repository.db.recipes.count() === 0 &&
+      await isolatedGuest.repository.db.plannerEntries.count() === 0 &&
+      await isolatedGuest.repository.db.goals.count() === 0 &&
+      isolatedGuest.repository.db.name !== isolatedA.repository.db.name,
+      'Private account data leaked into the guest scope');
+    await lifecycle.switchTo(null);
     delete navigator.onLine;
     const syncRepo = new window.MacroChef.DexieCalorieRepository(`${name}-sync`, {
       seedDefaults: false, userId: 'account-sync', role: 'Admin'

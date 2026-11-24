@@ -46,6 +46,7 @@ jobs:
           node tests/sync-permission.test.js
           node tests/syncConflict.test.js
           node tests/outboxSerialization.test.js
+          node tests/accountIsolation.test.js
           node tests/offlineAuth.test.js
 
   # ============================================================================
@@ -105,6 +106,7 @@ jobs:
           node tests/version.test.js
           node tests/syncConflict.test.js
           node tests/outboxSerialization.test.js
+          node tests/accountIsolation.test.js
           node tests/offlineAuth.test.js
 
       - name: Bump version and build

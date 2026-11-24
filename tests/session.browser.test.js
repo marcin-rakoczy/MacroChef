@@ -12,6 +12,7 @@
   function repository(name) {
     return {
       close() { events.push(`close:${name}`); },
+      disposeSubscriptions() { events.push(`unsubscribe:${name}`); },
       async initialize() { events.push(`open:${name}`); },
       async seedProducts() {},
       async getGuestMigrationData() {
@@ -27,6 +28,7 @@
 
   window.MacroChef.guestDatabaseExists = async () => guestExists;
   window.MacroChef.DexieCalorieRepository = function () { return repository(guestName); };
+  window.MacroChef.createGuestRepository = () => repository(guestName);
   window.MacroChef.createScopedRepository = async (scope) => {
     if (scope.userId === 'slow') await new Promise((resolve) => { delayed = resolve; });
     return { repository: repository(scope.userId), shoppingStorageKey: `shopping-${scope.userId}` };
@@ -67,7 +69,7 @@
     listener('refresh');
   }
 
-  test('Account changes unmount subscriptions before closing and isolate shopping keys', async () => {
+  test('Account changes cancel subscriptions before closing and isolate shopping keys', async () => {
     const root = ReactDOM.createRoot(document.getElementById('test-root'));
     try {
       root.render(<window.MacroChef.components.SessionApp />);
@@ -75,21 +77,22 @@
       equal(document.querySelector('[data-testid="account"]').textContent, 'guest:macrochef_checked', 'Initial guest');
       switchAccount({ issuer: 'issuer', tenantId: 'tenant', userId: 'alice', role: 'Admin' });
       await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('alice:'));
-      assert(events.indexOf('unmount:guest') < events.indexOf('close:guest'), 'Guest closed before unmount');
+      assert(events.indexOf('unsubscribe:guest') < events.indexOf('close:guest'), 'Guest subscriptions remained active');
       equal(document.querySelector('[data-testid="account"]').textContent, 'alice:shopping-alice', 'Account shopping scope');
       switchAccount({ issuer: 'issuer', tenantId: 'tenant', userId: 'bob', role: 'Tester' });
       await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('bob:'));
-      assert(events.indexOf('unmount:alice') < events.indexOf('close:alice'), 'Alice closed before unmount');
       assert(events.indexOf('sync-stop') < events.indexOf('close:alice'), 'Sync was not stopped before closing Alice');
+      assert(events.indexOf('unsubscribe:alice') < events.indexOf('close:alice'), 'Alice subscriptions remained active');
+      assert(events.indexOf('close:alice') < events.indexOf('open:bob'), 'Bob opened before Alice closed');
       switchAccount(null);
       await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('guest:'));
-      assert(events.indexOf('unmount:bob') < events.indexOf('close:bob'), 'Bob closed before unmount');
+      assert(events.indexOf('unsubscribe:bob') < events.indexOf('close:bob'), 'Bob subscriptions remained active');
 
       switchAccount({ issuer: 'issuer', tenantId: 'tenant', userId: 'slow', role: 'Tester' });
       await waitFor(() => typeof delayed === 'function');
       switchAccount({ issuer: 'issuer', tenantId: 'tenant', userId: 'new', role: 'Tester' });
-      await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('new:'));
       delayed();
+      await waitFor(() => document.querySelector('[data-testid="account"]')?.textContent.startsWith('new:'));
       await new Promise((resolve) => setTimeout(resolve, 50));
       equal(document.querySelector('[data-testid="account"]').textContent, 'new:shopping-new', 'Stale account mounted');
       assert(events.includes('close:slow'), 'Stale repository not closed');
