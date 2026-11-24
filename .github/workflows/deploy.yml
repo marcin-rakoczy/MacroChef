@@ -50,9 +50,9 @@ jobs:
           node tests/offlineAuth.test.js
 
   # ============================================================================
-  # BUILD JOB - For all branches (Cloudflare Pages deploys automatically)
+  # PREVIEW BUILD - For pushes (Cloudflare Pages deploys automatically)
   # ============================================================================
-  build:
+  build-preview:
     # Build on every push (except [skip ci])
     if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
     needs: test
@@ -74,18 +74,12 @@ jobs:
       # Cloudflare Pages is configured to build from main branch and all feature/* branches.
 
   # ============================================================================
-  # GITHUB PAGES DEPLOY - Manual only (workflow_dispatch from main branch)
+  # PRODUCTION BUILD - Manual only (workflow_dispatch from main branch)
   # ============================================================================
-  deploy-github-pages:
-    # Only deploy to GitHub Pages on manual workflow_dispatch from main branch.
-    # This ensures production deployments are explicit and controlled.
+  build:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
-    # The build job runs only on push, so depend on tests; this job builds itself.
     needs: test
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out main
         uses: actions/checkout@v4
@@ -124,13 +118,25 @@ jobs:
           git commit -m "chore: bump version [skip ci]" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
           git push origin HEAD:refs/heads/main
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages
           path: .
+
+  # ============================================================================
+  # GITHUB PAGES DEPLOY - Manual only (workflow_dispatch from main branch)
+  # ============================================================================
+  deploy-github-pages:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Deploy site
         id: deployment
