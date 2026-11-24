@@ -44,6 +44,8 @@ jobs:
           node tests/recipe-image-ai.test.js
           node tests/recipe-steps-normalization.test.js
           node tests/sync-permission.test.js
+          node tests/syncConflict.test.js
+          node tests/outboxSerialization.test.js
           node tests/offlineAuth.test.js
 
   # ============================================================================
@@ -101,6 +103,8 @@ jobs:
           node tests/recipe-image-ai.test.js
           node tests/recipe-steps-normalization.test.js
           node tests/version.test.js
+          node tests/syncConflict.test.js
+          node tests/outboxSerialization.test.js
           node tests/offlineAuth.test.js
 
       - name: Bump version and build

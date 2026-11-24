@@ -207,6 +207,7 @@
     let version = 0;
     let rejectWrites = null;
     let emptyWrites = false;
+    let noContentWrites = false;
     let omitProductFromList = false;
     const originalFetch = window.fetch;
     window.fetch = async (input, options) => {
@@ -244,6 +245,7 @@
         if (index >= 0) rows[index] = saved;
         else rows.push(saved);
       }
+      if (noContentWrites) return new Response(null, { status: 204, headers: { 'Content-Range': '*/1' } });
       return new Response(JSON.stringify([saved]), { status: method === 'POST' ? 201 : 200 });
     };
     const client = {
@@ -281,6 +283,28 @@
       assert(tables.recipes.length === 2 && tables.planner.length === 1, 'Remote records were not created');
       assert((await syncRepo.db.products.get('shared-product')).name.pl === 'Produkt' &&
         await syncRepo.db.recipes.get('admin-global'), 'Shared products or global recipes were not pulled');
+      const preparedAt = new Date('2025-02-03T04:05:06.000Z');
+      const changes = {
+        title: 'Oats', imageUrl: undefined, nutrition: { fiber: undefined, protein: 30 },
+        meals: [undefined, { recipeId: 'r1', note: undefined }], preparedAt
+      };
+      await syncRepo.mutations.transaction([syncRepo.db.recipes], ({ update }) =>
+        update(syncRepo.db.recipes, remoteRecipe.id, changes));
+      rejectWrites = { status: 503, body: 'unavailable' };
+      await manager.sync();
+      const serialized = requests.filter((item) => item.table === 'recipes' && item.method === 'PATCH').pop().payload.data;
+      assert(serialized.title === 'Oats' && serialized.imageUrl === null &&
+        serialized.nutrition.fiber === null && serialized.nutrition.protein === 30 &&
+        serialized.meals[0] === null && serialized.meals[1].note === null &&
+        serialized.preparedAt === preparedAt.toISOString(), 'Nested outbox values were not preserved on the wire');
+      assert(await syncRepo.db.OutboxQueue.count() === 1 && changes.imageUrl === undefined &&
+        changes.nutrition.fiber === undefined && changes.meals[1].note === undefined &&
+        changes.preparedAt === preparedAt, 'A rejected write was removed or its input was mutated');
+      rejectWrites = null;
+      noContentWrites = true;
+      await manager.sync();
+      noContentWrites = false;
+      assert(await syncRepo.db.OutboxQueue.count() === 0, 'Verified 204 did not acknowledge the update');
       await syncRepo.seedProducts();
       assert(await syncRepo.db.products.get('shared-product'), 'Catalog seeding removed a synchronized product');
       omitProductFromList = true;
@@ -342,6 +366,33 @@
         'Server conflict must preserve the queued local change');
       assert((await syncRepo.db.goals.toCollection().first()).calories === 2300,
         'Server conflict overwrote the pending local change');
+      const goalConflict = manager.getStatus();
+      const pendingGoal = (await syncRepo.db.OutboxQueue.toArray())[0];
+      assert(goalConflict.conflictCount === 1 && goalConflict.pendingCount === 1 &&
+        goalConflict.conflicts[0].table === 'goals' &&
+        goalConflict.conflicts[0].recordId === pendingGoal.payload.id &&
+        goalConflict.conflicts[0].serverUpdatedAt === '2026-02-01T00:00:00Z',
+        'Goal conflict metadata or pending count is missing');
+
+      tables.goals[0].updated_at = pendingGoal.baseUpdatedAt;
+      await manager.sync();
+      assert(await syncRepo.db.OutboxQueue.count() === 0 && manager.getStatus().state === 'synced',
+        'Acknowledged goal update remained queued');
+      const localRecipe = await syncRepo.db.recipes.get('admin-global');
+      const editedRecipe = await syncRepo.saveRecipe({ ...localRecipe, name: 'Local edit' });
+      const remoteGlobal = tables.recipes.find((item) => item.id === 'admin-global');
+      remoteGlobal.updated_at = '2026-03-01T00:00:00Z';
+      remoteGlobal.data.name = 'Server edit';
+      await manager.sync();
+      const recipeConflict = manager.getStatus();
+      assert((await syncRepo.db.recipes.get('admin-global')).name === 'Local edit' &&
+        await syncRepo.db.OutboxQueue.count() === 1, 'Recipe conflict lost the local edit or outbox entry');
+      assert(recipeConflict.conflictCount === 1 && recipeConflict.pendingCount === 1 &&
+        recipeConflict.conflicts[0].table === 'recipes' &&
+        recipeConflict.conflicts[0].recordId === 'admin-global' &&
+        recipeConflict.conflicts[0].localUpdatedAt === editedRecipe.updatedAt &&
+        recipeConflict.conflicts[0].serverUpdatedAt === '2026-03-01T00:00:00Z',
+        'Recipe conflict metadata is incorrect');
 
       const localOnly = new window.MacroChef.DexieCalorieRepository(`${name}-local-only`, {
         seedDefaults: false, userId: 'tester', role: 'Tester'

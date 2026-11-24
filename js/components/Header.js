@@ -21,6 +21,10 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [signingOut, setSigningOut] = React.useState(false);
     const menuRef = React.useRef(null);
     const drawerRef = React.useRef(null);
+    const hasConflicts = syncStatus && (syncStatus.state === 'conflict' || syncStatus.conflictCount > 0);
+    const syncLabel = syncStatus && (hasConflicts ? t.sync_conflict : t[`sync_${syncStatus.state}`]);
+    const pendingLabel = hasConflicts && Number.isInteger(syncStatus.pendingCount)
+      ? `${syncStatus.pendingCount} ${t.sync_pendingChanges}` : null;
 
     // Close menu when clicking outside or pressing Escape
     React.useEffect(() => {
@@ -99,8 +103,8 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <Icon name="database" className="w-3 h-3 text-emerald-500" />
                   <span>{t.dbStatus}</span>
                 </span>
-                {syncStatus && <span role="status" title={syncStatus.message || ''} aria-label={[t[`sync_${syncStatus.state}`], syncStatus.message].filter(Boolean).join(': ')} className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                  {t[`sync_${syncStatus.state}`]}
+                {syncStatus && <span role="status" title={syncStatus.message || ''} aria-label={[syncLabel, pendingLabel, syncStatus.message].filter(Boolean).join(': ')} className={`text-[10px] font-semibold ${hasConflicts ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                  {syncLabel}{pendingLabel && ` (${pendingLabel})`}
                 </span>}
                 {syncStatus && syncStatus.permissionErrors && onRetryPermissionErrors && <button type="button" onClick={onRetryPermissionErrors} className="text-[10px] font-semibold text-emerald-600 underline">
                   {t.sync_retry}

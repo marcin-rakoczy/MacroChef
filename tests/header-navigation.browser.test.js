@@ -70,6 +70,27 @@
     }
   });
 
+  test('Conflict badge shows the pending count in both languages', async () => {
+    const root = ReactDOM.createRoot(rootElement);
+    try {
+      for (const lang of ['en', 'pl']) {
+        language = lang;
+        const t = window.MacroChef.TRANSLATIONS[lang];
+        renderHeader(root, { syncStatus: {
+          state: 'syncing', conflictCount: 1, pendingCount: 2, message: 'Server version changed'
+        } });
+        await waitFor(() => rootElement.querySelector('[role="status"]')?.textContent.includes(t.sync_conflict));
+        const status = rootElement.querySelector('[role="status"]');
+        assert(status.textContent.includes(`2 ${t.sync_pendingChanges}`), 'Pending count is missing');
+        assert(status.getAttribute('aria-label').includes('Server version changed'), 'Conflict detail is missing');
+        assert(!status.textContent.includes(t.sync_synced), 'Conflict appeared synced');
+      }
+    } finally {
+      root.unmount();
+      language = 'en';
+    }
+  });
+
   test('Drawer shows account, role, sign-out and closes on Escape', async () => {
     window.MacroChef.ENV = 'TEST';
     const root = ReactDOM.createRoot(rootElement);

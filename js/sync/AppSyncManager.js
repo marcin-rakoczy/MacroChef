@@ -4,11 +4,15 @@ window.MacroChef = window.MacroChef || {};
   const remoteTables = { products: 'products', recipes: 'recipes', plannerEntries: 'planner', goals: 'goals' };
   const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
-  function clean(value) {
+  function sanitizeJsonbPayload(value) {
     if (value === undefined) return null;
-    if (Array.isArray(value)) return value.map(clean);
+    if (Array.isArray(value)) return Array.from(value, sanitizeJsonbPayload);
     if (value && typeof value === 'object') {
-      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clean(item)]));
+      if (Object.prototype.toString.call(value) === '[object Date]') return new Date(value.getTime());
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype === null || Object.getPrototypeOf(prototype) === null) {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeJsonbPayload(item)]));
+      }
     }
     return value;
   }
@@ -16,6 +20,7 @@ window.MacroChef = window.MacroChef || {};
   function canonical(value) {
     if (Array.isArray(value)) return value.map(canonical);
     if (value && typeof value === 'object') {
+      if (Object.prototype.toString.call(value) === '[object Date]') return value.toJSON();
       return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
     }
     return value;
@@ -31,7 +36,7 @@ window.MacroChef = window.MacroChef || {};
     const localized = legacyColumns
       ? { name_pl: name.pl, name_en: name.en, category_pl: category.pl, category_en: category.en }
       : { name_polish: name.pl, name_english: name.en, category_polish: category.pl, category_english: category.en };
-    return clean({
+    return sanitizeJsonbPayload({
       id: product.id, ...localized, category: product.category, unit: product.unit,
       package_size: product.packageSize, source_url: product.sourceUrl,
       source_verified_at: product.sourceVerifiedAt
@@ -89,7 +94,7 @@ window.MacroChef = window.MacroChef || {};
   function toRemote(table, record, userId, legacyProductColumns) {
     if (table === 'products') return productToRemote(record, legacyProductColumns);
     return {
-      id: record.id, user_id: userId, data: clean(record),
+      id: record.id, user_id: userId, data: sanitizeJsonbPayload(record),
       ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {}),
       ...(table === 'recipes' ? { image_url: window.MacroChef.recipeImages.normalizeUrl(record.imageUrl) } : {})
     };
@@ -104,15 +109,30 @@ window.MacroChef = window.MacroChef || {};
         if (!target[part] || typeof target[part] !== 'object') target[part] = {};
         target = target[part];
       }
-      target[parts[parts.length - 1]] = clean(value);
+      target[parts[parts.length - 1]] = sanitizeJsonbPayload(value);
     }
     return result;
+  }
+
+  function addConflict(conflicts, table, recordId, message, localUpdatedAt = null, serverUpdatedAt = null) {
+    const existing = conflicts.find((conflict) => conflict.table === table && conflict.recordId === recordId);
+    if (existing) {
+      existing.localUpdatedAt = localUpdatedAt || existing.localUpdatedAt;
+      existing.serverUpdatedAt = serverUpdatedAt;
+      return;
+    }
+    conflicts.push({ table, recordId, localUpdatedAt, serverUpdatedAt, message });
+  }
+
+  function queuedUpdatedAt(entry) {
+    return (entry.snapshot && entry.snapshot.updatedAt) ||
+      (entry.payload.value && entry.payload.value.updatedAt) || entry.payload.updatedAt || null;
   }
 
   class AppSyncManager {
     constructor() {
       this.listeners = new Set();
-      this.status = { state: 'idle', message: null };
+      this.status = { state: 'idle', message: null, conflictCount: 0, pendingCount: 0, conflicts: [] };
       this.stopped = true;
       this.timer = null;
       this.running = null;
@@ -134,12 +154,22 @@ window.MacroChef = window.MacroChef || {};
       this.requestSync();
     }
 
-    setStatus(state, message = null, permissionErrors = false) {
-      this.status = { state, message, ...(permissionErrors ? { permissionErrors: true } : {}) };
+    setStatus(state, message = null, permissionErrors = false, details) {
+      const previous = this.status;
+      const retained = state === 'idle'
+        ? { conflicts: [], pendingCount: 0 }
+        : { conflicts: previous.conflicts, pendingCount: previous.pendingCount };
+      const { conflicts, pendingCount } = details || retained;
+      this.status = {
+        state, message: message || (!details && conflicts.length ? previous.message : null),
+        conflicts, conflictCount: conflicts.length, pendingCount,
+        ...((permissionErrors || (!details && state !== 'idle' && previous.permissionErrors))
+          ? { permissionErrors: true } : {})
+      };
       this.listeners.forEach((listener) => listener(this.getStatus()));
     }
 
-    getStatus() { return { ...this.status }; }
+    getStatus() { return { ...this.status, conflicts: this.status.conflicts.map((conflict) => ({ ...conflict })) }; }
 
     subscribe(listener) {
       this.listeners.add(listener);
@@ -231,7 +261,7 @@ window.MacroChef = window.MacroChef || {};
           apikey: client.supabaseKey,
           Authorization: `Bearer ${this.token}`,
           'Content-Type': 'application/json',
-          Prefer: method === 'GET' ? 'count=exact' : 'return=representation'
+          Prefer: method === 'GET' ? 'count=exact' : 'return=representation,count=exact'
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: this.controller.signal,
@@ -255,7 +285,7 @@ window.MacroChef = window.MacroChef || {};
         error.code = code;
         throw error;
       }
-      const data = await response.json();
+      const data = response.status === 204 ? null : await response.json();
       this.checkActive();
       return { status: response.status, data, range: response.headers.get('content-range') };
     }
@@ -344,15 +374,18 @@ window.MacroChef = window.MacroChef || {};
         const entry = await db.OutboxQueue.get(queued.id);
         if (!entry) continue;
         if (!remoteTables[entry.table]) {
-          conflicts.push(`Unsupported queued table: ${entry.table}`);
+          addConflict(conflicts, entry.table, entry.payload.id, `Unsupported queued table: ${entry.table}`,
+            queuedUpdatedAt(entry));
           continue;
         }
         const key = `${entry.table}:${entry.payload.id}`;
+        const current = remote[entry.table].find((row) => row.id === entry.payload.id);
         if (blocked.has(key)) continue;
         if (entry.permissionError) {
           blocked.add(key);
           permissionErrors = true;
-          conflicts.push(entry.permissionError);
+          addConflict(conflicts, entry.table, entry.payload.id, entry.permissionError,
+            queuedUpdatedAt(entry), current ? current.updated_at : null);
           continue;
         }
         try {
@@ -364,16 +397,22 @@ window.MacroChef = window.MacroChef || {};
             const message = `${entry.table}/${entry.payload.id}: ${error.message}`;
             await db.OutboxQueue.update(entry.id, { permissionError: message });
             permissionErrors = true;
-            conflicts.push(message);
+            addConflict(conflicts, entry.table, entry.payload.id, message,
+              queuedUpdatedAt(entry), current ? current.updated_at : null);
             continue;
           }
-          conflicts.push(error.message);
+          addConflict(conflicts, entry.table, entry.payload.id, error.message,
+            queuedUpdatedAt(entry), current ? current.updated_at : null);
         }
       }
       remote = await this.readRemote();
       await this.pull(remote, conflicts);
       this.checkActive();
-      this.setStatus(conflicts.length ? 'conflict' : 'synced', conflicts.join('; ') || null, permissionErrors);
+      const pendingCount = (await db.OutboxQueue.toArray()).length;
+      this.checkActive();
+      this.setStatus(conflicts.length ? 'conflict' : pendingCount ? 'pending' : 'synced',
+        conflicts.map((conflict) => conflict.message).join('; ') || null, permissionErrors,
+        { conflicts, pendingCount });
     }
 
     async push(entry, remote) {
@@ -429,14 +468,30 @@ window.MacroChef = window.MacroChef || {};
         if (table !== 'products' && table !== 'recipes') params.user_id = `eq.${this.scope.userId}`;
       }
       const response = await this.request(remoteTables[table], params, method, method === 'DELETE' ? undefined : payload);
-      if (![200, 201].includes(response.status) || !Array.isArray(response.data) ||
-          response.data.length !== 1 || response.data[0].id !== id ||
-          typeof response.data[0].updated_at !== 'string' ||
-          Number.isNaN(Date.parse(response.data[0].updated_at)) ||
-          (table !== 'products' && table !== 'recipes' && response.data[0].user_id !== this.scope.userId)) {
+      let acknowledged;
+      if (response.status === 204 && response.range && /^(?:\*|0-0)\/1$/.test(response.range)) {
+        if (entry.action === 'delete') {
+          acknowledged = current;
+        } else {
+          const lookup = { select: '*', id: `eq.${id}` };
+          if (table !== 'products' && table !== 'recipes') lookup.user_id = `eq.${this.scope.userId}`;
+          const verification = await this.request(remoteTables[table], lookup);
+          const candidate = Array.isArray(verification.data) && verification.data.length === 1
+            ? verification.data[0] : null;
+          const wirePayload = JSON.parse(JSON.stringify(payload));
+          if (candidate && Object.entries(wirePayload).every(([key, value]) => same(candidate[key], value))) {
+            acknowledged = candidate;
+          }
+        }
+      } else if ([200, 201].includes(response.status) && Array.isArray(response.data) && response.data.length === 1) {
+        acknowledged = response.data[0];
+      }
+      if (!acknowledged || acknowledged.id !== id ||
+          typeof acknowledged.updated_at !== 'string' ||
+          Number.isNaN(Date.parse(acknowledged.updated_at)) ||
+          (table !== 'products' && table !== 'recipes' && acknowledged.user_id !== this.scope.userId)) {
         throw new Error(`Write not acknowledged: ${table}/${id}`);
       }
-      const acknowledged = response.data[0];
       await db.transaction('rw', db.OutboxQueue, db.SyncState, async () => {
         this.checkActive();
         if (entry.action === 'delete') await db.SyncState.delete(`${table}:${id}`);
@@ -464,8 +519,12 @@ window.MacroChef = window.MacroChef || {};
         for (const [table, rows] of Object.entries(remote)) {
           const seen = new Set(rows.map((row) => row.id));
           for (const state of states.filter((item) => item.table === table && !seen.has(item.recordId))) {
-            if (queued.some((item) => item.table === table && item.payload.id === state.recordId)) {
-              conflicts.push(`Server deleted a locally changed record: ${table}/${state.recordId}`);
+            const pending = queued.find((item) => item.table === table && item.payload.id === state.recordId);
+            if (pending) {
+              const local = await db.table(table).get(state.recordId);
+              addConflict(conflicts, table, state.recordId,
+                `Server deleted a locally changed record: ${table}/${state.recordId}`,
+                (local && local.updatedAt) || queuedUpdatedAt(pending));
               continue;
             }
             await db.table(table).delete(state.recordId);
@@ -473,11 +532,21 @@ window.MacroChef = window.MacroChef || {};
           }
           for (const row of rows) {
             this.checkActive();
-            if (queued.some((item) => item.table === table && item.payload.id === row.id)) continue;
+            const pending = queued.filter((item) => item.table === table && item.payload.id === row.id);
+            if (pending.length) {
+              const divergent = pending.find((item) => !item.baseUpdatedAt || item.baseUpdatedAt !== row.updated_at);
+              if (divergent) {
+                const local = await db.table(table).get(row.id);
+                addConflict(conflicts, table, row.id, `Server version changed: ${table}/${row.id}`,
+                  (local && local.updatedAt) || queuedUpdatedAt(divergent), row.updated_at);
+              }
+              continue;
+            }
             const value = fromRemote(table, row);
             if (table === 'plannerEntries' && slots.some((slot) =>
               value[slot] && !remote.recipes.some((recipe) => recipe.id === value[slot]))) {
-              conflicts.push(`Server plan references unavailable recipes: ${value.dayKey}`);
+              addConflict(conflicts, table, row.id, `Server plan references unavailable recipes: ${value.dayKey}`,
+                null, row.updated_at);
               continue;
             }
             if (table === 'plannerEntries' || table === 'goals') {
@@ -485,14 +554,16 @@ window.MacroChef = window.MacroChef || {};
                 ? await db.plannerEntries.where('dayKey').equals(value.dayKey).toArray()
                 : await db.goals.toArray();
               if (others.some((item) => item.id !== row.id)) {
-                conflicts.push(`Local and server records differ: ${table}/${row.id}`);
+                addConflict(conflicts, table, row.id, `Local and server records differ: ${table}/${row.id}`,
+                  null, row.updated_at);
                 continue;
               }
             }
             const existing = await db.table(table).get(row.id);
             const state = await db.SyncState.get(`${table}:${row.id}`);
             if (existing && !state && !same(existing, value)) {
-              conflicts.push(`Local record has no server baseline: ${table}/${row.id}`);
+              addConflict(conflicts, table, row.id, `Local record has no server baseline: ${table}/${row.id}`,
+                existing.updatedAt || null, row.updated_at);
               continue;
             }
             await db.table(table).put(value);
