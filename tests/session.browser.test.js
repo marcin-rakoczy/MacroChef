@@ -47,7 +47,10 @@
       events.push(`mount:${name}`);
       return () => { events.push(`unmount:${name}`); };
     }, [name]);
-    return <div data-testid="account">{name}:{shoppingStorageKey}</div>;
+    const role = current ? current.role : 'Guest';
+    return <div data-testid="account" data-role={role}
+      data-manage={String(window.MacroChef.permissions.canManageRecipes(role))}
+      data-ads={String(window.MacroChef.permissions.showAds(role))}>{name}:{shoppingStorageKey}</div>;
   };
 
   async function waitFor(check) {
@@ -124,6 +127,30 @@
       root.unmount();
       guestExists = false;
       window.confirm = originalConfirm;
+    }
+  });
+
+  test('Offline refresh preserves account scope and role-gated controls', async () => {
+    session = { issuer: 'issuer', tenantId: 'tenant', userId: 'offline', role: 'Admin', offline: true };
+    const root = ReactDOM.createRoot(document.getElementById('test-root'));
+    try {
+      root.render(<window.MacroChef.components.SessionApp />);
+      await waitFor(() => document.querySelector('[data-testid="account"]')?.dataset.role === 'Admin');
+      const eventCount = events.length;
+      for (const role of ['Admin', 'Tester', 'UserWithAdvertisement']) {
+        session = { ...session, role };
+        listener('refresh');
+        await waitFor(() => document.querySelector('[data-testid="account"]')?.dataset.role === role);
+        const account = document.querySelector('[data-testid="account"]');
+        equal(account.dataset.manage, String(role === 'Admin'), `${role} recipe access`);
+        equal(account.dataset.ads, String(role === 'UserWithAdvertisement'), `${role} ad visibility`);
+        equal(account.textContent, 'offline:shopping-offline', `${role} account scope`);
+      }
+      assert(!events.slice(eventCount).includes('sync-stop'), 'Offline refresh stopped the account scope');
+      assert(!events.slice(eventCount).includes('close:offline'), 'Offline refresh closed the account scope');
+    } finally {
+      root.unmount();
+      session = null;
     }
   });
 

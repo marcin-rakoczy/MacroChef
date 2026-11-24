@@ -9,6 +9,8 @@ window.MacroChef = window.MacroChef || {};
   const listeners = new Set();
   let generation = 0;
   let autoRefreshStopped = false;
+  let signOutInProgress = false;
+  let verificationsInProgress = 0;
 
   async function stopRefresh() {
     autoRefreshStopped = true;
@@ -46,46 +48,122 @@ window.MacroChef = window.MacroChef || {};
     return value;
   }
 
+  function isNetworkError(error) {
+    return navigator.onLine === false || Boolean(error && (
+      error.name === 'AuthRetryableFetchError' || error.name === 'TimeoutError' ||
+      /failed to fetch|fetch failed|network error|network request failed|timed? ?out|timeout/i.test(error.message || '')
+    ));
+  }
+
+  function isRefreshRejection(error) {
+    return navigator.onLine !== false && error && !isNetworkError(error) &&
+      (((!error.name || error.name === 'AuthApiError') && (error.status === 400 || error.status === 401)) ||
+        error.code === 'invalid_grant' ||
+        error.code === 'refresh_token_not_found' || error.code === 'refresh_token_already_used');
+  }
+
+  function clearSession() {
+    generation++;
+    localStorage.setItem(logoutKey, '1');
+    localStorage.removeItem(sessionKey);
+    localStorage.removeItem(`${sessionKey}-code-verifier`);
+    localStorage.removeItem(cacheKey);
+    stopRefresh().catch(reportRefreshError);
+  }
+
+  function cachedSession(error, observedUserId) {
+    const cached = readCache();
+    if (!cached) {
+      if (error) throw error;
+      return null;
+    }
+    if (observedUserId && cached.userId !== observedUserId) {
+      throw new Error('Account changed during verification');
+    }
+    if (error) console.warn('Using cached account while session verification is unavailable:', error);
+    return { ...cached, offline: true };
+  }
+
   async function getSessionAndRole() {
     if (!client) return null;
     if (localStorage.getItem(logoutKey)) return null;
-    if (navigator.onLine === false) {
-      const cached = readCache();
-      return cached ? { ...cached, offline: true } : null;
-    }
+    if (navigator.onLine === false) return cachedSession();
     const started = generation;
-    const { data: sessionData, error: sessionError } = await client.auth.getSession();
-    if (sessionError) throw sessionError;
-    if (started !== generation) throw new Error('Session changed during verification');
-    if (!sessionData.session) {
-      if (started === generation) localStorage.removeItem(cacheKey);
-      return null;
-    }
-    const { data: userData, error: userError } = await client.auth.getUser();
-    if (userError) {
-      if (started === generation && (userError.status === 401 || userError.status === 403)) {
-        localStorage.removeItem(cacheKey);
-        return null;
+    let observedUserId;
+    verificationsInProgress++;
+    try {
+      let sessionData;
+      let sessionError;
+      try {
+        ({ data: sessionData, error: sessionError } = await client.auth.getSession());
+      } catch (error) {
+        sessionError = error;
       }
-      throw userError;
+      if (started !== generation) throw new Error('Session changed during verification');
+      if (sessionError) {
+        if (isRefreshRejection(sessionError)) {
+          clearSession();
+          return null;
+        }
+        if (sessionError.name === 'AuthSessionMissingError') return cachedSession(sessionError);
+        throw sessionError;
+      }
+      if (!sessionData || !('session' in sessionData)) {
+        throw new Error('Invalid Supabase session response');
+      }
+      if (!sessionData.session) {
+        const cached = cachedSession();
+        if (cached) console.warn('Supabase session unavailable; retaining the verified local account.');
+        return cached;
+      }
+      observedUserId = sessionData.session.user && sessionData.session.user.id;
+      let { data: userData, error: userError } = await client.auth.getUser();
+      if (userError && userError.status === 401 && navigator.onLine !== false) {
+        let refreshError;
+        try {
+          ({ error: refreshError } = await client.auth.refreshSession());
+        } catch (error) {
+          refreshError = error;
+        }
+        if (started !== generation) throw new Error('Session changed during verification');
+        if (refreshError) {
+          if (isRefreshRejection(refreshError)) {
+            clearSession();
+            return null;
+          }
+          if (refreshError.name === 'AuthSessionMissingError') return cachedSession(refreshError, observedUserId);
+          throw refreshError;
+        }
+        ({ data: userData, error: userError } = await client.auth.getUser());
+      }
+      if (userError) throw userError;
+      if (!userData || !userData.user || !userData.user.id || !userData.user.email) {
+        throw new Error('Verified user is missing an ID or email');
+      }
+      if (observedUserId && observedUserId !== userData.user.id) {
+        throw new Error('Account changed during verification');
+      }
+      const { data: profile, error: profileError } = await client.from('user_profiles')
+        .select('role').eq('user_id', userData.user.id).single();
+      if (profileError) throw profileError;
+      if (!profile || !roles.includes(profile.role)) throw new Error('Invalid account role');
+      if (started !== generation) throw new Error('Session changed during verification');
+      const result = {
+        userId: userData.user.id,
+        email: userData.user.email,
+        role: profile.role,
+        issuer: client.supabaseUrl,
+        tenantId: client.supabaseUrl
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(result));
+      return { ...result, offline: false };
+    } catch (error) {
+      if (started !== generation || localStorage.getItem(logoutKey)) throw error;
+      if (isNetworkError(error)) return cachedSession(error, observedUserId);
+      throw error;
+    } finally {
+      verificationsInProgress--;
     }
-    if (!userData.user || !userData.user.id || !userData.user.email) {
-      throw new Error('Verified user is missing an ID or email');
-    }
-    const { data: profile, error: profileError } = await client.from('user_profiles')
-      .select('role').eq('user_id', userData.user.id).single();
-    if (profileError) throw profileError;
-    if (!profile || !roles.includes(profile.role)) throw new Error('Invalid account role');
-    if (started !== generation) throw new Error('Session changed during verification');
-    const result = {
-      userId: userData.user.id,
-      email: userData.user.email,
-      role: profile.role,
-      issuer: client.supabaseUrl,
-      tenantId: client.supabaseUrl
-    };
-    localStorage.setItem(cacheKey, JSON.stringify(result));
-    return { ...result, offline: false };
   }
 
   function requireClient() {
@@ -119,19 +197,24 @@ window.MacroChef = window.MacroChef || {};
 
   async function signOut() {
     if (!client) return;
-    if (navigator.onLine === false) {
-      await stopRefresh();
+    signOutInProgress = true;
+    try {
+      if (navigator.onLine === false) {
+        await stopRefresh();
+      } else {
+        const { error } = await client.auth.signOut({ scope: 'local' });
+        if (error) throw error;
+      }
+      generation++;
+      localStorage.setItem(logoutKey, '1');
       localStorage.removeItem(sessionKey);
       localStorage.removeItem(`${sessionKey}-code-verifier`);
-    } else {
-      const { error } = await client.auth.signOut({ scope: 'local' });
-      if (error) throw error;
+      localStorage.removeItem(cacheKey);
+      notify('changing');
+      notify();
+    } finally {
+      signOutInProgress = false;
     }
-    generation++;
-    localStorage.setItem(logoutKey, '1');
-    localStorage.removeItem(cacheKey);
-    notify('changing');
-    notify();
   }
 
   function subscribe(listener) {
@@ -140,19 +223,21 @@ window.MacroChef = window.MacroChef || {};
   }
 
   if (client) {
-    if (localStorage.getItem(logoutKey)) stopRefresh().catch(reportRefreshError);
+    if (localStorage.getItem(logoutKey) || navigator.onLine === false) stopRefresh().catch(reportRefreshError);
     client.auth.onAuthStateChange((event) => {
       if (event === 'INITIAL_SESSION') return;
-      if (event === 'SIGNED_OUT' && navigator.onLine === false) return;
+      if (event === 'SIGNED_OUT') {
+        if (!signOutInProgress && !verificationsInProgress && navigator.onLine !== false) window.setTimeout(notify, 0);
+        return;
+      }
       if (event === 'TOKEN_REFRESHED') return;
       generation++;
-      if (event === 'SIGNED_OUT') {
-        localStorage.setItem(logoutKey, '1');
-        localStorage.removeItem(cacheKey);
-        stopRefresh().catch(reportRefreshError);
-      }
       notify('changing');
       window.setTimeout(notify, 0);
+    });
+    window.addEventListener('offline', () => {
+      stopRefresh().catch(reportRefreshError);
+      notify();
     });
     window.addEventListener('online', () => {
       if (!localStorage.getItem(logoutKey)) resumeRefresh().catch(reportRefreshError);
@@ -160,9 +245,12 @@ window.MacroChef = window.MacroChef || {};
     });
     window.addEventListener('storage', (event) => {
       if (event.key === cacheKey || event.key === sessionKey || event.key === logoutKey) {
+        if (event.key === sessionKey && event.newValue === null && !localStorage.getItem(logoutKey)) {
+          notify();
+          return;
+        }
         generation++;
-        if ((event.key === sessionKey && event.newValue === null) ||
-            (event.key === logoutKey && event.newValue)) {
+        if (event.key === logoutKey && event.newValue) {
           stopRefresh().catch(reportRefreshError);
           localStorage.removeItem(cacheKey);
         }

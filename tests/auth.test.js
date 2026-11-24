@@ -98,7 +98,7 @@ function setup() {
   const pending = ctx.auth.getSessionAndRole();
   await new Promise((resolve) => setTimeout(resolve, 0));
   const saved = JSON.parse(ctx.store.get('macrochef-verified-session'));
-  ctx.emit('SIGNED_OUT');
+  await ctx.auth.signOut();
   resolveUser({ data: { user: { id: 'bob', email: 'bob@example.test' } }, error: null });
   await assert.rejects(pending, /Session changed/);
 
@@ -111,13 +111,14 @@ function setup() {
   const revoked = setup();
   await revoked.auth.getSessionAndRole();
   revoked.client.auth.getUser = async () => ({ data: { user: null }, error: { status: 401 } });
+  revoked.client.auth.refreshSession = async () => ({ error: { status: 400, code: 'invalid_grant' } });
   assert.equal(await revoked.auth.getSessionAndRole(), null);
   assert.equal(revoked.store.has('macrochef-verified-session'), false, 'Revoked session remained cached');
 
   const unavailable = setup();
   await unavailable.auth.getSessionAndRole();
   unavailable.client.auth.getUser = async () => ({ data: { user: null }, error: new Error('network error') });
-  await assert.rejects(unavailable.auth.getSessionAndRole(), /network error/);
+  assert.equal((await unavailable.auth.getSessionAndRole()).role, 'Admin');
   assert.equal(unavailable.store.has('macrochef-verified-session'), true, 'Transient failure cleared offline identity');
   console.log('PASS: verified role, offline session, logout and stale-session protection');
 })().catch((error) => { console.error(error); process.exitCode = 1; });
