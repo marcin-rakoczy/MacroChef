@@ -1,227 +1,312 @@
--- MacroChef RLS Policy Verification & Hardening Script (Supabase-Compatible)
--- Purpose: Verify and enforce Row Level Security on critical tables
--- Usage: Run in Supabase SQL Editor or via: psql -d <db> -f verify_rls_policies.sql
--- Safety: Non-destructive verification; uses transactions for testing
+-- Run as the table owner (or a database administrator), with errors stopping execution.
+-- This replaces ALL policies on the five tables: permissive policies combine with OR.
+-- Profile identity is user_id, not id. Profile writes remain limited to the admin RPC.
+-- The hardening transaction commits; the subsequent fixture transaction always rolls back.
 
--- ============================================================================
--- SECTION 1: Verify RLS is Enabled on Critical Tables
--- ============================================================================
+BEGIN;
 
--- Step 1.1: Check RLS status on all tables
-SELECT
-  t.table_name,
-  CASE WHEN (
-    SELECT relrowsecurity FROM pg_class c
-    JOIN pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = 'public' AND c.relname = t.table_name
-  ) THEN 'ENABLED' ELSE 'DISABLED' END as rls_status
-FROM information_schema.tables t
-WHERE t.table_schema = 'public'
-  AND t.table_name IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
-ORDER BY t.table_name;
+CREATE OR REPLACE FUNCTION public.is_admin(check_user UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_profiles
+    WHERE user_id = check_user AND role = 'Admin'
+  );
+$$;
+REVOKE ALL ON FUNCTION public.is_admin(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;
 
--- ============================================================================
--- SECTION 2: Verify Products Table Permissions
--- ============================================================================
+-- Preserve the existing admin-only role-management path; clients cannot write profiles directly.
+CREATE OR REPLACE FUNCTION public.admin_set_user_role(target_user UUID, new_role TEXT)
+RETURNS public.user_profiles
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE updated public.user_profiles;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Only admins can change user roles' USING ERRCODE = '42501';
+  END IF;
+  IF new_role IS NULL OR new_role NOT IN ('Admin', 'Tester', 'UserWithAdvertisement') THEN
+    RAISE EXCEPTION 'Invalid role: %', new_role USING ERRCODE = '22023';
+  END IF;
+  IF target_user = auth.uid() AND new_role <> 'Admin' THEN
+    RAISE EXCEPTION 'You cannot remove your own Admin role' USING ERRCODE = '42501';
+  END IF;
+  UPDATE public.user_profiles SET role = new_role
+  WHERE user_id = target_user RETURNING * INTO updated;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'User not found' USING ERRCODE = 'P0002';
+  END IF;
+  RETURN updated;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.admin_set_user_role(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_user_role(UUID, TEXT) TO authenticated;
 
--- Step 2.1: Count policies on products table
-SELECT
-  'products' as table_name,
-  COUNT(*) as total_policies
-FROM pg_policies
-WHERE tablename = 'products';
+DO $$
+DECLARE
+  target_table TEXT;
+  policy RECORD;
+  col RECORD;
+BEGIN
+  FOREACH target_table IN ARRAY ARRAY['user_profiles', 'products', 'recipes', 'planner', 'goals'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', target_table);
+    FOR policy IN
+      SELECT policyname FROM pg_policies
+      WHERE schemaname = 'public' AND tablename = target_table
+    LOOP
+      EXECUTE format('DROP POLICY %I ON public.%I', policy.policyname, target_table);
+    END LOOP;
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC, anon, authenticated', target_table);
+    FOR col IN
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND information_schema.columns.table_name = target_table
+    LOOP
+      EXECUTE format('REVOKE ALL (%I) ON TABLE public.%I FROM PUBLIC, anon, authenticated',
+        col.column_name, target_table);
+    END LOOP;
+  END LOOP;
+END;
+$$;
 
--- Step 2.2: Verify SELECT policy exists
-SELECT COUNT(*) as select_policies FROM pg_policies
-WHERE tablename = 'products' AND cmd = 'SELECT';
+GRANT SELECT ON public.user_profiles TO authenticated;
+CREATE POLICY user_profiles_select_own ON public.user_profiles
+  FOR SELECT TO authenticated USING ((SELECT auth.uid()) = user_id);
+CREATE POLICY user_profiles_select_admin ON public.user_profiles
+  FOR SELECT TO authenticated USING (public.is_admin());
 
--- Step 2.3: Verify INSERT policy (Admin only)
-SELECT COUNT(*) as insert_policies FROM pg_policies
-WHERE tablename = 'products' AND cmd = 'INSERT';
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.products, public.recipes TO authenticated;
+CREATE POLICY products_select_authenticated ON public.products
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY products_insert_admin ON public.products
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY products_update_admin ON public.products
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY products_delete_admin ON public.products
+  FOR DELETE TO authenticated USING (public.is_admin());
 
--- Step 2.4: Verify UPDATE policy (Admin only)
-SELECT COUNT(*) as update_policies FROM pg_policies
-WHERE tablename = 'products' AND cmd = 'UPDATE';
+CREATE POLICY recipes_select_all ON public.recipes
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY recipes_insert_admin ON public.recipes
+  FOR INSERT TO authenticated
+  WITH CHECK (public.is_admin() AND (SELECT auth.uid()) = user_id);
+CREATE POLICY recipes_update_admin ON public.recipes
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY recipes_delete_admin ON public.recipes
+  FOR DELETE TO authenticated USING (public.is_admin());
 
--- Step 2.5: Verify DELETE policy (Admin only)
-SELECT COUNT(*) as delete_policies FROM pg_policies
-WHERE tablename = 'products' AND cmd = 'DELETE';
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.planner, public.goals TO authenticated;
+CREATE POLICY planner_owner_all ON public.planner
+  FOR ALL TO authenticated USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK ((SELECT auth.uid()) = user_id);
+CREATE POLICY goals_owner_all ON public.goals
+  FOR ALL TO authenticated USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK ((SELECT auth.uid()) = user_id);
 
--- ============================================================================
--- SECTION 3: Verify Recipes Table Permissions
--- ============================================================================
+DO $$
+DECLARE missing TEXT;
+BEGIN
+  SELECT string_agg(required.name, ', ') INTO missing
+  FROM unnest(ARRAY['user_profiles', 'products', 'recipes', 'planner', 'goals']) AS required(name)
+  LEFT JOIN pg_namespace n ON n.nspname = 'public'
+  LEFT JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = required.name
+    AND c.relkind IN ('r', 'p')
+  WHERE c.oid IS NULL OR NOT c.relrowsecurity;
+  IF missing IS NOT NULL THEN
+    RAISE EXCEPTION 'Missing tables or RLS disabled: %', missing;
+  END IF;
+END;
+$$;
+COMMIT;
 
--- Step 3.1: Count policies on recipes table
-SELECT
-  'recipes' as table_name,
-  COUNT(*) as total_policies
-FROM pg_policies
-WHERE tablename = 'recipes';
+-- INSERT violations throw 42501. RLS USING filters UPDATE/DELETE targets instead:
+-- those statements succeed with zero affected rows, which must also be verified.
+BEGIN;
+DO $$
+DECLARE
+  admin_id UUID := gen_random_uuid();
+  tester_id UUID := gen_random_uuid();
+  ads_id UUID := gen_random_uuid();
+  actor UUID;
+  actor_role TEXT;
+  product_id TEXT := 'rls-audit-product-' || gen_random_uuid()::TEXT;
+  recipe_id TEXT := 'rls-audit-recipe-' || gen_random_uuid()::TEXT;
+  own_plan TEXT;
+  own_goals TEXT;
+  denied BOOLEAN;
+  affected INTEGER;
+BEGIN
+  INSERT INTO auth.users (id, email) VALUES
+    (admin_id, admin_id::TEXT || '@rls-audit.invalid'),
+    (tester_id, tester_id::TEXT || '@rls-audit.invalid'),
+    (ads_id, ads_id::TEXT || '@rls-audit.invalid');
+  INSERT INTO public.user_profiles (user_id, email, role) VALUES
+    (admin_id, admin_id::TEXT || '@rls-audit.invalid', 'Admin'),
+    (tester_id, tester_id::TEXT || '@rls-audit.invalid', 'Tester'),
+    (ads_id, ads_id::TEXT || '@rls-audit.invalid', 'UserWithAdvertisement')
+  ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;
+  INSERT INTO public.products (id, name_en) VALUES (product_id, 'RLS audit');
+  INSERT INTO public.recipes (id, user_id, data) VALUES (recipe_id, admin_id, '{}'::JSONB);
+  INSERT INTO public.planner (id, user_id, day_key, data)
+    VALUES ('rls-audit-plan-' || admin_id::TEXT, admin_id, 'audit', '{}'::JSONB);
+  INSERT INTO public.goals (id, user_id, data)
+    VALUES ('rls-audit-goals-' || admin_id::TEXT, admin_id, '{}'::JSONB);
 
--- Step 3.2: Verify SELECT policy exists
-SELECT COUNT(*) as select_policies FROM pg_policies
-WHERE tablename = 'recipes' AND cmd = 'SELECT';
+  FOR actor, actor_role IN
+    SELECT * FROM (VALUES (tester_id, 'Tester'), (ads_id, 'UserWithAdvertisement')) AS actors(id, role)
+  LOOP
+    PERFORM set_config('request.jwt.claim.sub', actor::TEXT, true);
+    PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', actor, 'role', 'authenticated')::TEXT, true);
+    EXECUTE 'SET LOCAL ROLE authenticated';
 
--- Step 3.3: Verify INSERT policy (Admin only)
-SELECT COUNT(*) as insert_policies FROM pg_policies
-WHERE tablename = 'recipes' AND cmd = 'INSERT';
+    IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = actor AND role = actor_role)
+      OR EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = admin_id)
+      OR NOT EXISTS (SELECT 1 FROM public.products WHERE id = product_id)
+      OR NOT EXISTS (SELECT 1 FROM public.recipes WHERE id = recipe_id) THEN
+      RAISE EXCEPTION 'Incorrect SELECT visibility for %', actor_role;
+    END IF;
 
--- Step 3.4: Verify UPDATE policy (Admin only)
-SELECT COUNT(*) as update_policies FROM pg_policies
-WHERE tablename = 'recipes' AND cmd = 'UPDATE';
+    denied := false;
+    BEGIN
+      INSERT INTO public.products (id, name_en) VALUES (product_id || actor::TEXT, 'forbidden');
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could insert a product', actor_role; END IF;
 
--- Step 3.5: Verify DELETE policy (Admin only)
-SELECT COUNT(*) as delete_policies FROM pg_policies
-WHERE tablename = 'recipes' AND cmd = 'DELETE';
+    denied := false;
+    BEGIN
+      INSERT INTO public.recipes (id, user_id, data)
+        VALUES (recipe_id || actor::TEXT, actor, '{}'::JSONB);
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could insert a recipe', actor_role; END IF;
 
--- ============================================================================
--- SECTION 4: Verify User Profile Role Immutability
--- ============================================================================
+    UPDATE public.products SET name_en = 'forbidden' WHERE id = product_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could update a product', actor_role; END IF;
+    DELETE FROM public.products WHERE id = product_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could delete a product', actor_role; END IF;
+    UPDATE public.recipes SET data = '{"forbidden":true}'::JSONB WHERE id = recipe_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could update a recipe', actor_role; END IF;
+    DELETE FROM public.recipes WHERE id = recipe_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could delete a recipe', actor_role; END IF;
 
--- ============================================================================
--- SECTION 4: Verify User Profiles Table Permissions
--- ============================================================================
+    denied := false;
+    BEGIN
+      UPDATE public.user_profiles SET role = 'Admin' WHERE user_id = actor;
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could update profile roles directly', actor_role; END IF;
+    denied := false;
+    BEGIN
+      PERFORM public.admin_set_user_role(actor, 'Admin');
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could promote through the admin RPC', actor_role; END IF;
 
--- Step 4.1: Check user_profiles RLS is enabled
-SELECT
-  'user_profiles' as table_name,
-  COUNT(*) as total_policies
-FROM pg_policies
-WHERE tablename = 'user_profiles';
+    IF EXISTS (SELECT 1 FROM public.planner WHERE user_id = admin_id)
+      OR EXISTS (SELECT 1 FROM public.goals WHERE user_id = admin_id) THEN
+      RAISE EXCEPTION '% could read another user''s data', actor_role;
+    END IF;
+    denied := false;
+    BEGIN
+      INSERT INTO public.planner (id, user_id, day_key, data)
+        VALUES ('rls-audit-foreign-' || actor::TEXT, admin_id, 'audit', '{}'::JSONB);
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could insert another user''s plan', actor_role; END IF;
+    denied := false;
+    BEGIN
+      INSERT INTO public.goals (id, user_id, data)
+        VALUES ('rls-audit-foreign-' || actor::TEXT, admin_id, '{}'::JSONB);
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could insert another user''s goals', actor_role; END IF;
+    UPDATE public.planner SET data = '{"forbidden":true}'::JSONB WHERE user_id = admin_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could update another user''s plan', actor_role; END IF;
+    DELETE FROM public.planner WHERE user_id = admin_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could delete another user''s plan', actor_role; END IF;
+    UPDATE public.goals SET data = '{"forbidden":true}'::JSONB WHERE user_id = admin_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could update another user''s goals', actor_role; END IF;
+    DELETE FROM public.goals WHERE user_id = admin_id;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION '% could delete another user''s goals', actor_role; END IF;
 
--- Step 4.2: Verify SELECT policy exists
-SELECT COUNT(*) as select_policies FROM pg_policies
-WHERE tablename = 'user_profiles' AND cmd = 'SELECT';
+    own_plan := 'rls-audit-own-plan-' || actor::TEXT;
+    own_goals := 'rls-audit-own-goals-' || actor::TEXT;
+    INSERT INTO public.planner (id, user_id, day_key, data)
+      VALUES (own_plan, actor, 'audit', '{}'::JSONB);
+    INSERT INTO public.goals (id, user_id, data)
+      VALUES (own_goals, actor, '{}'::JSONB);
+    IF NOT EXISTS (SELECT 1 FROM public.planner WHERE id = own_plan)
+      OR NOT EXISTS (SELECT 1 FROM public.goals WHERE id = own_goals) THEN
+      RAISE EXCEPTION '% could not read their own records', actor_role;
+    END IF;
+    UPDATE public.planner SET data = '{"owned":true}'::JSONB WHERE id = own_plan;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 1 THEN RAISE EXCEPTION '% could not update their own plan', actor_role; END IF;
+    UPDATE public.goals SET data = '{"owned":true}'::JSONB WHERE id = own_goals;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 1 THEN RAISE EXCEPTION '% could not update their own goals', actor_role; END IF;
+    denied := false;
+    BEGIN
+      UPDATE public.planner SET user_id = admin_id WHERE id = own_plan;
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could transfer their plan', actor_role; END IF;
+    denied := false;
+    BEGIN
+      UPDATE public.goals SET user_id = admin_id WHERE id = own_goals;
+    EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION '% could transfer their goals', actor_role; END IF;
+    DELETE FROM public.planner WHERE id = own_plan;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 1 THEN RAISE EXCEPTION '% could not delete their own plan', actor_role; END IF;
+    DELETE FROM public.goals WHERE id = own_goals;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 1 THEN RAISE EXCEPTION '% could not delete their own goals', actor_role; END IF;
+    EXECUTE 'RESET ROLE';
+  END LOOP;
 
--- Step 4.3: Verify UPDATE policy exists (should restrict modifications)
-SELECT COUNT(*) as update_policies FROM pg_policies
-WHERE tablename = 'user_profiles' AND cmd = 'UPDATE';
+  PERFORM set_config('request.jwt.claim.sub', admin_id::TEXT, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', admin_id, 'role', 'authenticated')::TEXT, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = tester_id) THEN
+    RAISE EXCEPTION 'Admin could not read another profile';
+  END IF;
+  PERFORM public.admin_set_user_role(tester_id, 'Admin');
+  IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = tester_id AND role = 'Admin') THEN
+    RAISE EXCEPTION 'Admin could not change another role';
+  END IF;
+  INSERT INTO public.products (id, name_en) VALUES (product_id || '-admin', 'admin');
+  UPDATE public.products SET name_en = 'admin' WHERE id = product_id || '-admin';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 1 THEN RAISE EXCEPTION 'Admin could not update a product'; END IF;
+  DELETE FROM public.products WHERE id = product_id || '-admin';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 1 THEN RAISE EXCEPTION 'Admin could not delete a product'; END IF;
+  INSERT INTO public.recipes (id, user_id, data)
+    VALUES (recipe_id || '-admin', admin_id, '{}'::JSONB);
+  UPDATE public.recipes SET data = '{"admin":true}'::JSONB WHERE id = recipe_id || '-admin';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 1 THEN RAISE EXCEPTION 'Admin could not update a recipe'; END IF;
+  DELETE FROM public.recipes WHERE id = recipe_id || '-admin';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected <> 1 THEN RAISE EXCEPTION 'Admin could not delete a recipe'; END IF;
+  EXECUTE 'RESET ROLE';
 
--- ============================================================================
--- SECTION 5: Verify Planner & Goals Table Permissions
--- ============================================================================
-
--- Step 5.1: Planner table policies
-SELECT
-  'planner' as table_name,
-  COUNT(*) as total_policies
-FROM pg_policies
-WHERE tablename = 'planner';
-
--- Step 5.2: Goals table policies
-SELECT
-  'goals' as table_name,
-  COUNT(*) as total_policies
-FROM pg_policies
-WHERE tablename = 'goals';
-
--- ============================================================================
--- SECTION 6: List All RLS Policies by Table
--- ============================================================================
-
--- Step 6.1: All policies summary
-SELECT
-  tablename,
-  cmd,
-  COUNT(*) as policy_count
-FROM pg_policies
-WHERE tablename IN ('user_profiles', 'products', 'recipes', 'planner', 'goals')
-GROUP BY tablename, cmd
-ORDER BY tablename, cmd;
-
--- ============================================================================
--- SECTION 7: Testing RLS Policies (Manual Tests)
--- ============================================================================
-
--- These queries demonstrate how RLS policies work.
--- To test, you need to run them as different roles.
-
--- Test 7.1: Admin should be able to INSERT products
--- Run as Admin:
--- BEGIN;
--- INSERT INTO public.products (id, name_pl, name_en, category)
--- VALUES ('test-admin-001', 'Test Admin Product', 'Test Admin Product', 'test')
--- ON CONFLICT DO NOTHING;
--- ROLLBACK;
-
--- Test 7.2: Non-Admin should FAIL to INSERT products
--- Run as Tester or UserWithAdvertisement:
--- BEGIN;
--- INSERT INTO public.products (id, name_pl, name_en, category)
--- VALUES ('test-non-admin-001', 'Test Non Admin', 'Test Non Admin', 'test');
--- -- Expected: ERROR 42501 (insufficient_privilege) - RLS policy blocks
--- ROLLBACK;
-
--- Test 7.3: All authenticated users can SELECT products
--- Run as any authenticated user:
--- SELECT COUNT(*) as product_count FROM public.products;
--- Expected: Returns count (succeeds for all roles)
-
--- Test 7.4: Users can only see/modify their own planner data
--- Run as User A:
--- SELECT COUNT(*) FROM public.planner WHERE user_id = auth.uid();
--- -- Expected: Returns only User A's plans
-
--- Test 7.5: Users cannot see other users' planner data
--- Run as User A, trying to query User B's plans:
--- SELECT COUNT(*) FROM public.planner WHERE user_id = '<User B UUID>';
--- -- Expected: Returns 0 (RLS blocks access)
-
--- ============================================================================
--- SECTION 8: API Error Handling Verification
--- ============================================================================
-
--- When RLS violations occur, Supabase returns:
--- - HTTP Status: 403 (Forbidden) or 401 (Unauthorized)
--- - PostgreSQL Error Code: 42501 (insufficient_privilege)
--- - Error Message: 'new row violates row-level security policy'
-
--- The app (AppSyncManager.js) must:
--- 1. Detect HTTP 403/401 or PostgreSQL error 42501
--- 2. NOT retry indefinitely (avoid infinite loops)
--- 3. Add to conflicts array with clear message
--- 4. Set sync status to 'conflict' and surface permission error
-
--- ============================================================================
--- SECTION 9: Cleanup Instructions
--- ============================================================================
-
--- To reset RLS policies to defaults, run the migration:
--- psql -d <db> -f docs/sql/001_init_schema.sql
-
--- To verify RLS enforcement after changes:
--- Run this script again to confirm all policies are in place
-
--- ============================================================================
--- SECTION 10: Monitoring & Alerting
--- ============================================================================
-
--- Monitor these errors in application logs:
--- - "RLS policy violation" (HTTP 403)
--- - "Unauthorized access" (HTTP 401)
--- - "insufficient_privilege" (PostgreSQL 42501)
-
--- Alert if:
--- - Non-Admin role successfully performs write to products/recipes
--- - Admin role is unable to write to protected tables
--- - RLS is disabled on any protected table
-
--- ============================================================================
--- IMPLEMENTATION NOTES
--- ============================================================================
-
--- RLS Enforcement Chain:
--- 1. Client: User logs in with role (Admin, Tester, UserWithAdvertisement)
--- 2. Supabase: Role is verified in user_profiles table
--- 3. JWT: Role is included in JWT token claims
--- 4. Request: JWT is sent with each Supabase API request
--- 5. PostgreSQL: RLS policies check role before allowing operation
--- 6. Response: HTTP 403 + error message if RLS blocks operation
--- 7. Client: AppSyncManager catches error and adds to conflicts
-
--- Key Security Properties:
--- - Non-Admin CANNOT escalate their own role (UPDATE user_profiles blocked)
--- - Non-Admin CANNOT INSERT/UPDATE/DELETE products (RLS enforces)
--- - Non-Admin CANNOT INSERT/UPDATE/DELETE other users' recipes (RLS enforces)
--- - All table modifications are timestamped with server-side updated_at
--- - Role is checked at database level, not just application level
+  RAISE NOTICE 'RLS verification passed for Admin, Tester and UserWithAdvertisement';
+END;
+$$;
+ROLLBACK;

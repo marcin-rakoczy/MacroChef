@@ -129,8 +129,8 @@ window.MacroChef = window.MacroChef || {};
       this.requestSync();
     }
 
-    setStatus(state, message = null) {
-      this.status = { state, message };
+    setStatus(state, message = null, permissionErrors = false) {
+      this.status = { state, message, ...(permissionErrors ? { permissionErrors: true } : {}) };
       this.listeners.forEach((listener) => listener(this.getStatus()));
     }
 
@@ -139,6 +139,15 @@ window.MacroChef = window.MacroChef || {};
     subscribe(listener) {
       this.listeners.add(listener);
       return () => this.listeners.delete(listener);
+    }
+
+    async retryPermissionErrors() {
+      if (this.stopped) return;
+      const queue = this.scope.repository.db.OutboxQueue;
+      for (const entry of await queue.toArray()) {
+        if (entry.permissionError) await queue.update(entry.id, { permissionError: null });
+      }
+      this.requestSync();
     }
 
     requestSync() {
@@ -224,7 +233,22 @@ window.MacroChef = window.MacroChef || {};
         cache: 'no-store'
       });
       this.checkActive();
-      if (!response.ok) throw new Error(`Supabase ${table}: HTTP ${response.status}`);
+      if (!response.ok) {
+        const body = await response.text();
+        let code;
+        try {
+          const parsed = JSON.parse(body);
+          code = parsed && parsed.code;
+        } catch (error) {
+          if (!(error instanceof SyntaxError)) throw error;
+        }
+        const permissionError = response.status === 401 || response.status === 403 || code === '42501';
+        const error = new Error(permissionError
+          ? `Permission denied for ${table} (HTTP ${response.status}${code === '42501' ? ', 42501' : ''})`
+          : `Supabase ${table}: HTTP ${response.status}`);
+        error.permissionError = permissionError;
+        throw error;
+      }
       const data = await response.json();
       this.checkActive();
       return { status: response.status, data, range: response.headers.get('content-range') };
@@ -300,6 +324,7 @@ window.MacroChef = window.MacroChef || {};
       queue.sort((a, b) => (a.sequence || 0) - (b.sequence || 0) || a.timestamp - b.timestamp);
       const conflicts = [];
       const blocked = new Set();
+      let permissionErrors = false;
       for (const queued of queue) {
         this.checkActive();
         const entry = await db.OutboxQueue.get(queued.id);
@@ -310,18 +335,31 @@ window.MacroChef = window.MacroChef || {};
         }
         const key = `${entry.table}:${entry.payload.id}`;
         if (blocked.has(key)) continue;
+        if (entry.permissionError) {
+          blocked.add(key);
+          permissionErrors = true;
+          conflicts.push(entry.permissionError);
+          continue;
+        }
         try {
           await this.push(entry, remote);
         } catch (error) {
           if (this.stopped) throw error;
           blocked.add(key);
+          if (error.permissionError) {
+            const message = `${entry.table}/${entry.payload.id}: ${error.message}`;
+            await db.OutboxQueue.update(entry.id, { permissionError: message });
+            permissionErrors = true;
+            conflicts.push(message);
+            continue;
+          }
           conflicts.push(error.message);
         }
       }
       remote = await this.readRemote();
       await this.pull(remote, conflicts);
       this.checkActive();
-      this.setStatus(conflicts.length ? 'conflict' : 'synced', conflicts.join('; ') || null);
+      this.setStatus(conflicts.length ? 'conflict' : 'synced', conflicts.join('; ') || null, permissionErrors);
     }
 
     async push(entry, remote) {

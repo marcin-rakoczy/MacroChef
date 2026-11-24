@@ -3,11 +3,15 @@
  * Tests for PROD, TEST, and LOCAL environment detection
  */
 
+let passed = 0;
+let failed = 0;
 const test = (name, fn) => {
   try {
     fn();
+    passed++;
     console.log(`✓ ${name}`);
   } catch (err) {
+    failed++;
     console.error(`✗ ${name}: ${err.message}`);
   }
 };
@@ -159,41 +163,6 @@ test('Database naming: LOCAL uses LOCAL_MacroChefDB', () => {
   assert.equal(dbName, 'LOCAL_MacroChefDB', 'LOCAL should have LOCAL_ prefix');
 });
 
-// Test 11: Supabase config exists for PROD and TEST
-test('Supabase config: PROD and TEST configurations defined', () => {
-  const envConfig = {
-    PROD: {
-      url: 'https://xymudnmqahgayqvpznwz.supabase.co',
-      anonKey: 'sb_publishable_9_ZBVJnYEoFr8OWbAE0dMQ_RP1v7VeJ'
-    },
-    TEST: {
-      url: 'SUPABASE_TEST_URL',
-      anonKey: 'SUPABASE_TEST_ANON_KEY'
-    },
-    LOCAL: {
-      url: null,
-      anonKey: null
-    }
-  };
-  
-  assert.ok(envConfig.PROD, 'PROD config should exist');
-  assert.ok(envConfig.TEST, 'TEST config should exist');
-  assert.ok(envConfig.LOCAL, 'LOCAL config should exist');
-});
-
-// Test 12: TEST config has placeholder strings
-test('Supabase config: TEST uses placeholders', () => {
-  const envConfig = {
-    TEST: {
-      url: 'SUPABASE_TEST_URL',
-      anonKey: 'SUPABASE_TEST_ANON_KEY'
-    }
-  };
-  
-  assert.includes(envConfig.TEST.url, 'SUPABASE_TEST_URL', 'TEST URL should be placeholder');
-  assert.includes(envConfig.TEST.anonKey, 'SUPABASE_TEST_ANON_KEY', 'TEST anon key should be placeholder');
-});
-
 // Test 13: Badge styling for TEST environment
 test('UI: TEST environment badge is amber-colored', () => {
   const env = 'TEST';
@@ -227,4 +196,5 @@ test('UI: PROD environment has no badge', () => {
 });
 
 console.log('\n=== Environment Configuration Test Summary ===');
-console.log('✓ All tests passed');
+console.log(`${passed} passed, ${failed} failed`);
+if (failed) process.exitCode = 1;

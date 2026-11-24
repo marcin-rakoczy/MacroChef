@@ -12,7 +12,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     setColorTheme,
     session,
     onSignOut,
-    syncStatus
+    onSignIn,
+    syncStatus,
+    onRetryPermissionErrors
   }) {
     const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -100,6 +102,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                 {syncStatus && <span role="status" title={syncStatus.message || ''} aria-label={[t[`sync_${syncStatus.state}`], syncStatus.message].filter(Boolean).join(': ')} className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                   {t[`sync_${syncStatus.state}`]}
                 </span>}
+                {syncStatus && syncStatus.permissionErrors && onRetryPermissionErrors && <button type="button" onClick={onRetryPermissionErrors} className="text-[10px] font-semibold text-emerald-600 underline">
+                  {t.sync_retry}
+                </button>}
               </div>
             </div>
           </div>
@@ -169,7 +174,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                           {session?.email || '—'}
                         </p>
                         <span className="inline-flex mt-2 px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold">
-                          {session ? (t[`authRole${session.role}`] || session.role) : '—'}
+                          {session ? (t[`authRole${session.role}`] || session.role) : t.authRoleGuest}
                         </span>
                       </div>
                     </div>
@@ -178,7 +183,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                         {t.authOfflineSession}
                       </p>
                     )}
-                    <button
+                    {session ? <button
                       type="button"
                       disabled={signingOut}
                       onClick={handleSignOut}
@@ -186,7 +191,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                     >
                       <Icon name="log-out" className="w-4 h-4" />
                       <span>{t.authSignOut}</span>
-                    </button>
+                    </button> : onSignIn && <button
+                      type="button"
+                      onClick={() => { setIsMenuOpen(false); onSignIn(); }}
+                      className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 dark:bg-slate-800 dark:text-emerald-300"
+                    >
+                      {t.authSignIn}
+                    </button>}
                   </section>
 
                   <div className="border-t border-slate-200/80 dark:border-slate-700/80" />

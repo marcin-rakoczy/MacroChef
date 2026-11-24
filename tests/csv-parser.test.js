@@ -68,38 +68,38 @@ if (fs.existsSync(testCSVPath)) {
     
     assert(recipes.length > 0, `Loaded ${recipes.length} recipes`);
     // May be 9 or 10 depending on trailing empty lines
-    const validRecipes = recipes.filter(r => r.name && r.name.trim());
+    const validRecipes = recipes.filter(r => r.name && r.name.pl.trim());
     assert(validRecipes.length >= 9, `Found ${validRecipes.length} valid recipes`);
     
     // Test first recipe
     const firstRecipe = recipes[0];
-    assert(firstRecipe.name.includes('Nocna owsianka'), 'First recipe name correct');
-    assert(firstRecipe.category === 'Śniadanie', 'Category is breakfast');
+    assert(firstRecipe.name.pl.includes('Nocna owsianka'), 'First recipe name correct');
+    assert(firstRecipe.category.pl === 'Śniadanie', 'Category is breakfast');
     assert(firstRecipe.servings === 3, 'Servings correct');
-    assert(firstRecipe.caloriesPerServing === 490, 'Calories per serving correct');
-    assert(firstRecipe.proteinPerServing === 33, 'Protein per serving correct');
-    assert(firstRecipe.carbsPerServing === 66, 'Carbs per serving correct');
-    assert(firstRecipe.fatsPerServing === 10, 'Fats per serving correct');
+    assert(firstRecipe.calories === 490, 'Calories per serving correct');
+    assert(firstRecipe.protein === 33, 'Protein per serving correct');
+    assert(firstRecipe.carbs === 66, 'Carbs per serving correct');
+    assert(firstRecipe.fats === 10, 'Fats per serving correct');
     
     // Test ingredients
     assert(firstRecipe.ingredients.length === 5, 'Parsed 5 ingredients');
-    assert(firstRecipe.ingredients[0].name === 'Skyr jogurt typu islandzkiego naturalny XXL (Pilos)', 'First ingredient name correct');
+    assert(firstRecipe.ingredients[0].name.pl === 'Skyr jogurt typu islandzkiego naturalny XXL (Pilos)', 'First ingredient name correct');
     assert(firstRecipe.ingredients[0].amount === 450, 'First ingredient amount correct');
     assert(firstRecipe.ingredients[0].unit === 'g', 'First ingredient unit correct');
     assert(firstRecipe.ingredients[0].packageSize === 450, 'First ingredient package size correct');
     
     // Test steps
-    assert(firstRecipe.steps.length > 0, 'Steps parsed');
-    assert(firstRecipe.steps[0].startsWith('Przygotuj'), 'First step correct');
+    assert(firstRecipe.steps.pl.length > 0, 'Steps parsed');
+    assert(firstRecipe.steps.pl[0].startsWith('Przygotuj'), 'First step correct');
     
     // Test second recipe - frittata
     const frittataRecipe = recipes[1];
-    assert(frittataRecipe.name.includes('frittata'), 'Second recipe is frittata');
+    assert(frittataRecipe.name.pl.includes('frittata'), 'Second recipe is frittata');
     assert(frittataRecipe.servings === 4, 'Frittata servings correct');
     assert(frittataRecipe.ingredients.length === 5, 'Frittata has 5 ingredients');
     
     // Test recipe with vegan tofu
-    const veganRecipe = recipes.find(r => r.name.includes('Wegańska'));
+    const veganRecipe = recipes.find(r => r.name.pl.includes('Wegańska'));
     assert(veganRecipe !== undefined, 'Found vegan recipe');
     if (veganRecipe) {
       assert(veganRecipe.ingredients.length === 6, 'Vegan recipe has 6 ingredients');
@@ -108,17 +108,17 @@ if (fs.existsSync(testCSVPath)) {
     // Test macros calculation
     console.log('\n📊 Macro Validation\n');
     recipes.forEach((recipe, idx) => {
-      const totalCalories = recipe.caloriesPerServing;
+      const totalCalories = recipe.calories;
       const caloriesFromMacros = 
-        (recipe.proteinPerServing * 4) + 
-        (recipe.carbsPerServing * 4) + 
-        (recipe.fatsPerServing * 9);
+        (recipe.protein * 4) +
+        (recipe.carbs * 4) +
+        (recipe.fats * 9);
       
       const diff = Math.abs(totalCalories - caloriesFromMacros);
       const valid = diff < 10; // Allow 10 cal rounding error
       
       if (!valid) {
-        console.warn(`⚠️ Recipe ${idx + 1} (${recipe.name}): Calories mismatch`);
+        console.warn(`⚠️ Recipe ${idx + 1} (${recipe.name.pl}): Calories mismatch`);
         console.log(`   Stated: ${totalCalories}, Calculated: ${caloriesFromMacros.toFixed(0)}`);
       }
     });
@@ -130,9 +130,9 @@ if (fs.existsSync(testCSVPath)) {
         recipe.name &&
         recipe.category &&
         recipe.servings > 0 &&
-        recipe.caloriesPerServing > 0 &&
+        recipe.calories > 0 &&
         recipe.ingredients.length > 0 &&
-        recipe.steps.length > 0;
+        recipe.steps.pl.length > 0;
       
       assert(hasAllFields, `Recipe ${idx + 1} has all required fields`);
     });
@@ -155,6 +155,30 @@ assert(templatePL.includes('Przykładowy przepis'), 'Polish template has example
 const templateEN = createTemplate('en');
 assert(templateEN.includes('name'), 'English template has "name" header');
 assert(templateEN.includes('Example recipe'), 'English template has example values');
+const [englishRecipe] = csvParse(templateEN, 'en');
+assert(englishRecipe && englishRecipe.name.en === 'Example recipe' && englishRecipe.fats === 12,
+  'English template parses with its macros');
+const quotedCsv = templateEN.replace('"Example recipe"', '"Chicken; ""rice"""')
+  .replace('"Cook rice|Cook chicken|Serve on plate"', '"Step 1; Step 2|Serve"');
+const [quotedRecipe] = csvParse(quotedCsv, 'en');
+assert(quotedRecipe.name.en === 'Chicken; "rice"' && quotedRecipe.servings === 2 &&
+  quotedRecipe.calories === 450 && quotedRecipe.steps.en[0] === 'Step 1; Step 2',
+  'Quoted semicolons and escaped quotes do not shift columns');
+const multilineCsv = templateEN.replace('"Cook rice|Cook chicken|Serve on plate"', '"First line\r\nSecond line"');
+assert(csvParse(multilineCsv, 'en')[0].steps.en[0] === 'First line\r\nSecond line',
+  'Quoted multiline fields are preserved');
+const commaRows = window.MacroChef.recipeCsv.parseRows('\uFEFFsep=,\r\n"name;description",servings\r\n"Meal; one",2');
+assert(commaRows[0][0] === 'name;description' && commaRows[1][1] === '2',
+  'BOM and separator directive select the delimiter');
+const detectedRows = window.MacroChef.recipeCsv.parseRows('"name;description",servings\r\n"Meal; one",2');
+assert(detectedRows[0].length === 2 && detectedRows[1][0] === 'Meal; one',
+  'Delimiter detection ignores quoted semicolons');
+let malformedRejected = false;
+try { csvParse(templateEN + '\r\n"unterminated', 'en'); } catch (error) { malformedRejected = /unclosed/.test(error.message); }
+assert(malformedRejected, 'Unclosed quoted fields are rejected');
+let suffixRejected = false;
+try { window.MacroChef.recipeCsv.parseRows('"value"junk;next'); } catch (error) { suffixRejected = /invalid quoted/.test(error.message); }
+assert(suffixRejected, 'Unexpected characters after closing quotes are rejected');
 
 // Test 4: Import upsert planning
 console.log('\n🔁 Test Suite: Import add/update planning\n');

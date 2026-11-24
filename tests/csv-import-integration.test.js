@@ -75,7 +75,7 @@ test('Parsed recipes have correct structure', () => {
   const recipe = recipes[0];
   const requiredFields = [
     'name', 'category', 'prepTime', 'servings',
-    'caloriesPerServing', 'proteinPerServing', 'carbsPerServing', 'fatPerServing',
+    'calories', 'protein', 'carbs', 'fats',
     'ingredients', 'steps'
   ];
   
@@ -98,11 +98,11 @@ test('Field names match AdminRecipes.js mapping', () => {
     category: recipe.category || 'Inne',
     prepTime: recipe.prepTime || 0,
     servings: recipe.servings || 1,
-    caloriesPerServing: recipe.caloriesPerServing || 0,
-    proteinPerServing: recipe.proteinPerServing || 0,
-    carbsPerServing: recipe.carbsPerServing || 0,
-    fatPerServing: recipe.fatPerServing || 0, // IMPORTANT: not fatsPerServing
-    steps: recipe.steps || [],
+    calories: recipe.calories,
+    protein: recipe.protein,
+    carbs: recipe.carbs,
+    fats: recipe.fats,
+    steps: recipe.steps,
     ingredients: recipe.ingredients || []
   };
   
@@ -119,14 +119,14 @@ test('Multiple recipes parsed with all fields', () => {
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
   recipes.forEach((recipe, idx) => {
-    assertTrue(recipe.name && recipe.name.length > 0, `Recipe ${idx} should have name`);
-    assertTrue(recipe.category && recipe.category.length > 0, `Recipe ${idx} should have category`);
-    assertTrue(typeof recipe.caloriesPerServing === 'number', `Recipe ${idx} should have numeric caloriesPerServing`);
-    assertTrue(typeof recipe.proteinPerServing === 'number', `Recipe ${idx} should have numeric proteinPerServing`);
-    assertTrue(typeof recipe.carbsPerServing === 'number', `Recipe ${idx} should have numeric carbsPerServing`);
-    assertTrue(typeof recipe.fatPerServing === 'number', `Recipe ${idx} should have numeric fatPerServing`);
+    assertTrue(recipe.name && recipe.name.pl.length > 0, `Recipe ${idx} should have name`);
+    assertTrue(recipe.category && recipe.category.pl.length > 0, `Recipe ${idx} should have category`);
+    assertTrue(typeof recipe.calories === 'number', `Recipe ${idx} should have numeric calories`);
+    assertTrue(typeof recipe.protein === 'number', `Recipe ${idx} should have numeric protein`);
+    assertTrue(typeof recipe.carbs === 'number', `Recipe ${idx} should have numeric carbs`);
+    assertTrue(typeof recipe.fats === 'number', `Recipe ${idx} should have numeric fats`);
     assertTrue(Array.isArray(recipe.ingredients), `Recipe ${idx} should have ingredients array`);
-    assertTrue(Array.isArray(recipe.steps), `Recipe ${idx} should have steps array`);
+    assertTrue(Array.isArray(recipe.steps.pl), `Recipe ${idx} should have localized steps`);
   });
 });
 
@@ -142,7 +142,7 @@ test('Ingredients have correct structure', () => {
   
   if (recipeWithIngredients) {
     recipeWithIngredients.ingredients.forEach((ingredient, idx) => {
-      assertTrue(ingredient.name && ingredient.name.length > 0, `Ingredient ${idx} should have name`);
+      assertTrue(ingredient.name && ingredient.name.pl.length > 0, `Ingredient ${idx} should have name`);
       // Other fields may be optional for this test
     });
   }
@@ -155,16 +155,16 @@ test('Macro values are valid numbers', () => {
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
   recipes.forEach((recipe, idx) => {
-    assertTrue(!isNaN(recipe.caloriesPerServing), `Recipe ${idx} caloriesPerServing should be a number`);
-    assertTrue(!isNaN(recipe.proteinPerServing), `Recipe ${idx} proteinPerServing should be a number`);
-    assertTrue(!isNaN(recipe.carbsPerServing), `Recipe ${idx} carbsPerServing should be a number`);
-    assertTrue(!isNaN(recipe.fatPerServing), `Recipe ${idx} fatPerServing should be a number`);
+    assertTrue(Number.isFinite(recipe.calories), `Recipe ${idx} calories should be a number`);
+    assertTrue(Number.isFinite(recipe.protein), `Recipe ${idx} protein should be a number`);
+    assertTrue(Number.isFinite(recipe.carbs), `Recipe ${idx} carbs should be a number`);
+    assertTrue(Number.isFinite(recipe.fats), `Recipe ${idx} fats should be a number`);
     
     // Reasonable value ranges (adjust if needed)
-    assertTrue(recipe.caloriesPerServing >= 0, `Recipe ${idx} calories should be >= 0`);
-    assertTrue(recipe.proteinPerServing >= 0, `Recipe ${idx} protein should be >= 0`);
-    assertTrue(recipe.carbsPerServing >= 0, `Recipe ${idx} carbs should be >= 0`);
-    assertTrue(recipe.fatPerServing >= 0, `Recipe ${idx} fat should be >= 0`);
+    assertTrue(recipe.calories >= 0, `Recipe ${idx} calories should be >= 0`);
+    assertTrue(recipe.protein >= 0, `Recipe ${idx} protein should be >= 0`);
+    assertTrue(recipe.carbs >= 0, `Recipe ${idx} carbs should be >= 0`);
+    assertTrue(recipe.fats >= 0, `Recipe ${idx} fat should be >= 0`);
   });
 });
 
@@ -175,10 +175,10 @@ test('Steps are parsed correctly', () => {
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
   recipes.forEach((recipe, idx) => {
-    assertTrue(Array.isArray(recipe.steps), `Recipe ${idx} steps should be an array`);
+    assertTrue(Array.isArray(recipe.steps.pl), `Recipe ${idx} steps should be localized`);
     
-    if (recipe.steps.length > 0) {
-      recipe.steps.forEach((step, stepIdx) => {
+    if (recipe.steps.pl.length > 0) {
+      recipe.steps.pl.forEach((step, stepIdx) => {
         assertTrue(typeof step === 'string' && step.length > 0, `Recipe ${idx} step ${stepIdx} should be non-empty string`);
       });
     }
@@ -203,11 +203,11 @@ test('AdminRecipes.js integration mapping works', () => {
       category: parsedRecipe.category || 'Inne',
       prepTime: parsedRecipe.prepTime || 0,
       servings: parsedRecipe.servings || 1,
-      caloriesPerServing: parsedRecipe.caloriesPerServing || 0,
-      proteinPerServing: parsedRecipe.proteinPerServing || 0,
-      carbsPerServing: parsedRecipe.carbsPerServing || 0,
-      fatPerServing: parsedRecipe.fatPerServing || 0,
-      steps: parsedRecipe.steps || [],
+      calories: parsedRecipe.calories,
+      protein: parsedRecipe.protein,
+      carbs: parsedRecipe.carbs,
+      fats: parsedRecipe.fats,
+      steps: parsedRecipe.steps,
       ingredients: parsedRecipe.ingredients || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -225,8 +225,8 @@ test('AdminRecipes.js integration mapping works', () => {
     
     // This is the critical test - all these fields must exist and be accessible
     assertTrue(
-      recipe.fatPerServing !== undefined && !isNaN(recipe.fatPerServing),
-      `Recipe ${idx} should have valid fatPerServing (not fatsPerServing)`
+      Number.isFinite(recipe.fats),
+      `Recipe ${idx} should have valid fats`
     );
   });
 });

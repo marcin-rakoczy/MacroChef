@@ -43,6 +43,7 @@ jobs:
           node tests/header-navigation.test.js
           node tests/recipe-image-ai.test.js
           node tests/recipe-steps-normalization.test.js
+          node tests/sync-permission.test.js
 
   # ============================================================================
   # BUILD JOB - For all branches (Cloudflare Pages deploys automatically)

@@ -7160,6 +7160,7 @@ window.MacroChef.TRANSLATIONS = {
     authRoleTester: 'Tester',
     authRoleUserWithAdvertisement: 'User with advertisements',
     authSignIn: 'Sign in',
+    authRoleGuest: 'Guest',
     authSignUp: 'Sign up',
     authSignOut: 'Sign out',
     authSwitchSignIn: 'Already have an account? Sign in',
@@ -7186,6 +7187,7 @@ window.MacroChef.TRANSLATIONS = {
     sync_synced: 'Synced',
     sync_offline: 'Sync offline',
     sync_conflict: 'Sync conflict',
+    sync_retry: 'Retry sync',
     sync_error: 'Sync error',
     planner: 'Meal Planner',
     recipes: 'Recipe Library',
@@ -7458,6 +7460,7 @@ window.MacroChef.TRANSLATIONS = {
     authRoleTester: 'Tester',
     authRoleUserWithAdvertisement: 'Użytkownik z reklamami',
     authSignIn: 'Zaloguj się',
+    authRoleGuest: 'Gość',
     authSignUp: 'Zarejestruj się',
     authSignOut: 'Wyloguj się',
     authSwitchSignIn: 'Masz konto? Zaloguj się',
@@ -7484,6 +7487,7 @@ window.MacroChef.TRANSLATIONS = {
     sync_synced: 'Zsynchronizowano',
     sync_offline: 'Synchronizacja offline',
     sync_conflict: 'Konflikt synchronizacji',
+    sync_retry: 'Ponów synchronizację',
     sync_error: 'Błąd synchronizacji',
     planner: 'Planer Posiłków',
     recipes: 'Biblioteka Przepisów',
@@ -8004,49 +8008,81 @@ window.MacroChef = window.MacroChef || {};
       ? value.trim()
       : 'images/no-recipe-image.svg');
 
-  const parseCSV = (text, lang = 'pl') => {
-    // Remove BOM if present
-    const cleanText = text.replace(/^\uFEFF/, '');
-    
-    // Split into lines first (handle both \r\n and \n)
-    let lines = [];
-    let currentLine = '';
+  const parseRows = (input, explicitDelimiter) => {
+    let text = input.replace(/^\uFEFF/, '');
+    const separator = text.match(/^sep=(,|;|\t)\r?\n/i);
+    let delimiter = explicitDelimiter;
+    if (separator) {
+      delimiter = separator[1];
+      text = text.slice(separator[0].length);
+    } else if (!delimiter) {
+      const counts = { ',': 0, ';': 0, '\t': 0 };
+      let quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '"' && quoted && text[i + 1] === '"') i++;
+        else if (char === '"') quoted = !quoted;
+        else if (!quoted && (char === '\r' || char === '\n')) break;
+        else if (!quoted && Object.prototype.hasOwnProperty.call(counts, char)) counts[char]++;
+      }
+      delimiter = [',', ';', '\t'].reduce((best, candidate) =>
+        counts[candidate] > counts[best] ? candidate : best, ',');
+    }
+
+    const rows = [];
+    let row = [];
+    let field = '';
     let inQuotes = false;
-
-    for (let i = 0; i < cleanText.length; i++) {
-      const char = cleanText[i];
-      const nextChar = cleanText[i + 1];
-
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          currentLine += '"';
-          i++; // Skip next quote
+    let afterQuote = false;
+    const endRow = () => {
+      row.push(field);
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+      field = '';
+      afterQuote = false;
+    };
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (inQuotes) {
+        if (char === '"' && text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+          afterQuote = true;
         } else {
-          inQuotes = !inQuotes;
+          field += char;
         }
-      } else if ((char === '\n' || char === '\r') && !inQuotes) {
-        if (currentLine.trim()) {
-          lines.push(currentLine);
-        }
-        currentLine = '';
-        if (char === '\r' && nextChar === '\n') {
-          i++; // Skip \r\n
-        }
+      } else if (char === delimiter) {
+        row.push(field);
+        field = '';
+        afterQuote = false;
+      } else if (char === '\r' || char === '\n') {
+        if (char === '\r' && text[i + 1] === '\n') i++;
+        endRow();
+      } else if (char === '"' && !afterQuote && field.length === 0) {
+        inQuotes = true;
+      } else if (afterQuote && (char === ' ' || char === '\t') && char !== delimiter) {
+        continue;
+      } else if (char === '"' || afterQuote) {
+        throw new Error('The CSV file contains an invalid quoted field.');
       } else {
-        currentLine += char;
+        field += char;
       }
     }
-    if (currentLine.trim()) {
-      lines.push(currentLine);
-    }
+    if (inQuotes) throw new Error('The CSV file contains an unclosed quoted field.');
+    endRow();
+    return rows;
+  };
 
-    if (lines.length < 1) {
+  const parseCSV = (text, lang = 'pl') => {
+    const rows = parseRows(text);
+    if (rows.length < 1) {
       throw new Error('CSV is empty');
     }
 
     // Parse header
-    const headerLine = lines[0];
-    const headers = parseCSVLine(headerLine);
+    const headers = rows[0];
     
     const expectedHeaders = lang === 'pl'
       ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
@@ -8069,10 +8105,10 @@ window.MacroChef = window.MacroChef || {};
 
     // Parse recipes
     const recipes = [];
-    for (let lineIdx = 1; lineIdx < lines.length; lineIdx++) {
+    for (let lineIdx = 1; lineIdx < rows.length; lineIdx++) {
       try {
-        const cells = parseCSVLine(lines[lineIdx]);
-        const nameKey = 'nazwa';
+        const cells = rows[lineIdx].map((cell) => cell.trim());
+        const nameKey = lang === 'pl' ? 'nazwa' : 'name';
         const nameIdx = headerMap[nameKey];
         
         if (cells.length === 0 || nameIdx === undefined || !cells[nameIdx]) {
@@ -8090,31 +8126,9 @@ window.MacroChef = window.MacroChef || {};
   };
 
   const parseCSVLine = (line) => {
-    const cells = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      const nextChar = line[i + 1];
-
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          current += '"';
-          i++; // Skip next quote
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ';' && !inQuotes) {
-        cells.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    cells.push(current.trim());
-
-    return cells;
+    const rows = parseRows(line, ';');
+    if (rows.length > 1) throw new Error('Expected a single CSV row.');
+    return rows.length ? rows[0].map((cell) => cell.trim()) : [''];
   };
 
   const parseRecipeRow = (cells, headerMap, lang) => {
@@ -8145,7 +8159,7 @@ window.MacroChef = window.MacroChef || {};
     const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;
     const protein = parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0;
     const carbs = parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0;
-    const fats = parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0;
+    const fats = parseFloat(get('tluszczeNaPorcje') || get('fatsPerServing') || get('fatPerServing')) || 0;
 
     const recipe = {
       id: window.crypto.randomUUID(),
@@ -8291,6 +8305,7 @@ window.MacroChef = window.MacroChef || {};
 
   window.MacroChef.recipeCsv = { 
     parseCSV, 
+    parseRows,
     parseCSVLine, 
     parseRecipeRow, 
     parseIngredients, 
@@ -9984,8 +9999,8 @@ window.MacroChef = window.MacroChef || {};
       this.requestSync();
     }
 
-    setStatus(state, message = null) {
-      this.status = { state, message };
+    setStatus(state, message = null, permissionErrors = false) {
+      this.status = { state, message, ...(permissionErrors ? { permissionErrors: true } : {}) };
       this.listeners.forEach((listener) => listener(this.getStatus()));
     }
 
@@ -9994,6 +10009,15 @@ window.MacroChef = window.MacroChef || {};
     subscribe(listener) {
       this.listeners.add(listener);
       return () => this.listeners.delete(listener);
+    }
+
+    async retryPermissionErrors() {
+      if (this.stopped) return;
+      const queue = this.scope.repository.db.OutboxQueue;
+      for (const entry of await queue.toArray()) {
+        if (entry.permissionError) await queue.update(entry.id, { permissionError: null });
+      }
+      this.requestSync();
     }
 
     requestSync() {
@@ -10079,7 +10103,22 @@ window.MacroChef = window.MacroChef || {};
         cache: 'no-store'
       });
       this.checkActive();
-      if (!response.ok) throw new Error(`Supabase ${table}: HTTP ${response.status}`);
+      if (!response.ok) {
+        const body = await response.text();
+        let code;
+        try {
+          const parsed = JSON.parse(body);
+          code = parsed && parsed.code;
+        } catch (error) {
+          if (!(error instanceof SyntaxError)) throw error;
+        }
+        const permissionError = response.status === 401 || response.status === 403 || code === '42501';
+        const error = new Error(permissionError
+          ? `Permission denied for ${table} (HTTP ${response.status}${code === '42501' ? ', 42501' : ''})`
+          : `Supabase ${table}: HTTP ${response.status}`);
+        error.permissionError = permissionError;
+        throw error;
+      }
       const data = await response.json();
       this.checkActive();
       return { status: response.status, data, range: response.headers.get('content-range') };
@@ -10155,6 +10194,7 @@ window.MacroChef = window.MacroChef || {};
       queue.sort((a, b) => (a.sequence || 0) - (b.sequence || 0) || a.timestamp - b.timestamp);
       const conflicts = [];
       const blocked = new Set();
+      let permissionErrors = false;
       for (const queued of queue) {
         this.checkActive();
         const entry = await db.OutboxQueue.get(queued.id);
@@ -10165,18 +10205,31 @@ window.MacroChef = window.MacroChef || {};
         }
         const key = `${entry.table}:${entry.payload.id}`;
         if (blocked.has(key)) continue;
+        if (entry.permissionError) {
+          blocked.add(key);
+          permissionErrors = true;
+          conflicts.push(entry.permissionError);
+          continue;
+        }
         try {
           await this.push(entry, remote);
         } catch (error) {
           if (this.stopped) throw error;
           blocked.add(key);
+          if (error.permissionError) {
+            const message = `${entry.table}/${entry.payload.id}: ${error.message}`;
+            await db.OutboxQueue.update(entry.id, { permissionError: message });
+            permissionErrors = true;
+            conflicts.push(message);
+            continue;
+          }
           conflicts.push(error.message);
         }
       }
       remote = await this.readRemote();
       await this.pull(remote, conflicts);
       this.checkActive();
-      this.setStatus(conflicts.length ? 'conflict' : 'synced', conflicts.join('; ') || null);
+      this.setStatus(conflicts.length ? 'conflict' : 'synced', conflicts.join('; ') || null, permissionErrors);
     }
 
     async push(entry, remote) {
@@ -11107,7 +11160,9 @@ window.MacroChef.components = window.MacroChef.components || {};
     setColorTheme,
     session,
     onSignOut,
-    syncStatus
+    onSignIn,
+    syncStatus,
+    onRetryPermissionErrors
   }) {
     const { t, lang, setLang } = window.MacroChef.useI18n();
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -11195,6 +11250,9 @@ window.MacroChef.components = window.MacroChef.components || {};
                 {syncStatus && <span role="status" title={syncStatus.message || ''} aria-label={[t[`sync_${syncStatus.state}`], syncStatus.message].filter(Boolean).join(': ')} className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                   {t[`sync_${syncStatus.state}`]}
                 </span>}
+                {syncStatus && syncStatus.permissionErrors && onRetryPermissionErrors && <button type="button" onClick={onRetryPermissionErrors} className="text-[10px] font-semibold text-emerald-600 underline">
+                  {t.sync_retry}
+                </button>}
               </div>
             </div>
           </div>
@@ -11264,7 +11322,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                           {session?.email || '—'}
                         </p>
                         <span className="inline-flex mt-2 px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold">
-                          {session ? (t[`authRole${session.role}`] || session.role) : '—'}
+                          {session ? (t[`authRole${session.role}`] || session.role) : t.authRoleGuest}
                         </span>
                       </div>
                     </div>
@@ -11273,7 +11331,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                         {t.authOfflineSession}
                       </p>
                     )}
-                    <button
+                    {session ? <button
                       type="button"
                       disabled={signingOut}
                       onClick={handleSignOut}
@@ -11281,7 +11339,13 @@ window.MacroChef.components = window.MacroChef.components || {};
                     >
                       <Icon name="log-out" className="w-4 h-4" />
                       <span>{t.authSignOut}</span>
-                    </button>
+                    </button> : onSignIn && <button
+                      type="button"
+                      onClick={() => { setIsMenuOpen(false); onSignIn(); }}
+                      className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 dark:bg-slate-800 dark:text-emerald-300"
+                    >
+                      {t.authSignIn}
+                    </button>}
                   </section>
 
                   <div className="border-t border-slate-200/80 dark:border-slate-700/80" />
@@ -12152,7 +12216,7 @@ window.MacroChef.components = window.MacroChef.components || {};
                   <div>
                     <div className="h-20 sm:h-[4.75rem] md:h-[5rem] flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-3 pb-2 sm:pb-3 border-b border-slate-100 dark:border-slate-700/60 mb-2 sm:mb-3">
                       <div className="min-w-0">
-                        <div className="h-4 sm:h-5">
+                        <div className="h-4 sm:h-5 mb-1 flex items-start">
                           {relativeLabel && (
                             <span className="inline-flex max-w-full px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold uppercase tracking-tight sm:tracking-wide bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 truncate">
                               {relativeLabel}
@@ -12358,59 +12422,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '');
 
-  const parseCsvRows = (text) => {
-    let delimiter;
-    const separatorLine = text.match(/^sep=(,|;|\t)\r?\n/i);
-    if (separatorLine) {
-      delimiter = separatorLine[1];
-      text = text.slice(separatorLine[0].length);
-    } else {
-      const firstLine = text.split(/\r?\n/, 1)[0] || '';
-      delimiter = [',', ';', '\t'].reduce((selected, candidate) => {
-        const count = (firstLine.match(new RegExp(candidate === '\t' ? '\\t' : `\\${candidate}`, 'g')) || []).length;
-        const selectedCount = (firstLine.match(new RegExp(selected === '\t' ? '\\t' : `\\${selected}`, 'g')) || []).length;
-        return count > selectedCount ? candidate : selected;
-      }, ',');
-    }
-
-    const rows = [];
-    let row = [];
-    let field = '';
-    let inQuotes = false;
-    for (let i = 0; i < text.length; i += 1) {
-      const character = text[i];
-      if (inQuotes) {
-        if (character === '"' && text[i + 1] === '"') {
-          field += '"';
-          i += 1;
-        } else if (character === '"') {
-          inQuotes = false;
-        } else {
-          field += character;
-        }
-      } else if (character === '"' && field.length === 0) {
-        inQuotes = true;
-      } else if (character === delimiter) {
-        row.push(field);
-        field = '';
-      } else if (character === '\n' || character === '\r') {
-        if (character === '\r' && text[i + 1] === '\n') i += 1;
-        row.push(field);
-        if (row.some((cell) => cell.trim())) rows.push(row);
-        row = [];
-        field = '';
-      } else {
-        field += character;
-      }
-    }
-    if (inQuotes) throw new Error('The CSV file contains an unclosed quoted field.');
-    row.push(field);
-    if (row.some((cell) => cell.trim())) rows.push(row);
-    return rows;
-  };
-
   const parseRecipeCsv = (text) => {
-    const rows = parseCsvRows(text.replace(/^\uFEFF/, ''));
+    const rows = window.MacroChef.recipeCsv.parseRows(text);
     if (rows.length < 2) throw new Error('The CSV file must contain a header and at least one recipe.');
 
     const fields = {
@@ -16074,6 +16087,7 @@ window.MacroChef = window.MacroChef || {};
     ShoppingList,
     MacroTracker,
     RecipeModal,
+    AuthModal,
     AdBanner,
     AdminPanel
   } = window.MacroChef.components;
@@ -16140,6 +16154,7 @@ window.MacroChef = window.MacroChef || {};
     const [selectedBatchRecipe, setSelectedBatchRecipe] = useState(null);
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
 
     useEffect(() => {
@@ -16310,9 +16325,15 @@ window.MacroChef = window.MacroChef || {};
             setColorTheme={setColorTheme}
             session={session}
             onSignOut={onSignOut}
+            onSignIn={() => setShowAuthModal(true)}
             syncStatus={syncStatus}
+            onRetryPermissionErrors={syncManager ? () => syncManager.retryPermissionErrors().catch((error) => {
+              console.error('Could not retry permission errors:', error);
+              syncManager.setStatus('error', error.message, true);
+            }) : null}
           />
           <AdBanner role={role} />
+          {showAuthModal && <AuthModal session={session} onClose={() => setShowAuthModal(false)} />}
 
           {/* Main Layout Container */}
           <main className="w-full max-w-7xl mx-auto px-4 pt-6 flex-1">
@@ -16458,8 +16479,6 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [target, setTarget] = useState(null);
     const [error, setError] = useState(null);
     const [attempt, setAttempt] = useState(0);
-    const [authLoading, setAuthLoading] = useState(false);
-    const [authError, setAuthError] = useState('');
     const activeRef = useRef(null);
     const wantedRef = useRef(null);
     const latestSession = useRef(null);
@@ -16606,22 +16625,6 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     }, []);
 
-    const handleSignIn = async (email, password, isSignUp) => {
-      setAuthLoading(true);
-      setAuthError('');
-      try {
-        if (isSignUp) {
-          await window.MacroChef.auth.signUp(email, password);
-        } else {
-          await window.MacroChef.auth.signIn(email, password);
-        }
-      } catch (err) {
-        setAuthError(err.message || (isSignUp ? 'Sign up failed' : 'Sign in failed'));
-        setAuthLoading(false);
-        throw err;
-      }
-    };
-
     const handleSignOut = async () => {
       try {
         await window.MacroChef.auth.signOut();
@@ -16631,6 +16634,14 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
+    if (error && !active) {
+      const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
+      return <div role="alert">
+        {window.MacroChef.TRANSLATIONS[lang][error]}
+        <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button>
+      </div>;
+    }
+
     // Loading state - show nothing until we determine auth status
     if (!target) {
       return <div style={{ display: 'none' }}></div>;
@@ -16639,22 +16650,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     // Get AuthGate component
     const { AuthGate } = window.MacroChef.components;
 
-    // If unauthenticated, show auth gate (no session)
-    if (!target.session) {
-      if (AuthGate) {
-        return (
-          <AuthGate
-            isAuthenticated={false}
-            session={null}
-            onSignOut={handleSignOut}
-            authenticatedContent={null}
-          />
-        );
-      }
-    }
-
-    // If authenticated and active repository is ready, show app wrapped in AuthGate
-    if (active && target.session) {
+    if (active && active.key === target.key) {
       const appContent = (
         <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
           {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
@@ -16662,7 +16658,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         </window.MacroChef.I18nProvider>
       );
 
-      if (AuthGate) {
+      if (AuthGate && target.session) {
         return (
           <AuthGate
             isAuthenticated={true}

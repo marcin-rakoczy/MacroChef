@@ -17,6 +17,7 @@
   });
 
   const rootElement = document.getElementById('test-root');
+  localStorage.setItem('macrochef_lang', 'en');
 
   async function waitFor(check, timeout = 2000) {
     const start = Date.now();
@@ -39,7 +40,7 @@
   function setInputValue(selector, value) {
     const input = rootElement.querySelector(selector);
     if (input) {
-      input.value = value;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -110,7 +111,7 @@
 
       // Try invalid email
       setInputValue('input[type="email"]', 'invalid-email');
-      clickButton('button[type="submit"]');
+      rootElement.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
       await waitFor(() => rootElement.textContent.includes('Invalid email') || 
                          rootElement.textContent.includes('email format'));
@@ -264,7 +265,7 @@
 
       assert(rootElement.textContent.includes('Invalid credentials'), 'Error message should display');
       assert(rootElement.querySelector('[role="alert"]') || 
-             rootElement.querySelector('.bg-red'), 'Error should be in alert styling');
+             rootElement.querySelector('.bg-red-50'), 'Error should be in alert styling');
     } finally {
       root.unmount();
       clearRoot();
@@ -298,6 +299,7 @@
     const root = ReactDOM.createRoot(rootElement);
     try {
       language = 'pl';
+      localStorage.setItem('macrochef_lang', 'pl');
       root.render(<components.LoginScreen onSignIn={() => {}} error="" loading={false} />);
       await waitFor(() => rootElement.textContent.includes(TRANSLATIONS.pl.authSignIn));
 
@@ -323,6 +325,7 @@
       root.unmount();
       clearRoot();
       language = 'en';
+      localStorage.setItem('macrochef_lang', 'en');
     }
   });
 
@@ -400,5 +403,4 @@
     }
   });
 
-  run();
 })();

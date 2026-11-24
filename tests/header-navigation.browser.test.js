@@ -25,9 +25,11 @@
 
   function renderHeader(root, overrides = {}) {
     root.render(<Header
-      session={session}
+      session={Object.prototype.hasOwnProperty.call(overrides, 'session') ? overrides.session : session}
       onSignOut={overrides.onSignOut || (() => {})}
-      syncStatus={{ state: 'synced' }}
+      onSignIn={overrides.onSignIn}
+      syncStatus={overrides.syncStatus || { state: 'synced' }}
+      onRetryPermissionErrors={overrides.onRetryPermissionErrors}
       darkMode={false}
       setDarkMode={() => {}}
       colorTheme="emerald"
@@ -44,6 +46,25 @@
       equal(rootElement.querySelectorAll('header > div > button').length, 0, 'Standalone profile trigger');
       assert(rootElement.textContent.includes(`v${window.MacroChef.APP_VERSION}`), 'TEST header version is missing');
       equal(rootElement.querySelectorAll('[aria-controls="macrochef-settings-drawer"]').length, 1, 'Menu trigger count');
+    } finally {
+      root.unmount();
+    }
+  });
+
+  test('Permission conflicts offer an explicit retry', async () => {
+    const root = ReactDOM.createRoot(rootElement);
+    let retried = false;
+    try {
+      renderHeader(root, {
+        syncStatus: { state: 'conflict', message: 'Permission denied', permissionErrors: true },
+        onRetryPermissionErrors: () => { retried = true; }
+      });
+      await waitFor(() => Array.from(rootElement.querySelectorAll('button'))
+        .some((button) => button.textContent === window.MacroChef.TRANSLATIONS.en.sync_retry));
+      const retry = Array.from(rootElement.querySelectorAll('button'))
+        .find((button) => button.textContent === window.MacroChef.TRANSLATIONS.en.sync_retry);
+      retry.click();
+      assert(retried, 'Retry action was not invoked');
     } finally {
       root.unmount();
     }
@@ -71,6 +92,26 @@
       Array.from(document.querySelectorAll('#macrochef-settings-drawer button'))
         .find((button) => button.textContent.includes(window.MacroChef.TRANSLATIONS.en.authSignOut)).click();
       await waitFor(() => signedOut && !document.querySelector('#macrochef-settings-drawer'));
+    } finally {
+      root.unmount();
+    }
+  });
+
+  test('Guest drawer offers sign-in', async () => {
+    const root = ReactDOM.createRoot(rootElement);
+    let signIn = false;
+    try {
+      renderHeader(root, { session: null, onSignIn: () => { signIn = true; } });
+      await waitFor(() => rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]'));
+      rootElement.querySelector('[aria-controls="macrochef-settings-drawer"]').click();
+      await waitFor(() => document.querySelector('#macrochef-settings-drawer'));
+      const drawer = document.querySelector('#macrochef-settings-drawer');
+      assert(drawer.textContent.includes(window.MacroChef.TRANSLATIONS.en.authRoleGuest), 'Guest role missing');
+      const button = Array.from(drawer.querySelectorAll('button'))
+        .find((item) => item.textContent.includes(window.MacroChef.TRANSLATIONS.en.authSignIn));
+      assert(button, 'Sign-in action missing');
+      button.click();
+      await waitFor(() => signIn && !document.querySelector('#macrochef-settings-drawer'));
     } finally {
       root.unmount();
     }

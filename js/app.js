@@ -12,6 +12,7 @@ window.MacroChef = window.MacroChef || {};
     ShoppingList,
     MacroTracker,
     RecipeModal,
+    AuthModal,
     AdBanner,
     AdminPanel
   } = window.MacroChef.components;
@@ -78,6 +79,7 @@ window.MacroChef = window.MacroChef || {};
     const [selectedBatchRecipe, setSelectedBatchRecipe] = useState(null);
     const [batchStep, setBatchStep] = useState(0);
     const [showRecipeModal, setShowRecipeModal] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
     const [editingRecipe, setEditingRecipe] = useState(null);
 
     useEffect(() => {
@@ -248,9 +250,15 @@ window.MacroChef = window.MacroChef || {};
             setColorTheme={setColorTheme}
             session={session}
             onSignOut={onSignOut}
+            onSignIn={() => setShowAuthModal(true)}
             syncStatus={syncStatus}
+            onRetryPermissionErrors={syncManager ? () => syncManager.retryPermissionErrors().catch((error) => {
+              console.error('Could not retry permission errors:', error);
+              syncManager.setStatus('error', error.message, true);
+            }) : null}
           />
           <AdBanner role={role} />
+          {showAuthModal && <AuthModal session={session} onClose={() => setShowAuthModal(false)} />}
 
           {/* Main Layout Container */}
           <main className="w-full max-w-7xl mx-auto px-4 pt-6 flex-1">

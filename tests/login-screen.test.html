@@ -115,9 +115,9 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- MacroChef Core -->
-  <script src="js/data/appVersion.js"></script>
-  <script src="js/i18n/translations.js"></script>
-  <script src="js/permissions.js"></script>
+  <script src="../js/data/appVersion.js"></script>
+  <script src="../js/i18n/translations.js"></script>
+  <script src="../js/permissions.js"></script>
 
   <!-- Test Framework -->
   <script>
@@ -133,16 +133,17 @@
         }
       },
       test(name, fn) {
-        this.tests.push({ name, fn });
+        window.MacroChefTests.tests.push({ name, fn });
       },
       async run() {
+        const runner = window.MacroChefTests;
         const resultsContainer = document.getElementById('results-container');
         resultsContainer.innerHTML = '';
 
-        for (const test of this.tests) {
+        for (const test of runner.tests) {
           try {
             await test.fn();
-            this.results.push({ name: test.name, status: 'pass' });
+            runner.results.push({ name: test.name, status: 'pass' });
             const resultDiv = document.createElement('div');
             resultDiv.className = 'result pass';
             resultDiv.innerHTML = `
@@ -151,7 +152,7 @@
             `;
             resultsContainer.appendChild(resultDiv);
           } catch (error) {
-            this.results.push({ name: test.name, status: 'fail', error: error.message });
+            runner.results.push({ name: test.name, status: 'fail', error: error.message });
             const resultDiv = document.createElement('div');
             resultDiv.className = 'result fail';
             resultDiv.innerHTML = `
@@ -163,9 +164,9 @@
         }
 
         // Display summary
-        const passed = this.results.filter(r => r.status === 'pass').length;
-        const failed = this.results.filter(r => r.status === 'fail').length;
-        const total = this.results.length;
+        const passed = runner.results.filter(r => r.status === 'pass').length;
+        const failed = runner.results.filter(r => r.status === 'fail').length;
+        const total = runner.results.length;
 
         const summaryContainer = document.getElementById('summary-container');
         const statsContainer = document.getElementById('stats');
@@ -186,16 +187,17 @@
           ${failed === 0 ? `<div style="padding: 0 16px; color: #10b981; font-weight: 600;">✓ All tests passed!</div>` : ''}
         `;
         summaryContainer.style.display = 'block';
+        summaryContainer.dataset.failures = String(failed);
       }
     };
   </script>
 
   <!-- Components -->
-  <script type="text/babel" src="js/components/LoginScreen.js"></script>
-  <script type="text/babel" src="js/components/SessionApp.js"></script>
+  <script type="text/babel" src="../js/components/LoginScreen.js"></script>
+  <script type="text/babel" src="../js/components/SessionApp.js"></script>
 
   <!-- Tests -->
-  <script type="text/babel" src="tests/login-screen.browser.test.js"></script>
-  <script type="text/babel" src="tests/session-app.browser.test.js"></script>
+  <script type="text/babel" src="login-screen.browser.test.js"></script>
+  <script type="text/babel" src="session-app.browser.test.js"></script>
 </body>
 </html>

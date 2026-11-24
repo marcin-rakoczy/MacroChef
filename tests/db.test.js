@@ -32,7 +32,7 @@
     assert(recipe.id !== 'rec-1' && plan.Breakfast === recipe.id, 'Recipe reference migration failed');
     assert(goal.id !== 'user_goals' && goal.calories === 2000, 'Goals migration failed');
     assert(product.id !== 'lidl-1' && product.name === 'Old product', 'Product migration failed');
-    assert(typeof plan.id === 'string' && !db.tables.some((table) => table.name === 'planner'), 'Planner migration failed');
+    assert(typeof plan.id === 'string' && await db.planner.count() === 0, 'Planner migration failed');
 
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
     const newRecipe = await repository.saveRecipe({ name: 'New recipe' });
@@ -189,8 +189,8 @@
     await a.repository.saveRecipe({ name: 'Account A private' });
     assert(await b.repository.db.recipes.count() === 0, 'Account data leaked to another database');
     await aAgain.repository.initialize();
-    assert((await aAgain.repository.db.recipes.toArray())[0].name === 'Account A private', 'Same account could not reopen data');
-    assert(!(await db.recipes.toArray()).some((item) => item.name === 'Account A private'), 'Account write changed guest data');
+    assert((await aAgain.repository.db.recipes.toArray())[0].name.en === 'Account A private', 'Same account could not reopen data');
+    assert(!(await db.recipes.toArray()).some((item) => item.name.en === 'Account A private'), 'Account write changed guest data');
     let invalidScopeRejected = false;
     try { await window.MacroChef.createScopedRepository({ issuer: 'test', tenantId: '', userId: 'a' }); }
     catch (error) { invalidScopeRejected = error instanceof TypeError; }
@@ -205,7 +205,7 @@
     const tables = { products: [], recipes: [], planner: [], goals: [] };
     const requests = [];
     let version = 0;
-    let rejectWrites = false;
+    let rejectWrites = null;
     let emptyWrites = false;
     let omitProductFromList = false;
     const originalFetch = window.fetch;
@@ -228,7 +228,7 @@
           status: 200, headers: { 'Content-Range': `0-${Math.max(0, visible.length - 1)}/${visible.length}` }
         });
       }
-      if (rejectWrites) return new Response('forbidden', { status: 403 });
+      if (rejectWrites) return new Response(rejectWrites.body, { status: rejectWrites.status });
       if (emptyWrites) return new Response('[]', { status: 200 });
       const id = method === 'POST' ? payload.id : url.searchParams.get('id').slice(3);
       const index = rows.findIndex((item) => item.id === id);
@@ -303,11 +303,26 @@
         'Pulled planner clearing did not preserve local deletion semantics');
       assert(await syncRepo.db.OutboxQueue.count() === 0, 'Deletion and update were not acknowledged');
       await syncRepo.saveGoals({ calories: 2200 });
-      rejectWrites = true;
-      await manager.sync();
-      assert(manager.getStatus().state === 'conflict' && await syncRepo.db.OutboxQueue.count() === 1,
-        'Rejected writes must remain queued');
-      rejectWrites = false;
+      for (const rejection of [
+        { status: 401, body: 'unauthorized' },
+        { status: 403, body: 'forbidden' },
+        { status: 400, body: '{"code":"42501"}' }
+      ]) {
+        rejectWrites = rejection;
+        await manager.sync();
+        let queued = await syncRepo.db.OutboxQueue.toArray();
+        assert(manager.getStatus().state === 'conflict' && manager.getStatus().permissionErrors &&
+          queued.length === 1 && queued[0].permissionError.includes('Permission denied'),
+          'Permission rejection must flag and preserve the queued write');
+        const writes = requests.filter((item) => item.table === 'goals' && item.method !== 'GET').length;
+        await manager.sync();
+        assert(requests.filter((item) => item.table === 'goals' && item.method !== 'GET').length === writes,
+          'A flagged permission error was retried without user action');
+        await manager.retryPermissionErrors();
+        queued = await syncRepo.db.OutboxQueue.toArray();
+        assert(!queued[0].permissionError, 'Explicit retry did not clear the permission flag');
+      }
+      rejectWrites = null;
       emptyWrites = true;
       await manager.sync();
       assert(await syncRepo.db.OutboxQueue.count() === 1, 'A response without an affected row was acknowledged');

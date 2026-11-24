@@ -48,18 +48,18 @@
 
   test('Import supports additional ingredients and maps Polish piece units', () => {
     const template = recipeCsv.createTemplate('pl').split(/\r?\n/);
-    template[0] += ';skladnik3Nazwa;skladnik3Ilosc;skladnik3Jednostka;skladnik3RozmiarOpakowania;skladnik3JednostkaOpakowania';
+    template[0] += ';skladnik4Nazwa;skladnik4Ilosc;skladnik4Jednostka;skladnik4RozmiarOpakowania;skladnik4JednostkaOpakowania';
     template[1] += ';Jajko;2;szt;10;szt';
     const [recipe] = recipeCsv.parse(template.join('\r\n'), 'pl');
-    equal(recipe.ingredients.length, 3, 'Ingredient count');
-    equal(recipe.ingredients[2].unit, 'pcs', 'Unit matches recipe form option');
-    equal(recipe.ingredients[2].packageUnit, 'pcs', 'Package unit matches recipe form option');
+    equal(recipe.ingredients.length, 4, 'Ingredient count');
+    equal(recipe.ingredients[3].unit, 'pcs', 'Unit matches recipe form option');
+    equal(recipe.ingredients[3].packageUnit, 'pcs', 'Package unit matches recipe form option');
   });
 
   test('Import preserves quoted delimiters and splits all cooking steps', () => {
     const template = recipeCsv.createTemplate('en')
       .replace('"Example recipe"', '"Chicken; rice"')
-      .replace('"Cook rice|Cook chicken and serve"', '"Cook rice|Rest for 5 minutes|Serve"');
+      .replace('"Cook rice|Cook chicken|Serve on plate"', '"Cook rice|Rest for 5 minutes|Serve"');
     const [recipe] = recipeCsv.parse(template, 'en');
     equal(recipe.name.en, 'Chicken; rice', 'Quoted semicolon in recipe name');
     equal(recipe.steps.en.length, 3, 'Cooking step count');
@@ -67,7 +67,7 @@
   });
 
   test('Import rejects missing cooking steps', () => {
-    const csv = recipeCsv.createTemplate('en').replace('"Cook rice|Cook chicken and serve"', '""');
+    const csv = recipeCsv.createTemplate('en').replace('"Cook rice|Cook chicken|Serve on plate"', '""');
     let rejected = false;
     try { recipeCsv.parse(csv, 'en'); } catch (error) { rejected = /cooking step/.test(error.message); }
     assert(rejected, 'A recipe without cooking steps was accepted');

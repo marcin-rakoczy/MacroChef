@@ -23,59 +23,8 @@ window.MacroChef.components = window.MacroChef.components || {};
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]/g, '');
 
-  const parseCsvRows = (text) => {
-    let delimiter;
-    const separatorLine = text.match(/^sep=(,|;|\t)\r?\n/i);
-    if (separatorLine) {
-      delimiter = separatorLine[1];
-      text = text.slice(separatorLine[0].length);
-    } else {
-      const firstLine = text.split(/\r?\n/, 1)[0] || '';
-      delimiter = [',', ';', '\t'].reduce((selected, candidate) => {
-        const count = (firstLine.match(new RegExp(candidate === '\t' ? '\\t' : `\\${candidate}`, 'g')) || []).length;
-        const selectedCount = (firstLine.match(new RegExp(selected === '\t' ? '\\t' : `\\${selected}`, 'g')) || []).length;
-        return count > selectedCount ? candidate : selected;
-      }, ',');
-    }
-
-    const rows = [];
-    let row = [];
-    let field = '';
-    let inQuotes = false;
-    for (let i = 0; i < text.length; i += 1) {
-      const character = text[i];
-      if (inQuotes) {
-        if (character === '"' && text[i + 1] === '"') {
-          field += '"';
-          i += 1;
-        } else if (character === '"') {
-          inQuotes = false;
-        } else {
-          field += character;
-        }
-      } else if (character === '"' && field.length === 0) {
-        inQuotes = true;
-      } else if (character === delimiter) {
-        row.push(field);
-        field = '';
-      } else if (character === '\n' || character === '\r') {
-        if (character === '\r' && text[i + 1] === '\n') i += 1;
-        row.push(field);
-        if (row.some((cell) => cell.trim())) rows.push(row);
-        row = [];
-        field = '';
-      } else {
-        field += character;
-      }
-    }
-    if (inQuotes) throw new Error('The CSV file contains an unclosed quoted field.');
-    row.push(field);
-    if (row.some((cell) => cell.trim())) rows.push(row);
-    return rows;
-  };
-
   const parseRecipeCsv = (text) => {
-    const rows = parseCsvRows(text.replace(/^\uFEFF/, ''));
+    const rows = window.MacroChef.recipeCsv.parseRows(text);
     if (rows.length < 2) throw new Error('The CSV file must contain a header and at least one recipe.');
 
     const fields = {

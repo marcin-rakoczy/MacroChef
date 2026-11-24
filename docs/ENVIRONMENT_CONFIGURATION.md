@@ -14,11 +14,11 @@ Environments are automatically detected based on `window.location.hostname`:
 |----------|-------------|-------------------|
 | `macrochef.pl` | PROD | Production (xymudnmqahgayqvpznwz) |
 | `www.macrochef.pl` | PROD | Production (xymudnmqahgayqvpznwz) |
-| `test.macrochef.pl` | TEST | Test (placeholder) |
-| `localhost` | TEST | Test (placeholder) |
-| `127.0.0.1` | TEST | Test (placeholder) |
+| `test.macrochef.pl` | TEST | Test (pcjlrcuyhtqoijtkrlyj) |
+| `localhost` | TEST | Test (pcjlrcuyhtqoijtkrlyj) |
+| `127.0.0.1` | TEST | Test (pcjlrcuyhtqoijtkrlyj) |
 | `file://` (file protocol) | LOCAL | None (offline mode) |
-| Other hostnames | TEST | Test (placeholder, for development) |
+| Other hostnames | TEST | Test (pcjlrcuyhtqoijtkrlyj, for development) |
 
 The detected environment is exposed as `window.MacroChef.ENV` and can be accessed anywhere in the application:
 
@@ -32,12 +32,13 @@ console.log(window.MacroChef.ENV); // 'PROD' | 'TEST' | 'LOCAL'
 
 ### 1. Supabase Client (`js/supabaseClient.js`)
 
-Each environment connects to its own Supabase instance:
+PROD and TEST use their respective Supabase projects and public publishable keys.
+Only public keys belong in browser code; authorization depends on correctly configured RLS.
 
 **PROD Environment:**
 ```javascript
-const SUPABASE_URL = 'https://xymudnmqahgayqvpznwz.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_9_ZBVJnYEoFr8OWbAE0dMQ_RP1v7VeJ';
+url: 'https://xymudnmqahgayqvpznwz.supabase.co',
+anonKey: 'sb_publishable_9_ZBVJnYEoFr8OWbAE0dMQ_RP1v7VeJ'
 ```
 - **URL:** Production Supabase project
 - **Anon Key:** Production public key (RLS protects data)
@@ -45,17 +46,17 @@ const SUPABASE_ANON_KEY = 'sb_publishable_9_ZBVJnYEoFr8OWbAE0dMQ_RP1v7VeJ';
 
 **TEST Environment:**
 ```javascript
-const SUPABASE_URL = 'SUPABASE_TEST_URL'; // Placeholder
-const SUPABASE_ANON_KEY = 'SUPABASE_TEST_ANON_KEY'; // Placeholder
+url: 'https://pcjlrcuyhtqoijtkrlyj.supabase.co',
+anonKey: 'sb_publishable_iSEcgBEq4yh2BTtX7C8CSw_FePyqrgj'
 ```
-- **URL:** Placeholder (replace with test Supabase project URL)
-- **Anon Key:** Placeholder (replace with test anon key)
+- **URL:** Test Supabase project
+- **Anon Key:** Test public publishable key
 - **Used by:** test.macrochef.pl, localhost, 127.0.0.1
 
 **LOCAL Environment:**
 - No Supabase instance
 - Application runs in offline-only mode
-- File:// protocol prevents network requests
+- File:// protocol skips Supabase client initialization and uses Guest mode
 
 ### 2. IndexedDB Database (`js/db.js`)
 
@@ -71,7 +72,7 @@ This prevents cache mixing when testing different environments locally or switch
 
 **Example:**
 ```javascript
-// On localhost: uses LOCAL_MacroChefDB
+// On localhost: uses TEST_MacroChefDB
 // On test.macrochef.pl: uses TEST_MacroChefDB
 // On macrochef.pl: uses MacroChefDB
 ```
@@ -126,8 +127,6 @@ To develop locally with `localhost`:
 
 1. **Start the development server:**
    ```bash
-   npm run dev
-   # or
    node server.js
    ```
 
@@ -137,12 +136,7 @@ To develop locally with `localhost`:
    ```
    - Environment: **TEST**
    - Database: **TEST_MacroChefDB**
-   - Supabase: Requires TEST credentials in placeholder
-
-3. **Configure test Supabase credentials** (optional):
-   - Edit `js/supabaseClient.js`
-   - Replace placeholders with actual test Supabase URL and key
-   - Or leave placeholder to run in guest mode
+   - Supabase: Test instance (pcjlrcuyhtqoijtkrlyj)
 
 ### Production Environment (PROD)
 
@@ -165,7 +159,7 @@ To test offline functionality:
    - Environment: **LOCAL**
    - Database: **LOCAL_MacroChefDB**
    - Supabase: Disabled
-   - Mode: Offline-only (no network requests)
+   - Mode: Guest (no Supabase client or Supabase requests)
 
 ---
 
@@ -201,18 +195,9 @@ The deployment workflow respects environment configuration:
 
 **Problem:** Auth fails or you see "guest mode" notification
 
-**Solution:** Configure TEST Supabase credentials:
-
-1. Create a test Supabase project at https://supabase.io
-2. Copy project URL and anon key
-3. Update `js/supabaseClient.js`:
-   ```javascript
-   TEST: {
-     url: 'https://your-test-project.supabase.co',
-     anonKey: 'your_test_anon_key'
-   }
-   ```
-4. Restart the development server
+**Solution:** Check that the Supabase SDK loaded and that the configured TEST project
+and public publishable key are available. Never put a service-role or secret key in
+browser code.
 
 ### Database cache contamination
 
@@ -234,11 +219,9 @@ location.reload();
 
 ### "Credentials not configured" on localhost
 
-**Problem:** TEST Supabase placeholders not replaced
+**Problem:** Supabase configuration is missing or still contains placeholders.
 
-**Solution:** Either:
-1. Configure TEST Supabase (see above)
-2. Or run app without auth (guest mode) by leaving placeholders
+**Solution:** Restore the TEST project URL and public publishable key shown above.
 
 In guest mode:
 - ✅ App works fully offline

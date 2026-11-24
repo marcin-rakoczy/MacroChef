@@ -5,7 +5,7 @@ This directory contains all PostgreSQL/Supabase SQL migration and utility script
 ## Files
 
 ### Schema Initialization
-- **`001_init_schema.sql`** - Complete DDL schema initialization (idempotent)
+- **`001_init_schema.sql`** - Complete DDL schema initialization (**destructive**)
   - Tables: user_profiles, products, recipes, planner, goals
   - Functions: set_updated_at()
   - Triggers: Automatic timestamp management & profile creation
@@ -14,11 +14,16 @@ This directory contains all PostgreSQL/Supabase SQL migration and utility script
   - 📖 [Detailed Documentation](./001_INIT_SCHEMA_README.md)
 
 ### Verification & Testing
-- **`verify_rls_policies.sql`** - Verify and test RLS policies
-  - Check RLS is enabled on all tables
-  - Query policies for each table
-  - Test permission enforcement
-  - Usage: Run after schema creation to verify setup
+- **`verify_rls_policies.sql`** - Harden and verify RLS policies
+  - Replaces all existing policies on the five application tables and commits the hardening
+  - Preserves admin-only profile role changes through `admin_set_user_role`; profile key is `user_id`
+  - Tests Admin and non-Admin access with temporary auth users and rolls the fixtures back
+  - Requires a table owner or database administrator; test on TEST and review existing policies before use
+  - RLS-denied inserts produce `42501`; denied updates and deletes can instead affect zero rows
+  - Usage: `psql -v ON_ERROR_STOP=1 -d "$DATABASE_URL" -f docs/sql/verify_rls_policies.sql`
+
+Permission-denied sync writes remain in the outbox and are not automatically retried.
+After access is restored, use **Retry sync** in the header to retry them.
 
 ## Running Migrations
 
@@ -47,7 +52,8 @@ supabase db push
 
 ## Important Notes
 
-- ✅ All scripts are **idempotent** (safe to run multiple times)
+- ⚠️ `001_init_schema.sql` drops existing tables and data; use it only on a fresh database
+- ✅ The RLS hardening script is idempotent, but replaces existing policies on its five tables
 - ✅ Use `DROP IF EXISTS` before CREATE to prevent errors
 - ❌ Do NOT directly edit deployed schemas - always create new migration files
 - ✅ Test migrations on TEST database before running on PROD

@@ -12,49 +12,81 @@ window.MacroChef = window.MacroChef || {};
       ? value.trim()
       : 'images/no-recipe-image.svg');
 
-  const parseCSV = (text, lang = 'pl') => {
-    // Remove BOM if present
-    const cleanText = text.replace(/^\uFEFF/, '');
-    
-    // Split into lines first (handle both \r\n and \n)
-    let lines = [];
-    let currentLine = '';
+  const parseRows = (input, explicitDelimiter) => {
+    let text = input.replace(/^\uFEFF/, '');
+    const separator = text.match(/^sep=(,|;|\t)\r?\n/i);
+    let delimiter = explicitDelimiter;
+    if (separator) {
+      delimiter = separator[1];
+      text = text.slice(separator[0].length);
+    } else if (!delimiter) {
+      const counts = { ',': 0, ';': 0, '\t': 0 };
+      let quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '"' && quoted && text[i + 1] === '"') i++;
+        else if (char === '"') quoted = !quoted;
+        else if (!quoted && (char === '\r' || char === '\n')) break;
+        else if (!quoted && Object.prototype.hasOwnProperty.call(counts, char)) counts[char]++;
+      }
+      delimiter = [',', ';', '\t'].reduce((best, candidate) =>
+        counts[candidate] > counts[best] ? candidate : best, ',');
+    }
+
+    const rows = [];
+    let row = [];
+    let field = '';
     let inQuotes = false;
-
-    for (let i = 0; i < cleanText.length; i++) {
-      const char = cleanText[i];
-      const nextChar = cleanText[i + 1];
-
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          currentLine += '"';
-          i++; // Skip next quote
+    let afterQuote = false;
+    const endRow = () => {
+      row.push(field);
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+      field = '';
+      afterQuote = false;
+    };
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (inQuotes) {
+        if (char === '"' && text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+          afterQuote = true;
         } else {
-          inQuotes = !inQuotes;
+          field += char;
         }
-      } else if ((char === '\n' || char === '\r') && !inQuotes) {
-        if (currentLine.trim()) {
-          lines.push(currentLine);
-        }
-        currentLine = '';
-        if (char === '\r' && nextChar === '\n') {
-          i++; // Skip \r\n
-        }
+      } else if (char === delimiter) {
+        row.push(field);
+        field = '';
+        afterQuote = false;
+      } else if (char === '\r' || char === '\n') {
+        if (char === '\r' && text[i + 1] === '\n') i++;
+        endRow();
+      } else if (char === '"' && !afterQuote && field.length === 0) {
+        inQuotes = true;
+      } else if (afterQuote && (char === ' ' || char === '\t') && char !== delimiter) {
+        continue;
+      } else if (char === '"' || afterQuote) {
+        throw new Error('The CSV file contains an invalid quoted field.');
       } else {
-        currentLine += char;
+        field += char;
       }
     }
-    if (currentLine.trim()) {
-      lines.push(currentLine);
-    }
+    if (inQuotes) throw new Error('The CSV file contains an unclosed quoted field.');
+    endRow();
+    return rows;
+  };
 
-    if (lines.length < 1) {
+  const parseCSV = (text, lang = 'pl') => {
+    const rows = parseRows(text);
+    if (rows.length < 1) {
       throw new Error('CSV is empty');
     }
 
     // Parse header
-    const headerLine = lines[0];
-    const headers = parseCSVLine(headerLine);
+    const headers = rows[0];
     
     const expectedHeaders = lang === 'pl'
       ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
@@ -77,10 +109,10 @@ window.MacroChef = window.MacroChef || {};
 
     // Parse recipes
     const recipes = [];
-    for (let lineIdx = 1; lineIdx < lines.length; lineIdx++) {
+    for (let lineIdx = 1; lineIdx < rows.length; lineIdx++) {
       try {
-        const cells = parseCSVLine(lines[lineIdx]);
-        const nameKey = 'nazwa';
+        const cells = rows[lineIdx].map((cell) => cell.trim());
+        const nameKey = lang === 'pl' ? 'nazwa' : 'name';
         const nameIdx = headerMap[nameKey];
         
         if (cells.length === 0 || nameIdx === undefined || !cells[nameIdx]) {
@@ -98,31 +130,9 @@ window.MacroChef = window.MacroChef || {};
   };
 
   const parseCSVLine = (line) => {
-    const cells = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      const nextChar = line[i + 1];
-
-      if (char === '"') {
-        if (inQuotes && nextChar === '"') {
-          current += '"';
-          i++; // Skip next quote
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === ';' && !inQuotes) {
-        cells.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    cells.push(current.trim());
-
-    return cells;
+    const rows = parseRows(line, ';');
+    if (rows.length > 1) throw new Error('Expected a single CSV row.');
+    return rows.length ? rows[0].map((cell) => cell.trim()) : [''];
   };
 
   const parseRecipeRow = (cells, headerMap, lang) => {
@@ -153,7 +163,7 @@ window.MacroChef = window.MacroChef || {};
     const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;
     const protein = parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0;
     const carbs = parseFloat(get('weglowodanyNaPorcje') || get('carbsPerServing')) || 0;
-    const fats = parseFloat(get('tluszczeNaPorcje') || get('fatPerServing')) || 0;
+    const fats = parseFloat(get('tluszczeNaPorcje') || get('fatsPerServing') || get('fatPerServing')) || 0;
 
     const recipe = {
       id: window.crypto.randomUUID(),
@@ -299,6 +309,7 @@ window.MacroChef = window.MacroChef || {};
 
   window.MacroChef.recipeCsv = { 
     parseCSV, 
+    parseRows,
     parseCSVLine, 
     parseRecipeRow, 
     parseIngredients, 

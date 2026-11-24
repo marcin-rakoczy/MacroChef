@@ -29,9 +29,9 @@
 
     <div class="test-section">
       <h2 style="font-weight: bold; margin-bottom: 10px;">2. Parse Test CSV</h2>
-      <textarea id="test-csv-input" placeholder="Paste Polish CSV here...">nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;wgldNaPorcje;tluszczNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
-Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3";Mąka;150;g;1kg;12.50zł;"Mąka pszenna";Zioła;5;g;100g;8.00zł;"Koperkość"
-Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 3 minuty";Białko jajka;4;szt;500g;18.00zł;"Białko ekologiczne"</textarea>
+      <textarea id="test-csv-input" placeholder="Paste Polish CSV here...">nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1RozmiarOpakowania;skladnik1JednostkaOpakowania;skladnik2Nazwa;skladnik2Ilosc;skladnik2Jednostka;skladnik2RozmiarOpakowania;skladnik2JednostkaOpakowania
+Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka";Jajko;2;pcs;10;pcs;Szpinak;100;g;500;g
+Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 3 minuty";Białko jajka;4;pcs;10;pcs</textarea>
       <button onclick="testParseCSV()">Parse CSV</button>
       <div id="test-parse-result" class="test-result" style="display:none;"></div>
     </div>
@@ -135,10 +135,10 @@ Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 
         let html = `<div class="passed">✅ Parsed ${recipes.length} recipes:</div>`;
         recipes.forEach((recipe, i) => {
           html += `<div style="margin-top: 10px; padding: 10px; background: #f3f4f6; border-radius: 3px;">
-            <strong>${i+1}. ${recipe.name}</strong><br>
-            Kategoria: ${recipe.category || 'N/A'}<br>
-            Kalorie: ${recipe.caloriesPerServing}, Białko: ${recipe.proteinPerServing}, Węgle: ${recipe.carbsPerServing}, Tłuszcz: ${recipe.fatPerServing}<br>
-            Składniki: ${recipe.ingredients?.length || 0}, Kroki: ${recipe.steps?.length || 0}
+            <strong>${i+1}. ${recipe.name.pl}</strong><br>
+            Kategoria: ${recipe.category.pl}<br>
+            Kalorie: ${recipe.calories}, Białko: ${recipe.protein}, Węgle: ${recipe.carbs}, Tłuszcz: ${recipe.fats}<br>
+            Składniki: ${recipe.ingredients.length}, Kroki: ${recipe.steps.pl.length}
           </div>`;
         });
         
@@ -169,7 +169,7 @@ Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 
           throw new Error('No recipes parsed');
         }
         
-        const requiredFields = ['name', 'category', 'caloriesPerServing', 'proteinPerServing', 'carbsPerServing', 'fatPerServing', 'ingredients', 'steps'];
+        const requiredFields = ['name', 'category', 'calories', 'protein', 'carbs', 'fats', 'ingredients', 'steps'];
         let allValid = true;
         let html = '<div class="passed">✅ Structure Validation Results:</div>';
         
@@ -179,7 +179,7 @@ Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 
           allValid = allValid && isValid;
           
           html += `<div style="margin-top: 8px; padding: 8px; background: ${isValid ? '#d1fae5' : '#fee2e2'}; border-radius: 3px;">
-            <strong>${recipe.name}</strong>: ${isValid ? '✅ Valid' : '❌ Missing: ' + missing.join(', ')}
+            <strong>${recipe.name.pl}</strong>: ${isValid ? '✅ Valid' : '❌ Missing: ' + missing.join(', ')}
           </div>`;
         });
         
@@ -210,12 +210,12 @@ Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 
         let allValid = true;
         
         recipes.forEach((recipe, i) => {
-          const totalCals = (recipe.proteinPerServing || 0) * 4 + (recipe.carbsPerServing || 0) * 4 + (recipe.fatPerServing || 0) * 9;
-          const match = Math.abs(totalCals - (recipe.caloriesPerServing || 0)) < 50; // Allow 50 cal variance
+          const totalCals = recipe.protein * 4 + recipe.carbs * 4 + recipe.fats * 9;
+          const match = Math.abs(totalCals - recipe.calories) < 50; // Allow 50 cal variance
           allValid = allValid && match;
           
           html += `<div style="margin-top: 8px; padding: 8px; background: ${match ? '#d1fae5' : '#fef3c7'}; border-radius: 3px;">
-            <strong>${recipe.name}</strong>: Stated=${recipe.caloriesPerServing}, Calculated=${totalCals.toFixed(0)}, ${match ? '✅' : '⚠️'}
+            <strong>${recipe.name.pl}</strong>: Stated=${recipe.calories}, Calculated=${totalCals.toFixed(0)}, ${match ? '✅' : '⚠️'}
           </div>`;
         });
         
@@ -252,9 +252,9 @@ Omlet Proteinowy;Śniadanie;5;1;300;30;10;12;"Ubij jajka|Wlej do patelni|Czekaj 
         let html = `<div class="passed">✅ Loaded and parsed ${recipes.length} recipes from: ${file.name}</div>`;
         recipes.forEach((recipe, i) => {
           html += `<div style="margin-top: 10px; padding: 10px; background: #f3f4f6; border-radius: 3px;">
-            <strong>${i+1}. ${recipe.name}</strong> (${recipe.category})<br>
-            Kalorie: ${recipe.caloriesPerServing} | Białko: ${recipe.proteinPerServing}g | Węgle: ${recipe.carbsPerServing}g | Tłuszcz: ${recipe.fatPerServing}g<br>
-            Składniki: ${recipe.ingredients?.length || 0} | Kroki: ${recipe.steps?.length || 0}
+            <strong>${i+1}. ${recipe.name.pl}</strong> (${recipe.category.pl})<br>
+            Kalorie: ${recipe.calories} | Białko: ${recipe.protein}g | Węgle: ${recipe.carbs}g | Tłuszcz: ${recipe.fats}g<br>
+            Składniki: ${recipe.ingredients.length} | Kroki: ${recipe.steps.pl.length}
           </div>`;
         });
         

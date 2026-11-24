@@ -9,8 +9,6 @@ window.MacroChef.components = window.MacroChef.components || {};
     const [target, setTarget] = useState(null);
     const [error, setError] = useState(null);
     const [attempt, setAttempt] = useState(0);
-    const [authLoading, setAuthLoading] = useState(false);
-    const [authError, setAuthError] = useState('');
     const activeRef = useRef(null);
     const wantedRef = useRef(null);
     const latestSession = useRef(null);
@@ -157,22 +155,6 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     }, []);
 
-    const handleSignIn = async (email, password, isSignUp) => {
-      setAuthLoading(true);
-      setAuthError('');
-      try {
-        if (isSignUp) {
-          await window.MacroChef.auth.signUp(email, password);
-        } else {
-          await window.MacroChef.auth.signIn(email, password);
-        }
-      } catch (err) {
-        setAuthError(err.message || (isSignUp ? 'Sign up failed' : 'Sign in failed'));
-        setAuthLoading(false);
-        throw err;
-      }
-    };
-
     const handleSignOut = async () => {
       try {
         await window.MacroChef.auth.signOut();
@@ -182,6 +164,14 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
     };
 
+    if (error && !active) {
+      const lang = localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl';
+      return <div role="alert">
+        {window.MacroChef.TRANSLATIONS[lang][error]}
+        <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button>
+      </div>;
+    }
+
     // Loading state - show nothing until we determine auth status
     if (!target) {
       return <div style={{ display: 'none' }}></div>;
@@ -190,22 +180,7 @@ window.MacroChef.components = window.MacroChef.components || {};
     // Get AuthGate component
     const { AuthGate } = window.MacroChef.components;
 
-    // If unauthenticated, show auth gate (no session)
-    if (!target.session) {
-      if (AuthGate) {
-        return (
-          <AuthGate
-            isAuthenticated={false}
-            session={null}
-            onSignOut={handleSignOut}
-            authenticatedContent={null}
-          />
-        );
-      }
-    }
-
-    // If authenticated and active repository is ready, show app wrapped in AuthGate
-    if (active && target.session) {
+    if (active && active.key === target.key) {
       const appContent = (
         <window.MacroChef.I18nProvider key={active.key} repository={active.repository}>
           {error && <p role="alert">Nie udało się zweryfikować sesji / Could not verify the session. <button type="button" onClick={() => setAttempt((n) => n + 1)}>Retry / Spróbuj ponownie</button></p>}
@@ -213,7 +188,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         </window.MacroChef.I18nProvider>
       );
 
-      if (AuthGate) {
+      if (AuthGate && target.session) {
         return (
           <AuthGate
             isAuthenticated={true}
