@@ -31,6 +31,8 @@ const STATIC_ASSETS = [
   './js/sync/AppSyncManager.js',
   './js/hooks/useRepositoryQuery.js',
   './js/components/Icon.js',
+  './js/components/AuthGate.js',
+  './js/components/LoginScreen.js',
   './js/components/AdBanner.js',
   './js/components/AuthModal.js',
   './js/components/Header.js',
@@ -42,19 +44,23 @@ const STATIC_ASSETS = [
   './js/components/ShoppingList.js',
   './js/components/MacroTracker.js',
   './js/components/RecipeModal.js',
+  './js/components/AdminPanel.js',
+  './js/components/AdminUsers.js',
+  './js/components/AdminRecipes.js',
+  './js/components/AdminProducts.js',
   './js/app.js',
   './js/components/SessionApp.js',
   './js/main.js'
 ];
 
 const CDN_ASSETS = [
-  { url: 'https://cdn.tailwindcss.com/', mode: 'no-cors' },
-  { url: 'https://unpkg.com/react@18/umd/react.production.min.js', mode: 'cors' },
-  { url: 'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', mode: 'cors' },
-  { url: 'https://unpkg.com/@babel/standalone/babel.min.js', mode: 'no-cors' },
+  { url: 'https://cdn.tailwindcss.com/3.4.17', mode: 'no-cors' },
+  { url: 'https://unpkg.com/react@18.3.1/umd/react.production.min.js', mode: 'cors' },
+  { url: 'https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js', mode: 'cors' },
+  { url: 'https://unpkg.com/@babel/standalone@8.1.3/babel.min.js', mode: 'no-cors' },
   { url: 'https://unpkg.com/dexie@3.2.4/dist/dexie.js', mode: 'no-cors' },
   { url: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js', mode: 'cors' },
-  { url: 'https://unpkg.com/lucide@latest', mode: 'no-cors' }
+  { url: 'https://unpkg.com/lucide@1.79.0/dist/umd/lucide.min.js', mode: 'no-cors' }
 ];
 
 const STATIC_URLS = new Set(STATIC_ASSETS.map((asset) => new URL(asset, self.registration.scope).href));
@@ -114,11 +120,10 @@ self.addEventListener('activate', (event) => {
 // Fetch Event - Stale-While-Revalidate Strategy
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  // Supabase, authenticated, and non-GET requests always bypass Cache Storage.
+  if (request.method !== 'GET' || isSupabaseApi(request.url) || request.headers.has('Authorization')) return;
   const isCdn = CDN_URLS.has(request.url);
-  // Network-Only: Supabase API and authenticated requests are never intercepted or cached.
-  if (isSupabaseApi(request.url) || request.headers.has('Authorization')) return;
-  if (request.method !== 'GET' || (!STATIC_URLS.has(request.url) && !isCdn) ||
-      request.headers.has('Authorization') ||
+  if ((!STATIC_URLS.has(request.url) && !isCdn) ||
       /\bno-store\b/i.test(request.headers.get('Cache-Control') || '')) return;
 
   let refresh = Promise.resolve();
