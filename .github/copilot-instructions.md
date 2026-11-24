@@ -21,7 +21,16 @@
 5. **Pure Core Logic:** Dietetic algorithms (Mifflin-St Jeor, macronutrient distribution) and i18n translation systems must be written as pure, stateless browser functions attached to `window.MacroChef.Utils`. They must be fully decoupled from React lifecycles to allow isolated offline testing.
 
 ## Strict Token & Efficiency Rules
-1. **Code Snippets Only:** Do not wrap your response in an explanation, summary, setup manual, or execution guide unless explicitly requested. Provide only copy-pasteable, drop-in snippets.
+1. **Concise Actionable Output:** For routine code edits, provide concise, copy-pasteable drop-in snippets without filler prose. When explicitly asked for a verification report, audit summary, or SQL migration checklist, output a structured summary of changed files, renamed columns, and test results.
 2. **Zero Modular Code:** Absolute ban on modular syntax: do not use `import React from 'react'`, `import Dexie from 'dexie'`, or `export default`. Everything must bind to global browser spaces.
 3. **No Redundant Repetitions:** If rewriting code, do not output an entire file unless instructed. Use comment placeholders like `// ... existing code ...` to slice tokens out of unchanged sections.
-4. **No Dev Dependencies:** Banned: Suggesting `npm install`, `package.json` updates, testing frameworks requiring Node.js, or build-step configurations.
+4. **No New Dev Dependencies:** Banned: Suggesting `npm install` or adding new packages to `package.json`. You ARE permitted and expected to run existing zero-dependency repository scripts (`node build.js`, `npm run build`, `node tests/nutrition.test.js`, `node tests/sw.test.js`).
+
+## Code, Comments & Database Language Standards (Strictly Enforced)
+1. **English-Only Identifiers & Database Schema:**
+   - ALL code identifiers—including variables, constants, functions, methods, classes, parameters, object keys, CSS classes, file names, **and database table/column names (Supabase PostgreSQL & IndexedDB/Dexie.js)**—MUST be written strictly in **English** (`snake_case` for SQL columns, `camelCase` for JS/IndexedDB).
+   - **Legacy Refactoring & Schema Migration Rule:** Whenever you inspect, touch, or refactor existing code or SQL schemas, if you encounter any variable, function, parameter, or database column named in Polish or any non-English language (e.g., `name_pl`, `category_pl`, `batchSteps_pl`, `nazwa`, `skladnik1Nazwa`), **rename it to clear, idiomatic English** across the SQL schema, `js/db.js`, UI components, tests, and CSV importers—and generate an idempotent `ALTER TABLE ... RENAME COLUMN` migration script in `docs/sql/`.
+   - *Sole Exception:* User-facing UI translation strings/dictionaries inside `js/i18n/translations.js` (the localized text values displayed to the end user) remain bilingual, though their object keys MUST be in English.
+2. **English-Only Code & SQL Comments:**
+   - ALL inline comments (`//`, `--`), block comments (`/* */`), and JSDoc/docstrings (`/** */`) across JavaScript, HTML, CSS, and SQL files MUST be written strictly in **English**.
+   - **Translation Rule:** Whenever you read, edit, or refactor any file, if you find existing comments written in Polish (or any other non-English language), **translate them accurately into natural technical English** while preserving their original meaning.
