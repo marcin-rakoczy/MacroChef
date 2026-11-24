@@ -14,6 +14,13 @@ This directory contains all PostgreSQL/Supabase SQL migration and utility script
   - 📖 [Detailed Documentation](./001_INIT_SCHEMA_README.md)
 
 ### Verification & Testing
+- **`rename_non_english_columns.sql`** - Rename the four localized product columns
+  - Preserves data, fails on missing columns or name collisions, and is safe to rerun
+  - Also included as a forward Supabase migration; `supabase db push` will apply it
+  - Back up and test first; apply on TEST before PROD
+  - Deploy a compatible client first, then run the migration and refresh PostgREST's schema cache
+  - Older clients using the old product column names will fail after the rename; coordinate their upgrade
+  - Run this before `verify_rls_policies.sql` on databases using the old columns
 - **`verify_rls_policies.sql`** - Harden and verify RLS policies
   - Replaces all existing policies on the five application tables and commits the hardening
   - Preserves admin-only profile role changes through `admin_set_user_role`; profile key is `user_id`

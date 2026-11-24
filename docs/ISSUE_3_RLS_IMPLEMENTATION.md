@@ -56,11 +56,11 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
 ```sql
 CREATE TABLE IF NOT EXISTS public.products (
   id                 TEXT PRIMARY KEY,
-  name_pl            TEXT,
-  name_en            TEXT,
+  name_polish        TEXT,
+  name_english       TEXT,
   category           TEXT,
-  category_pl        TEXT,
-  category_en        TEXT,
+  category_polish    TEXT,
+  category_english   TEXT,
   unit               TEXT,
   package_size       NUMERIC,
   source_url         TEXT,

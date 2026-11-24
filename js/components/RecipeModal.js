@@ -16,6 +16,14 @@ window.MacroChef.components = window.MacroChef.components || {};
     return [];
   };
 
+  const recipeStepsForLanguage = (recipe, lang) => (
+    recipe.steps || recipe.batchSteps ||
+    recipe[lang === 'pl' ? 'batchStepsPolish' : 'batchStepsEnglish'] ||
+    recipe[`batchSteps_${lang}`] ||
+    recipe.batchStepsPolish || recipe.batchStepsEnglish ||
+    recipe['batchSteps_pl'] || recipe['batchSteps_en']
+  );
+
   function RecipeModal({ editingRecipe, onClose, onSave, repository = window.MacroChef.repositories }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
@@ -38,13 +46,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             packageSize: ing.packageSize || 200,
             packageUnit: ing.packageUnit || ing.unit || 'g'
           })),
-          steps: normalizeSteps(getLocalized(
-            editingRecipe.steps ||
-              editingRecipe.batchSteps ||
-              editingRecipe.batchSteps_pl ||
-              editingRecipe.batchSteps_en,
-            lang
-          ))
+          steps: normalizeSteps(getLocalized(recipeStepsForLanguage(editingRecipe, lang), lang))
         };
       }
       return {
@@ -287,14 +289,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         steps: {
           [lang]: formData.steps.filter((s) => s.trim().length > 0),
           [altLang]: editingRecipe
-            ? normalizeSteps(getLocalized(
-                editingRecipe.steps ||
-                  editingRecipe.batchSteps ||
-                  editingRecipe[`batchSteps_${altLang}`] ||
-                  editingRecipe.batchSteps_pl ||
-                  editingRecipe.batchSteps_en,
-                altLang
-              ))
+            ? normalizeSteps(getLocalized(recipeStepsForLanguage(editingRecipe, altLang), altLang))
             : formData.steps.filter((s) => s.trim().length > 0)
         }
       };

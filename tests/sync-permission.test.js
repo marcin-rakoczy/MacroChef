@@ -5,7 +5,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'sync', 'AppSyncManager.js'), 'utf8');
 
-async function checkRejection(status, body, permission = true) {
+async function checkRejection(status, body, permission = true, legacyColumns = false) {
   const entries = [{
     id: 'outbox-1', table: 'products', action: 'create', sequence: 1, timestamp: 1,
     payload: { id: 'product-1', name: { pl: 'Produkt', en: 'Product' } }
@@ -24,6 +24,7 @@ async function checkRejection(status, body, permission = true) {
   let responseStatus = status;
   let responseBody = body;
   let requests = 0;
+  let writtenProduct;
   const window = {
     MacroChef: {},
     addEventListener() {},
@@ -33,8 +34,16 @@ async function checkRejection(status, body, permission = true) {
   };
   vm.runInNewContext(source, {
     window, navigator: { onLine: true }, console, URL, AbortController, DOMException,
-    fetch: async () => {
+    fetch: async (input, options) => {
+      if (options.method === 'GET') {
+        const select = new URL(input).searchParams.get('select');
+        if (legacyColumns && select.includes('name_polish')) {
+          return new Response('{"code":"42703"}', { status: 400 });
+        }
+        return new Response('[]', { status: 200 });
+      }
       requests++;
+      writtenProduct = JSON.parse(options.body);
       return new Response(responseBody, { status: responseStatus });
     }
   });
@@ -71,6 +80,8 @@ async function checkRejection(status, body, permission = true) {
     if (permission) await manager.retryPermissionErrors();
     await manager.sync();
     assert.equal(requests, permission ? 2 : 3);
+    assert.equal(writtenProduct[legacyColumns ? 'name_pl' : 'name_polish'], 'Produkt');
+    assert.equal(writtenProduct[legacyColumns ? 'name_en' : 'name_english'], 'Product');
     assert.equal(entries.length, 0);
     assert.equal(manager.getStatus().state, 'synced');
   } finally {
@@ -83,6 +94,7 @@ async function checkRejection(status, body, permission = true) {
   await checkRejection(403, 'forbidden');
   await checkRejection(400, '{"code":"42501"}');
   await checkRejection(500, '{"code":"other"}', false);
+  await checkRejection(403, 'forbidden', true, true);
   console.log('PASS: permission errors are retained without automatic retries and can be retried');
 })().catch((error) => {
   console.error(error);

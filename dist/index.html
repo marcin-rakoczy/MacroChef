@@ -7905,14 +7905,14 @@ window.MacroChef.helpers = {
 
   // Meal order: breakfast, lunch, dinner, snack; unknown categories follow alphabetically
   compareMealCategories(a, b, lang = 'pl') {
-    const mealRank = {
-      'śniadanie': 0, breakfast: 0,
-      obiad: 1, lunch: 1,
-      kolacja: 2, dinner: 2,
-      'przekąska': 3, snack: 3
-    };
+    const mealRank = new Map([
+      ['śniadanie', 0], ['breakfast', 0],
+      ['obiad', 1], ['lunch', 1],
+      ['kolacja', 2], ['dinner', 2],
+      ['przekąska', 3], ['snack', 3]
+    ]);
     const rank = (cat) => {
-      const r = mealRank[String(cat).trim().toLowerCase()];
+      const r = mealRank.get(String(cat).trim().toLowerCase());
       return r === undefined ? 99 : r;
     };
     return rank(a) - rank(b) || String(a).localeCompare(String(b), lang);
@@ -8084,16 +8084,23 @@ window.MacroChef = window.MacroChef || {};
     // Parse header
     const headers = rows[0];
     
-    const expectedHeaders = lang === 'pl'
-      ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
-         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje']
-      : ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing',
-         'proteinPerServing', 'carbsPerServing', 'fatsPerServing'];
+    const expectedHeaders = ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing',
+      'proteinPerServing', 'carbsPerServing', 'fatsPerServing'];
+    const legacyHeaders = {
+      name: 'nazwa', category: 'kategoria', prepTime: 'czasprzygotowania',
+      servings: 'porcje', caloriesPerServing: 'kalorienaporcje',
+      proteinPerServing: 'bialkonaporcje', carbsPerServing: 'weglowodanynaporcje',
+      fatsPerServing: 'tluszczenaporcje', imageUrl: 'urlzdjecia', steps: 'kroki'
+    };
 
     // Validate essential headers
     const headerMap = {};
     headers.forEach((h, i) => {
       headerMap[h.toLowerCase().replace(/\s+/g, '')] = i;
+    });
+    Object.entries(legacyHeaders).forEach(([english, legacy]) => {
+      const key = english.toLowerCase();
+      if (headerMap[key] === undefined && headerMap[legacy] !== undefined) headerMap[key] = headerMap[legacy];
     });
 
     for (const required of expectedHeaders) {
@@ -8108,8 +8115,7 @@ window.MacroChef = window.MacroChef || {};
     for (let lineIdx = 1; lineIdx < rows.length; lineIdx++) {
       try {
         const cells = rows[lineIdx].map((cell) => cell.trim());
-        const nameKey = lang === 'pl' ? 'nazwa' : 'name';
-        const nameIdx = headerMap[nameKey];
+        const nameIdx = headerMap.name;
         
         if (cells.length === 0 || nameIdx === undefined || !cells[nameIdx]) {
           continue; // Skip empty rows
@@ -8141,20 +8147,20 @@ window.MacroChef = window.MacroChef || {};
     const ingredients = parseIngredients(cells, headerMap);
 
     // Map category names
-    const categoryMap = {
-      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
-      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
-      lunch: { en: 'Lunch', pl: 'Obiad' },
-      obiad: { en: 'Lunch', pl: 'Obiad' },
-      dinner: { en: 'Dinner', pl: 'Kolacja' },
-      kolacja: { en: 'Dinner', pl: 'Kolacja' },
-      snack: { en: 'Snack', pl: 'Przekąska' },
-      przekaska: { en: 'Snack', pl: 'Przekąska' }
-    };
+    const categoryMap = new Map([
+      ['breakfast', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['sniadanie', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['lunch', { en: 'Lunch', pl: 'Obiad' }],
+      ['obiad', { en: 'Lunch', pl: 'Obiad' }],
+      ['dinner', { en: 'Dinner', pl: 'Kolacja' }],
+      ['kolacja', { en: 'Dinner', pl: 'Kolacja' }],
+      ['snack', { en: 'Snack', pl: 'Przekąska' }],
+      ['przekaska', { en: 'Snack', pl: 'Przekąska' }]
+    ]);
     
     const categoryInput = (get('kategoria') || get('category')).toLowerCase().normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
-    const categoryObj = categoryMap[categoryInput] || { en: 'Lunch', pl: 'Obiad' };
+    const categoryObj = categoryMap.get(categoryInput) || { en: 'Lunch', pl: 'Obiad' };
 
     const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;
     const protein = parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0;
@@ -8189,13 +8195,13 @@ window.MacroChef = window.MacroChef || {};
     for (let i = 1; i <= 20; i++) {
       const namePl = `skladnik${i}nazwa`.toLowerCase().replace(/\s+/g, '');
       const nameEn = `ingredient${i}name`.toLowerCase().replace(/\s+/g, '');
-      const ilosc = `skladnik${i}ilosc`.toLowerCase().replace(/\s+/g, '');
+      const legacyAmount = `skladnik${i}ilosc`.toLowerCase().replace(/\s+/g, '');
       const amount = `ingredient${i}amount`.toLowerCase().replace(/\s+/g, '');
-      const jednostka = `skladnik${i}jednostka`.toLowerCase().replace(/\s+/g, '');
+      const legacyUnit = `skladnik${i}jednostka`.toLowerCase().replace(/\s+/g, '');
       const unit = `ingredient${i}unit`.toLowerCase().replace(/\s+/g, '');
-      const rozmiar = `skladnik${i}rozmiaropakowania`.toLowerCase().replace(/\s+/g, '');
+      const legacyPackageSize = `skladnik${i}rozmiaropakowania`.toLowerCase().replace(/\s+/g, '');
       const packageSize = `ingredient${i}packagesize`.toLowerCase().replace(/\s+/g, '');
-      const jednostkaOpak = `skladnik${i}jednostkaopakowania`.toLowerCase().replace(/\s+/g, '');
+      const legacyPackageUnit = `skladnik${i}jednostkaopakowania`.toLowerCase().replace(/\s+/g, '');
       const packageUnit = `ingredient${i}packageunit`.toLowerCase().replace(/\s+/g, '');
 
       const nameIdx = headerMap[namePl] !== undefined ? headerMap[namePl] : headerMap[nameEn];
@@ -8204,10 +8210,10 @@ window.MacroChef = window.MacroChef || {};
       const ingredientName = cells[nameIdx];
       const ingredient = {
         name: { en: ingredientName, pl: ingredientName },
-        amount: parseFloat(cells[headerMap[ilosc] || headerMap[amount]] || 0),
-        unit: cells[headerMap[jednostka] || headerMap[unit]] || '',
-        packageSize: parseFloat(cells[headerMap[rozmiar] || headerMap[packageSize]] || 0),
-        packageUnit: cells[headerMap[jednostkaOpak] || headerMap[packageUnit]] || ''
+        amount: parseFloat(cells[headerMap[legacyAmount] !== undefined ? headerMap[legacyAmount] : headerMap[amount]] || 0),
+        unit: cells[headerMap[legacyUnit] !== undefined ? headerMap[legacyUnit] : headerMap[unit]] || '',
+        packageSize: parseFloat(cells[headerMap[legacyPackageSize] !== undefined ? headerMap[legacyPackageSize] : headerMap[packageSize]] || 0),
+        packageUnit: cells[headerMap[legacyPackageUnit] !== undefined ? headerMap[legacyPackageUnit] : headerMap[packageUnit]] || ''
       };
 
       ingredients.push(ingredient);
@@ -8222,14 +8228,7 @@ window.MacroChef = window.MacroChef || {};
   };
 
   const createTemplate = (lang = 'pl') => {
-    const headers = lang === 'pl'
-      ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
-         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje', 'urlZdjecia',
-        'skladnik1Nazwa', 'skladnik1Ilosc', 'skladnik1Jednostka', 'skladnik1RozmiarOpakowania', 'skladnik1JednostkaOpakowania',
-        'skladnik2Nazwa', 'skladnik2Ilosc', 'skladnik2Jednostka', 'skladnik2RozmiarOpakowania', 'skladnik2JednostkaOpakowania',
-        'skladnik3Nazwa', 'skladnik3Ilosc', 'skladnik3Jednostka', 'skladnik3RozmiarOpakowania', 'skladnik3JednostkaOpakowania',
-        'kroki']
-      : ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing', 
+    const headers = ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing',
          'proteinPerServing', 'carbsPerServing', 'fatsPerServing', 'imageUrl',
         'ingredient1Name', 'ingredient1Amount', 'ingredient1Unit', 'ingredient1PackageSize', 'ingredient1PackageUnit',
         'ingredient2Name', 'ingredient2Amount', 'ingredient2Unit', 'ingredient2PackageSize', 'ingredient2PackageUnit',
@@ -8256,7 +8255,7 @@ window.MacroChef = window.MacroChef || {};
   const recipeImportKey = (recipe) => {
     const text = (value, lang) => (value && typeof value === 'object' ? (value[lang] || value.pl || value.en || '') : (value || ''));
     const fold = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
-    const categoryAliases = { sniadanie: 'breakfast', obiad: 'lunch', kolacja: 'dinner', przekaska: 'snack' };
+    const categoryAliases = new Map([['sniadanie', 'breakfast'], ['obiad', 'lunch'], ['kolacja', 'dinner'], ['przekaska', 'snack']]);
     const rawCategory = fold(text(recipe.category, 'en'));
     const num = (...values) => {
       const v = values.find((x) => x !== undefined && x !== null && x !== '');
@@ -8264,7 +8263,7 @@ window.MacroChef = window.MacroChef || {};
     };
     return [
       String(text(recipe.name, 'pl')).trim().toLowerCase().slice(0, 50),
-      categoryAliases[rawCategory] || rawCategory,
+      categoryAliases.get(rawCategory) || rawCategory,
       num(recipe.calories, recipe.caloriesPerServing),
       num(recipe.protein, recipe.proteinPerServing),
       num(recipe.carbs, recipe.carbsPerServing),
@@ -8346,7 +8345,7 @@ window.MacroChef = window.MacroChef || {};
     }
 
     const rows = [[
-      'id', 'name_pl', 'name_en', 'category', 'category_pl', 'category_en', 'unit', 'package_size'
+      'id', 'namePolish', 'nameEnglish', 'category', 'categoryPolish', 'categoryEnglish', 'unit', 'packageSize'
     ]];
     products.forEach((product) => {
       if (!product || typeof product !== 'object' || typeof product.id !== 'string' || !product.id) {
@@ -9199,6 +9198,18 @@ window.MacroChef = window.MacroChef || {};
 
   const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
+  const categoryAliases = new Map([
+    ['Breakfast', { en: 'Breakfast', pl: 'Śniadanie' }],
+    ['Śniadanie', { en: 'Breakfast', pl: 'Śniadanie' }],
+    ['Lunch', { en: 'Lunch', pl: 'Obiad' }],
+    ['Obiad', { en: 'Lunch', pl: 'Obiad' }],
+    ['Dinner', { en: 'Dinner', pl: 'Kolacja' }],
+    ['Kolacja', { en: 'Dinner', pl: 'Kolacja' }],
+    ['Snack', { en: 'Snack', pl: 'Przekąska' }],
+    ['Przekąska', { en: 'Snack', pl: 'Przekąska' }]
+  ]);
+  const normalizeCategory = (category) => ({ ...(categoryAliases.get(category) || { en: 'Lunch', pl: 'Obiad' }) });
+
   const LEGACY_DEMO_RECIPE_NAMES = new Set([
     'Mediterranean Chicken & Quinoa Bowl',
     'Berry Protein Oats Bowl',
@@ -9405,17 +9416,7 @@ window.MacroChef = window.MacroChef || {};
           
           // Ensure category is in { en, pl } format
           if (migrated.category && typeof migrated.category === 'string') {
-            const categoryMap = {
-              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Lunch': { en: 'Lunch', pl: 'Obiad' },
-              'Obiad': { en: 'Lunch', pl: 'Obiad' },
-              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
-              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
-              'Snack': { en: 'Snack', pl: 'Przekąska' },
-              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
-            };
-            migrated.category = categoryMap[migrated.category] || { en: 'Lunch', pl: 'Obiad' };
+            migrated.category = normalizeCategory(migrated.category);
           }
           
           // Ensure name is in { en, pl } format
@@ -9555,17 +9556,7 @@ window.MacroChef = window.MacroChef || {};
 
           // Ensure category is in { en, pl } format
           if (normalized.category && typeof normalized.category === 'string') {
-            const categoryMap = {
-              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Lunch': { en: 'Lunch', pl: 'Obiad' },
-              'Obiad': { en: 'Lunch', pl: 'Obiad' },
-              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
-              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
-              'Snack': { en: 'Snack', pl: 'Przekąska' },
-              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
-            };
-            normalized.category = categoryMap[normalized.category] || { en: 'Lunch', pl: 'Obiad' };
+            normalized.category = normalizeCategory(normalized.category);
             updated = true;
           }
 
@@ -9895,12 +9886,14 @@ window.MacroChef = window.MacroChef || {};
     return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
   }
 
-  function productToRemote(product) {
+  function productToRemote(product, legacyColumns) {
     const name = typeof product.name === 'object' && product.name ? product.name : { pl: product.name, en: product.name };
     const category = product.categoryName || {};
+    const localized = legacyColumns
+      ? { name_pl: name.pl, name_en: name.en, category_pl: category.pl, category_en: category.en }
+      : { name_polish: name.pl, name_english: name.en, category_polish: category.pl, category_english: category.en };
     return clean({
-      id: product.id, name_pl: name.pl, name_en: name.en, category: product.category,
-      category_pl: category.pl, category_en: category.en, unit: product.unit,
+      id: product.id, ...localized, category: product.category, unit: product.unit,
       package_size: product.packageSize, source_url: product.sourceUrl,
       source_verified_at: product.sourceVerifiedAt
     });
@@ -9932,9 +9925,12 @@ window.MacroChef = window.MacroChef || {};
 
   function fromRemote(table, row) {
     if (table === 'products') {
+      const localized = (current, legacy) => Object.prototype.hasOwnProperty.call(row, current)
+        ? row[current] : row[legacy];
       return {
-        id: row.id, name: { pl: row.name_pl, en: row.name_en }, category: row.category,
-        categoryName: { pl: row.category_pl, en: row.category_en }, unit: row.unit,
+        id: row.id, name: { pl: localized('name_polish', 'name_pl'), en: localized('name_english', 'name_en') },
+        category: row.category,
+        categoryName: { pl: localized('category_polish', 'category_pl'), en: localized('category_english', 'category_en') }, unit: row.unit,
         packageSize: row.package_size, sourceUrl: row.source_url, sourceVerifiedAt: row.source_verified_at
       };
     }
@@ -9951,8 +9947,8 @@ window.MacroChef = window.MacroChef || {};
     return record;
   }
 
-  function toRemote(table, record, userId) {
-    if (table === 'products') return productToRemote(record);
+  function toRemote(table, record, userId, legacyProductColumns) {
+    if (table === 'products') return productToRemote(record, legacyProductColumns);
     return {
       id: record.id, user_id: userId, data: clean(record),
       ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {}),
@@ -10117,6 +10113,7 @@ window.MacroChef = window.MacroChef || {};
           ? `Permission denied for ${table} (HTTP ${response.status}${code === '42501' ? ', 42501' : ''})`
           : `Supabase ${table}: HTTP ${response.status}`);
         error.permissionError = permissionError;
+        error.code = code;
         throw error;
       }
       const data = await response.json();
@@ -10188,6 +10185,14 @@ window.MacroChef = window.MacroChef || {};
         throw new Error('Verified token does not match the synchronization account');
       }
       this.token = session.access_token;
+      try {
+        await this.request('products', { select: 'name_polish,name_english,category_polish,category_english', limit: '0' });
+        this.legacyProductColumns = false;
+      } catch (error) {
+        if (error.code !== '42703' && error.code !== 'PGRST204') throw error;
+        await this.request('products', { select: 'name_pl,name_en,category_pl,category_en', limit: '0' });
+        this.legacyProductColumns = true;
+      }
       let remote = await this.readRemote();
       const db = this.scope.repository.db;
       const queue = await db.OutboxQueue.toArray();
@@ -10267,7 +10272,7 @@ window.MacroChef = window.MacroChef || {};
           throw new Error('Another server goals record exists');
         }
       }
-      const payload = record && toRemote(table, record, this.scope.userId);
+      const payload = record && toRemote(table, record, this.scope.userId, this.legacyProductColumns);
       if (current && !entry.baseUpdatedAt && entry.action === 'create') {
         const comparable = { ...current };
         delete comparable.updated_at;
@@ -12447,9 +12452,10 @@ window.MacroChef.components = window.MacroChef.components || {};
       const polishIngredient = normalized.match(/^skladnik(\d+)(nazwa|ilosc|jednostka|rozmiaropakowania|jednostkaopakowania)$/);
       const match = englishIngredient || polishIngredient;
       if (match) {
-        const ingredientField = englishIngredient
-          ? { name: 'name', amount: 'amount', unit: 'unit', packagesize: 'packageSize', packageunit: 'packageUnit' }[match[2]]
-          : { nazwa: 'name', ilosc: 'amount', jednostka: 'unit', rozmiaropakowania: 'packageSize', jednostkaopakowania: 'packageUnit' }[match[2]];
+        const ingredientFields = englishIngredient
+          ? new Map([['name', 'name'], ['amount', 'amount'], ['unit', 'unit'], ['packagesize', 'packageSize'], ['packageunit', 'packageUnit']])
+          : new Map([['nazwa', 'name'], ['ilosc', 'amount'], ['jednostka', 'unit'], ['rozmiaropakowania', 'packageSize'], ['jednostkaopakowania', 'packageUnit']]);
+        const ingredientField = ingredientFields.get(match[2]);
         const key = `${match[1]}-${ingredientField}`;
         if (ingredientColumns.has(key)) throw new Error(`Duplicate CSV column: ${header}`);
         ingredientColumns.set(key, index);
@@ -12482,19 +12488,19 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
       return number;
     };
-    const categories = {
-      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
-      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
-      lunch: { en: 'Lunch', pl: 'Obiad' },
-      obiad: { en: 'Lunch', pl: 'Obiad' },
-      dinner: { en: 'Dinner', pl: 'Kolacja' },
-      kolacja: { en: 'Dinner', pl: 'Kolacja' },
-      snack: { en: 'Snack', pl: 'Przekąska' },
-      przekaska: { en: 'Snack', pl: 'Przekąska' }
-    };
+    const categories = new Map([
+      ['breakfast', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['sniadanie', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['lunch', { en: 'Lunch', pl: 'Obiad' }],
+      ['obiad', { en: 'Lunch', pl: 'Obiad' }],
+      ['dinner', { en: 'Dinner', pl: 'Kolacja' }],
+      ['kolacja', { en: 'Dinner', pl: 'Kolacja' }],
+      ['snack', { en: 'Snack', pl: 'Przekąska' }],
+      ['przekaska', { en: 'Snack', pl: 'Przekąska' }]
+    ]);
     const unitValue = (value, label, rowNumber) => {
       const normalized = normalizeHeader(value);
-      const unit = { g: 'g', ml: 'ml', pcs: 'pcs', szt: 'pcs', porcja: 'porcja', portion: 'porcja' }[normalized];
+      const unit = new Map([['g', 'g'], ['ml', 'ml'], ['pcs', 'pcs'], ['szt', 'pcs'], ['porcja', 'porcja'], ['portion', 'porcja']]).get(normalized);
       if (!unit) throw new Error(`Row ${rowNumber}: "${label}" must be g, ml, pcs, or porcja.`);
       return unit;
     };
@@ -12509,7 +12515,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       const name = cell(row, 'name');
       if (!name) throw new Error(`Row ${rowNumber}: recipe name is required.`);
       const categoryKey = normalizeHeader(cell(row, 'category'));
-      const category = categories[categoryKey];
+      const category = categories.get(categoryKey);
       if (!category) {
         throw new Error(`Row ${rowNumber}: category must be Breakfast, Lunch, Dinner, or Snack.`);
       }
@@ -13622,6 +13628,14 @@ window.MacroChef.components = window.MacroChef.components || {};
     return [];
   };
 
+  const recipeStepsForLanguage = (recipe, lang) => (
+    recipe.steps || recipe.batchSteps ||
+    recipe[lang === 'pl' ? 'batchStepsPolish' : 'batchStepsEnglish'] ||
+    recipe[`batchSteps_${lang}`] ||
+    recipe.batchStepsPolish || recipe.batchStepsEnglish ||
+    recipe['batchSteps_pl'] || recipe['batchSteps_en']
+  );
+
   function RecipeModal({ editingRecipe, onClose, onSave, repository = window.MacroChef.repositories }) {
     const { t, lang } = window.MacroChef.useI18n();
     const [formData, setFormData] = React.useState(() => {
@@ -13644,13 +13658,7 @@ window.MacroChef.components = window.MacroChef.components || {};
             packageSize: ing.packageSize || 200,
             packageUnit: ing.packageUnit || ing.unit || 'g'
           })),
-          steps: normalizeSteps(getLocalized(
-            editingRecipe.steps ||
-              editingRecipe.batchSteps ||
-              editingRecipe.batchSteps_pl ||
-              editingRecipe.batchSteps_en,
-            lang
-          ))
+          steps: normalizeSteps(getLocalized(recipeStepsForLanguage(editingRecipe, lang), lang))
         };
       }
       return {
@@ -13893,14 +13901,7 @@ window.MacroChef.components = window.MacroChef.components || {};
         steps: {
           [lang]: formData.steps.filter((s) => s.trim().length > 0),
           [altLang]: editingRecipe
-            ? normalizeSteps(getLocalized(
-                editingRecipe.steps ||
-                  editingRecipe.batchSteps ||
-                  editingRecipe[`batchSteps_${altLang}`] ||
-                  editingRecipe.batchSteps_pl ||
-                  editingRecipe.batchSteps_en,
-                altLang
-              ))
+            ? normalizeSteps(getLocalized(recipeStepsForLanguage(editingRecipe, altLang), altLang))
             : formData.steps.filter((s) => s.trim().length > 0)
         }
       };
@@ -15238,8 +15239,9 @@ window.MacroChef.components = window.MacroChef.components || {};
 
     // Download CSV template
     const handleDownloadTemplate = () => {
-      const templateContent = `nazwa;kategoria;czasPrzygotowania;porcje;kalorieNaPorcje;bialkoNaPorcje;weglowodanyNaPorcje;tluszczeNaPorcje;urlZdjecia;kroki;skladnik1Nazwa;skladnik1Ilosc;skladnik1Jednostka;skladnik1WielkoscOpakowania;skladnik1CenaOpakowania;skladnik1Notatka
-Jajecznica ze Szpinakiem;Śniadanie;10;1;250;20;5;15;;"Rozgrzej masło na patelni|Dodaj szpinak i czosnek|Wlej ubite jajka|Mieszaj aż do usztywnięcia";Jajko;2;szt;300g;15.99zł;"Jajka omega-3"`;;
+      const templateContent = window.MacroChef.recipeCsv.createTemplate(
+        localStorage.getItem('macrochef_lang') === 'en' ? 'en' : 'pl'
+      );
       const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);

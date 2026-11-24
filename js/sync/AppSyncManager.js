@@ -25,12 +25,14 @@ window.MacroChef = window.MacroChef || {};
     return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
   }
 
-  function productToRemote(product) {
+  function productToRemote(product, legacyColumns) {
     const name = typeof product.name === 'object' && product.name ? product.name : { pl: product.name, en: product.name };
     const category = product.categoryName || {};
+    const localized = legacyColumns
+      ? { name_pl: name.pl, name_en: name.en, category_pl: category.pl, category_en: category.en }
+      : { name_polish: name.pl, name_english: name.en, category_polish: category.pl, category_english: category.en };
     return clean({
-      id: product.id, name_pl: name.pl, name_en: name.en, category: product.category,
-      category_pl: category.pl, category_en: category.en, unit: product.unit,
+      id: product.id, ...localized, category: product.category, unit: product.unit,
       package_size: product.packageSize, source_url: product.sourceUrl,
       source_verified_at: product.sourceVerifiedAt
     });
@@ -62,9 +64,12 @@ window.MacroChef = window.MacroChef || {};
 
   function fromRemote(table, row) {
     if (table === 'products') {
+      const localized = (current, legacy) => Object.prototype.hasOwnProperty.call(row, current)
+        ? row[current] : row[legacy];
       return {
-        id: row.id, name: { pl: row.name_pl, en: row.name_en }, category: row.category,
-        categoryName: { pl: row.category_pl, en: row.category_en }, unit: row.unit,
+        id: row.id, name: { pl: localized('name_polish', 'name_pl'), en: localized('name_english', 'name_en') },
+        category: row.category,
+        categoryName: { pl: localized('category_polish', 'category_pl'), en: localized('category_english', 'category_en') }, unit: row.unit,
         packageSize: row.package_size, sourceUrl: row.source_url, sourceVerifiedAt: row.source_verified_at
       };
     }
@@ -81,8 +86,8 @@ window.MacroChef = window.MacroChef || {};
     return record;
   }
 
-  function toRemote(table, record, userId) {
-    if (table === 'products') return productToRemote(record);
+  function toRemote(table, record, userId, legacyProductColumns) {
+    if (table === 'products') return productToRemote(record, legacyProductColumns);
     return {
       id: record.id, user_id: userId, data: clean(record),
       ...(table === 'plannerEntries' ? { day_key: record.dayKey } : {}),
@@ -247,6 +252,7 @@ window.MacroChef = window.MacroChef || {};
           ? `Permission denied for ${table} (HTTP ${response.status}${code === '42501' ? ', 42501' : ''})`
           : `Supabase ${table}: HTTP ${response.status}`);
         error.permissionError = permissionError;
+        error.code = code;
         throw error;
       }
       const data = await response.json();
@@ -318,6 +324,14 @@ window.MacroChef = window.MacroChef || {};
         throw new Error('Verified token does not match the synchronization account');
       }
       this.token = session.access_token;
+      try {
+        await this.request('products', { select: 'name_polish,name_english,category_polish,category_english', limit: '0' });
+        this.legacyProductColumns = false;
+      } catch (error) {
+        if (error.code !== '42703' && error.code !== 'PGRST204') throw error;
+        await this.request('products', { select: 'name_pl,name_en,category_pl,category_en', limit: '0' });
+        this.legacyProductColumns = true;
+      }
       let remote = await this.readRemote();
       const db = this.scope.repository.db;
       const queue = await db.OutboxQueue.toArray();
@@ -397,7 +411,7 @@ window.MacroChef = window.MacroChef || {};
           throw new Error('Another server goals record exists');
         }
       }
-      const payload = record && toRemote(table, record, this.scope.userId);
+      const payload = record && toRemote(table, record, this.scope.userId, this.legacyProductColumns);
       if (current && !entry.baseUpdatedAt && entry.action === 'create') {
         const comparable = { ...current };
         delete comparable.updated_at;

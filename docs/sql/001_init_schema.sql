@@ -102,11 +102,11 @@ DROP TABLE IF EXISTS public.products CASCADE;
 
 CREATE TABLE public.products (
   id TEXT PRIMARY KEY,
-  name_pl TEXT,
-  name_en TEXT,
+  name_polish TEXT,
+  name_english TEXT,
   category TEXT,
-  category_pl TEXT,
-  category_en TEXT,
+  category_polish TEXT,
+  category_english TEXT,
   unit TEXT,
   package_size NUMERIC,
   source_url TEXT,
@@ -116,16 +116,16 @@ CREATE TABLE public.products (
 
 -- Indexes for common product queries
 CREATE INDEX idx_products_category ON public.products(category);
-CREATE INDEX idx_products_name_pl ON public.products(name_pl);
+CREATE INDEX idx_products_name_polish ON public.products(name_polish);
 CREATE INDEX idx_products_updated_at ON public.products(updated_at DESC);
 
 COMMENT ON TABLE public.products IS 'Global product catalog (shared by all users, no user_id ownership)';
 COMMENT ON COLUMN public.products.id IS 'Unique product identifier (TEXT, generated client-side with crypto.randomUUID)';
-COMMENT ON COLUMN public.products.name_pl IS 'Product name in Polish';
-COMMENT ON COLUMN public.products.name_en IS 'Product name in English';
+COMMENT ON COLUMN public.products.name_polish IS 'Product name in Polish';
+COMMENT ON COLUMN public.products.name_english IS 'Product name in English';
 COMMENT ON COLUMN public.products.category IS 'Product category code';
-COMMENT ON COLUMN public.products.category_pl IS 'Product category name in Polish';
-COMMENT ON COLUMN public.products.category_en IS 'Product category name in English';
+COMMENT ON COLUMN public.products.category_polish IS 'Product category name in Polish';
+COMMENT ON COLUMN public.products.category_english IS 'Product category name in English';
 COMMENT ON COLUMN public.products.unit IS 'Measurement unit (g, ml, pcs, etc.)';
 COMMENT ON COLUMN public.products.package_size IS 'Standard package size';
 COMMENT ON COLUMN public.products.source_url IS 'Source URL for product verification';

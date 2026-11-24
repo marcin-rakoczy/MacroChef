@@ -30,7 +30,7 @@ const parseCSVLine = (line) => {
 };
 
 // Read CSV
-const csv = fs.readFileSync('P:\\Github\\MacroChef\\MacroChef\\tests\\macrochef-recipes-sniadania.csv', 'utf-8');
+const csv = fs.readFileSync(require('path').join(__dirname, 'macrochef-breakfast-recipes.csv'), 'utf-8');
 
 // Remove BOM
 const cleanText = csv.replace(/^\uFEFF/, '');

@@ -257,8 +257,8 @@
     const manager = new window.MacroChef.AppSyncManager();
     try {
       tables.products.push({
-        id: 'shared-product', name_pl: 'Produkt', name_en: 'Product', category: 'other',
-        category_pl: 'Inne', category_en: 'Other', unit: 'g', package_size: 100,
+        id: 'shared-product', name_polish: 'Produkt', name_english: 'Product', category: 'other',
+        category_polish: 'Inne', category_english: 'Other', unit: 'g', package_size: 100,
         source_url: null, source_verified_at: null, updated_at: '2025-01-01T00:00:00Z'
       });
       tables.recipes.push({

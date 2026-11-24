@@ -24,7 +24,7 @@ window.MacroChef = window.MacroChef || {};
     }
 
     const rows = [[
-      'id', 'name_pl', 'name_en', 'category', 'category_pl', 'category_en', 'unit', 'package_size'
+      'id', 'namePolish', 'nameEnglish', 'category', 'categoryPolish', 'categoryEnglish', 'unit', 'packageSize'
     ]];
     products.forEach((product) => {
       if (!product || typeof product !== 'object' || typeof product.id !== 'string' || !product.id) {

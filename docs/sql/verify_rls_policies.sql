@@ -148,7 +148,7 @@ BEGIN
     (tester_id, tester_id::TEXT || '@rls-audit.invalid', 'Tester'),
     (ads_id, ads_id::TEXT || '@rls-audit.invalid', 'UserWithAdvertisement')
   ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role;
-  INSERT INTO public.products (id, name_en) VALUES (product_id, 'RLS audit');
+  INSERT INTO public.products (id, name_english) VALUES (product_id, 'RLS audit');
   INSERT INTO public.recipes (id, user_id, data) VALUES (recipe_id, admin_id, '{}'::JSONB);
   INSERT INTO public.planner (id, user_id, day_key, data)
     VALUES ('rls-audit-plan-' || admin_id::TEXT, admin_id, 'audit', '{}'::JSONB);
@@ -172,7 +172,7 @@ BEGIN
 
     denied := false;
     BEGIN
-      INSERT INTO public.products (id, name_en) VALUES (product_id || actor::TEXT, 'forbidden');
+      INSERT INTO public.products (id, name_english) VALUES (product_id || actor::TEXT, 'forbidden');
     EXCEPTION WHEN SQLSTATE '42501' THEN denied := true;
     END;
     IF NOT denied THEN RAISE EXCEPTION '% could insert a product', actor_role; END IF;
@@ -185,7 +185,7 @@ BEGIN
     END;
     IF NOT denied THEN RAISE EXCEPTION '% could insert a recipe', actor_role; END IF;
 
-    UPDATE public.products SET name_en = 'forbidden' WHERE id = product_id;
+    UPDATE public.products SET name_english = 'forbidden' WHERE id = product_id;
     GET DIAGNOSTICS affected = ROW_COUNT;
     IF affected <> 0 THEN RAISE EXCEPTION '% could update a product', actor_role; END IF;
     DELETE FROM public.products WHERE id = product_id;
@@ -289,8 +289,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE user_id = tester_id AND role = 'Admin') THEN
     RAISE EXCEPTION 'Admin could not change another role';
   END IF;
-  INSERT INTO public.products (id, name_en) VALUES (product_id || '-admin', 'admin');
-  UPDATE public.products SET name_en = 'admin' WHERE id = product_id || '-admin';
+  INSERT INTO public.products (id, name_english) VALUES (product_id || '-admin', 'admin');
+  UPDATE public.products SET name_english = 'admin' WHERE id = product_id || '-admin';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 1 THEN RAISE EXCEPTION 'Admin could not update a product'; END IF;
   DELETE FROM public.products WHERE id = product_id || '-admin';

@@ -48,9 +48,10 @@ window.MacroChef.components = window.MacroChef.components || {};
       const polishIngredient = normalized.match(/^skladnik(\d+)(nazwa|ilosc|jednostka|rozmiaropakowania|jednostkaopakowania)$/);
       const match = englishIngredient || polishIngredient;
       if (match) {
-        const ingredientField = englishIngredient
-          ? { name: 'name', amount: 'amount', unit: 'unit', packagesize: 'packageSize', packageunit: 'packageUnit' }[match[2]]
-          : { nazwa: 'name', ilosc: 'amount', jednostka: 'unit', rozmiaropakowania: 'packageSize', jednostkaopakowania: 'packageUnit' }[match[2]];
+        const ingredientFields = englishIngredient
+          ? new Map([['name', 'name'], ['amount', 'amount'], ['unit', 'unit'], ['packagesize', 'packageSize'], ['packageunit', 'packageUnit']])
+          : new Map([['nazwa', 'name'], ['ilosc', 'amount'], ['jednostka', 'unit'], ['rozmiaropakowania', 'packageSize'], ['jednostkaopakowania', 'packageUnit']]);
+        const ingredientField = ingredientFields.get(match[2]);
         const key = `${match[1]}-${ingredientField}`;
         if (ingredientColumns.has(key)) throw new Error(`Duplicate CSV column: ${header}`);
         ingredientColumns.set(key, index);
@@ -83,19 +84,19 @@ window.MacroChef.components = window.MacroChef.components || {};
       }
       return number;
     };
-    const categories = {
-      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
-      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
-      lunch: { en: 'Lunch', pl: 'Obiad' },
-      obiad: { en: 'Lunch', pl: 'Obiad' },
-      dinner: { en: 'Dinner', pl: 'Kolacja' },
-      kolacja: { en: 'Dinner', pl: 'Kolacja' },
-      snack: { en: 'Snack', pl: 'Przekąska' },
-      przekaska: { en: 'Snack', pl: 'Przekąska' }
-    };
+    const categories = new Map([
+      ['breakfast', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['sniadanie', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['lunch', { en: 'Lunch', pl: 'Obiad' }],
+      ['obiad', { en: 'Lunch', pl: 'Obiad' }],
+      ['dinner', { en: 'Dinner', pl: 'Kolacja' }],
+      ['kolacja', { en: 'Dinner', pl: 'Kolacja' }],
+      ['snack', { en: 'Snack', pl: 'Przekąska' }],
+      ['przekaska', { en: 'Snack', pl: 'Przekąska' }]
+    ]);
     const unitValue = (value, label, rowNumber) => {
       const normalized = normalizeHeader(value);
-      const unit = { g: 'g', ml: 'ml', pcs: 'pcs', szt: 'pcs', porcja: 'porcja', portion: 'porcja' }[normalized];
+      const unit = new Map([['g', 'g'], ['ml', 'ml'], ['pcs', 'pcs'], ['szt', 'pcs'], ['porcja', 'porcja'], ['portion', 'porcja']]).get(normalized);
       if (!unit) throw new Error(`Row ${rowNumber}: "${label}" must be g, ml, pcs, or porcja.`);
       return unit;
     };
@@ -110,7 +111,7 @@ window.MacroChef.components = window.MacroChef.components || {};
       const name = cell(row, 'name');
       if (!name) throw new Error(`Row ${rowNumber}: recipe name is required.`);
       const categoryKey = normalizeHeader(cell(row, 'category'));
-      const category = categories[categoryKey];
+      const category = categories.get(categoryKey);
       if (!category) {
         throw new Error(`Row ${rowNumber}: category must be Breakfast, Lunch, Dinner, or Snack.`);
       }

@@ -88,16 +88,23 @@ window.MacroChef = window.MacroChef || {};
     // Parse header
     const headers = rows[0];
     
-    const expectedHeaders = lang === 'pl'
-      ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
-         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje']
-      : ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing',
-         'proteinPerServing', 'carbsPerServing', 'fatsPerServing'];
+    const expectedHeaders = ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing',
+      'proteinPerServing', 'carbsPerServing', 'fatsPerServing'];
+    const legacyHeaders = {
+      name: 'nazwa', category: 'kategoria', prepTime: 'czasprzygotowania',
+      servings: 'porcje', caloriesPerServing: 'kalorienaporcje',
+      proteinPerServing: 'bialkonaporcje', carbsPerServing: 'weglowodanynaporcje',
+      fatsPerServing: 'tluszczenaporcje', imageUrl: 'urlzdjecia', steps: 'kroki'
+    };
 
     // Validate essential headers
     const headerMap = {};
     headers.forEach((h, i) => {
       headerMap[h.toLowerCase().replace(/\s+/g, '')] = i;
+    });
+    Object.entries(legacyHeaders).forEach(([english, legacy]) => {
+      const key = english.toLowerCase();
+      if (headerMap[key] === undefined && headerMap[legacy] !== undefined) headerMap[key] = headerMap[legacy];
     });
 
     for (const required of expectedHeaders) {
@@ -112,8 +119,7 @@ window.MacroChef = window.MacroChef || {};
     for (let lineIdx = 1; lineIdx < rows.length; lineIdx++) {
       try {
         const cells = rows[lineIdx].map((cell) => cell.trim());
-        const nameKey = lang === 'pl' ? 'nazwa' : 'name';
-        const nameIdx = headerMap[nameKey];
+        const nameIdx = headerMap.name;
         
         if (cells.length === 0 || nameIdx === undefined || !cells[nameIdx]) {
           continue; // Skip empty rows
@@ -145,20 +151,20 @@ window.MacroChef = window.MacroChef || {};
     const ingredients = parseIngredients(cells, headerMap);
 
     // Map category names
-    const categoryMap = {
-      breakfast: { en: 'Breakfast', pl: 'Śniadanie' },
-      sniadanie: { en: 'Breakfast', pl: 'Śniadanie' },
-      lunch: { en: 'Lunch', pl: 'Obiad' },
-      obiad: { en: 'Lunch', pl: 'Obiad' },
-      dinner: { en: 'Dinner', pl: 'Kolacja' },
-      kolacja: { en: 'Dinner', pl: 'Kolacja' },
-      snack: { en: 'Snack', pl: 'Przekąska' },
-      przekaska: { en: 'Snack', pl: 'Przekąska' }
-    };
+    const categoryMap = new Map([
+      ['breakfast', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['sniadanie', { en: 'Breakfast', pl: 'Śniadanie' }],
+      ['lunch', { en: 'Lunch', pl: 'Obiad' }],
+      ['obiad', { en: 'Lunch', pl: 'Obiad' }],
+      ['dinner', { en: 'Dinner', pl: 'Kolacja' }],
+      ['kolacja', { en: 'Dinner', pl: 'Kolacja' }],
+      ['snack', { en: 'Snack', pl: 'Przekąska' }],
+      ['przekaska', { en: 'Snack', pl: 'Przekąska' }]
+    ]);
     
     const categoryInput = (get('kategoria') || get('category')).toLowerCase().normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
-    const categoryObj = categoryMap[categoryInput] || { en: 'Lunch', pl: 'Obiad' };
+    const categoryObj = categoryMap.get(categoryInput) || { en: 'Lunch', pl: 'Obiad' };
 
     const calories = parseFloat(get('kalorieNaPorcje') || get('caloriesPerServing')) || 0;
     const protein = parseFloat(get('bialkoNaPorcje') || get('proteinPerServing')) || 0;
@@ -193,13 +199,13 @@ window.MacroChef = window.MacroChef || {};
     for (let i = 1; i <= 20; i++) {
       const namePl = `skladnik${i}nazwa`.toLowerCase().replace(/\s+/g, '');
       const nameEn = `ingredient${i}name`.toLowerCase().replace(/\s+/g, '');
-      const ilosc = `skladnik${i}ilosc`.toLowerCase().replace(/\s+/g, '');
+      const legacyAmount = `skladnik${i}ilosc`.toLowerCase().replace(/\s+/g, '');
       const amount = `ingredient${i}amount`.toLowerCase().replace(/\s+/g, '');
-      const jednostka = `skladnik${i}jednostka`.toLowerCase().replace(/\s+/g, '');
+      const legacyUnit = `skladnik${i}jednostka`.toLowerCase().replace(/\s+/g, '');
       const unit = `ingredient${i}unit`.toLowerCase().replace(/\s+/g, '');
-      const rozmiar = `skladnik${i}rozmiaropakowania`.toLowerCase().replace(/\s+/g, '');
+      const legacyPackageSize = `skladnik${i}rozmiaropakowania`.toLowerCase().replace(/\s+/g, '');
       const packageSize = `ingredient${i}packagesize`.toLowerCase().replace(/\s+/g, '');
-      const jednostkaOpak = `skladnik${i}jednostkaopakowania`.toLowerCase().replace(/\s+/g, '');
+      const legacyPackageUnit = `skladnik${i}jednostkaopakowania`.toLowerCase().replace(/\s+/g, '');
       const packageUnit = `ingredient${i}packageunit`.toLowerCase().replace(/\s+/g, '');
 
       const nameIdx = headerMap[namePl] !== undefined ? headerMap[namePl] : headerMap[nameEn];
@@ -208,10 +214,10 @@ window.MacroChef = window.MacroChef || {};
       const ingredientName = cells[nameIdx];
       const ingredient = {
         name: { en: ingredientName, pl: ingredientName },
-        amount: parseFloat(cells[headerMap[ilosc] || headerMap[amount]] || 0),
-        unit: cells[headerMap[jednostka] || headerMap[unit]] || '',
-        packageSize: parseFloat(cells[headerMap[rozmiar] || headerMap[packageSize]] || 0),
-        packageUnit: cells[headerMap[jednostkaOpak] || headerMap[packageUnit]] || ''
+        amount: parseFloat(cells[headerMap[legacyAmount] !== undefined ? headerMap[legacyAmount] : headerMap[amount]] || 0),
+        unit: cells[headerMap[legacyUnit] !== undefined ? headerMap[legacyUnit] : headerMap[unit]] || '',
+        packageSize: parseFloat(cells[headerMap[legacyPackageSize] !== undefined ? headerMap[legacyPackageSize] : headerMap[packageSize]] || 0),
+        packageUnit: cells[headerMap[legacyPackageUnit] !== undefined ? headerMap[legacyPackageUnit] : headerMap[packageUnit]] || ''
       };
 
       ingredients.push(ingredient);
@@ -226,14 +232,7 @@ window.MacroChef = window.MacroChef || {};
   };
 
   const createTemplate = (lang = 'pl') => {
-    const headers = lang === 'pl'
-      ? ['nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 
-         'bialkoNaPorcje', 'weglowodanyNaPorcje', 'tluszczeNaPorcje', 'urlZdjecia',
-        'skladnik1Nazwa', 'skladnik1Ilosc', 'skladnik1Jednostka', 'skladnik1RozmiarOpakowania', 'skladnik1JednostkaOpakowania',
-        'skladnik2Nazwa', 'skladnik2Ilosc', 'skladnik2Jednostka', 'skladnik2RozmiarOpakowania', 'skladnik2JednostkaOpakowania',
-        'skladnik3Nazwa', 'skladnik3Ilosc', 'skladnik3Jednostka', 'skladnik3RozmiarOpakowania', 'skladnik3JednostkaOpakowania',
-        'kroki']
-      : ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing', 
+    const headers = ['name', 'category', 'prepTime', 'servings', 'caloriesPerServing',
          'proteinPerServing', 'carbsPerServing', 'fatsPerServing', 'imageUrl',
         'ingredient1Name', 'ingredient1Amount', 'ingredient1Unit', 'ingredient1PackageSize', 'ingredient1PackageUnit',
         'ingredient2Name', 'ingredient2Amount', 'ingredient2Unit', 'ingredient2PackageSize', 'ingredient2PackageUnit',
@@ -260,7 +259,7 @@ window.MacroChef = window.MacroChef || {};
   const recipeImportKey = (recipe) => {
     const text = (value, lang) => (value && typeof value === 'object' ? (value[lang] || value.pl || value.en || '') : (value || ''));
     const fold = (s) => String(s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/\s+/g, '');
-    const categoryAliases = { sniadanie: 'breakfast', obiad: 'lunch', kolacja: 'dinner', przekaska: 'snack' };
+    const categoryAliases = new Map([['sniadanie', 'breakfast'], ['obiad', 'lunch'], ['kolacja', 'dinner'], ['przekaska', 'snack']]);
     const rawCategory = fold(text(recipe.category, 'en'));
     const num = (...values) => {
       const v = values.find((x) => x !== undefined && x !== null && x !== '');
@@ -268,7 +267,7 @@ window.MacroChef = window.MacroChef || {};
     };
     return [
       String(text(recipe.name, 'pl')).trim().toLowerCase().slice(0, 50),
-      categoryAliases[rawCategory] || rawCategory,
+      categoryAliases.get(rawCategory) || rawCategory,
       num(recipe.calories, recipe.caloriesPerServing),
       num(recipe.protein, recipe.proteinPerServing),
       num(recipe.carbs, recipe.carbsPerServing),

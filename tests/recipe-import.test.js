@@ -36,10 +36,10 @@
 
   test('Polish template contains every recipe-form field and imports completely', () => {
     assertTemplateMatchesRecipeForm('pl', [
-      'nazwa', 'kategoria', 'czasPrzygotowania', 'porcje', 'kalorieNaPorcje', 'bialkoNaPorcje',
-      'weglowodanyNaPorcje', 'tluszczeNaPorcje',
-      'skladnik1Nazwa', 'skladnik1Ilosc', 'skladnik1Jednostka', 'skladnik1RozmiarOpakowania',
-      'skladnik1JednostkaOpakowania', 'kroki'
+      'name', 'category', 'prepTime', 'servings', 'caloriesPerServing', 'proteinPerServing',
+      'carbsPerServing', 'fatsPerServing',
+      'ingredient1Name', 'ingredient1Amount', 'ingredient1Unit', 'ingredient1PackageSize',
+      'ingredient1PackageUnit', 'steps'
     ]);
     const [recipe] = recipeCsv.parse(recipeCsv.createTemplate('pl'), 'pl');
     equal(recipe.category.en, 'Lunch', 'Polish category maps to the recipe form value');
@@ -107,9 +107,9 @@
     ]);
     const rows = csv.replace(/^\uFEFF/, '').split('\r\n');
     equal(rows.length, 3, 'CSV header and product row count');
-    assert(rows[0].includes('"name_pl";"name_en"'), 'CSV must contain both language names');
-    assert(rows[0].includes('"category";"category_pl";"category_en"'), 'CSV must contain categories');
-    assert(rows[0].includes('"unit";"package_size"'), 'CSV must contain unit and package size');
+    assert(rows[0].includes('"namePolish";"nameEnglish"'), 'CSV must contain both language names');
+    assert(rows[0].includes('"category";"categoryPolish";"categoryEnglish"'), 'CSV must contain categories');
+    assert(rows[0].includes('"unit";"packageSize"'), 'CSV must contain unit and package size');
     assert(!rows[0].includes('source_url') && !rows[0].includes('source_verified_at'),
       'CSV must not contain source metadata');
     assert(rows[1].includes('"Serek ""Pilos"""'), 'CSV must escape quotes in product names');

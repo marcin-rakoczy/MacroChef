@@ -23,4 +23,11 @@ assert.deepEqual(Array.from(normalizeSteps(undefined)), []);
 assert.deepEqual(Array.from(normalizeSteps(null)), []);
 assert.deepEqual(Array.from(normalizeSteps('')), []);
 
+const stepsMatch = source.match(/const recipeStepsForLanguage = (\(recipe, lang\) => \([\s\S]*?\n  \));/);
+assert.ok(stepsMatch, 'RecipeModal.js must select localized legacy steps');
+const recipeStepsForLanguage = vm.runInNewContext(stepsMatch[1]);
+assert.equal(recipeStepsForLanguage({ batchStepsPolish: 'Polish', batchStepsEnglish: 'English' }, 'en'), 'English');
+assert.equal(recipeStepsForLanguage({ batchSteps_pl: 'Polish', batchSteps_en: 'English' }, 'pl'), 'Polish');
+assert.equal(recipeStepsForLanguage({ batchSteps_pl: 'Polish', batchSteps_en: 'English' }, 'en'), 'English');
+
 console.log('PASS: legacy recipe steps normalize from string and array values');

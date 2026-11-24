@@ -28,6 +28,18 @@ window.MacroChef = window.MacroChef || {};
 
   const slots = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
+  const categoryAliases = new Map([
+    ['Breakfast', { en: 'Breakfast', pl: 'Śniadanie' }],
+    ['Śniadanie', { en: 'Breakfast', pl: 'Śniadanie' }],
+    ['Lunch', { en: 'Lunch', pl: 'Obiad' }],
+    ['Obiad', { en: 'Lunch', pl: 'Obiad' }],
+    ['Dinner', { en: 'Dinner', pl: 'Kolacja' }],
+    ['Kolacja', { en: 'Dinner', pl: 'Kolacja' }],
+    ['Snack', { en: 'Snack', pl: 'Przekąska' }],
+    ['Przekąska', { en: 'Snack', pl: 'Przekąska' }]
+  ]);
+  const normalizeCategory = (category) => ({ ...(categoryAliases.get(category) || { en: 'Lunch', pl: 'Obiad' }) });
+
   const LEGACY_DEMO_RECIPE_NAMES = new Set([
     'Mediterranean Chicken & Quinoa Bowl',
     'Berry Protein Oats Bowl',
@@ -234,17 +246,7 @@ window.MacroChef = window.MacroChef || {};
           
           // Ensure category is in { en, pl } format
           if (migrated.category && typeof migrated.category === 'string') {
-            const categoryMap = {
-              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Lunch': { en: 'Lunch', pl: 'Obiad' },
-              'Obiad': { en: 'Lunch', pl: 'Obiad' },
-              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
-              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
-              'Snack': { en: 'Snack', pl: 'Przekąska' },
-              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
-            };
-            migrated.category = categoryMap[migrated.category] || { en: 'Lunch', pl: 'Obiad' };
+            migrated.category = normalizeCategory(migrated.category);
           }
           
           // Ensure name is in { en, pl } format
@@ -384,17 +386,7 @@ window.MacroChef = window.MacroChef || {};
 
           // Ensure category is in { en, pl } format
           if (normalized.category && typeof normalized.category === 'string') {
-            const categoryMap = {
-              'Breakfast': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Śniadanie': { en: 'Breakfast', pl: 'Śniadanie' },
-              'Lunch': { en: 'Lunch', pl: 'Obiad' },
-              'Obiad': { en: 'Lunch', pl: 'Obiad' },
-              'Dinner': { en: 'Dinner', pl: 'Kolacja' },
-              'Kolacja': { en: 'Dinner', pl: 'Kolacja' },
-              'Snack': { en: 'Snack', pl: 'Przekąska' },
-              'Przekąska': { en: 'Snack', pl: 'Przekąska' }
-            };
-            normalized.category = categoryMap[normalized.category] || { en: 'Lunch', pl: 'Obiad' };
+            normalized.category = normalizeCategory(normalized.category);
             updated = true;
           }
 

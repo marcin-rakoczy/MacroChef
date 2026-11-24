@@ -139,7 +139,7 @@ const parseRecipeRow = (cells, headerMap, lang) => {
 };
 
 // Test
-const csv = fs.readFileSync('P:\\Github\\MacroChef\\MacroChef\\tests\\macrochef-recipes-sniadania.csv', 'utf-8');
+const csv = fs.readFileSync(require('path').join(__dirname, 'macrochef-breakfast-recipes.csv'), 'utf-8');
 const recipes = parseCSV(csv);
 
 console.log('\n=== FIRST RECIPE ===');

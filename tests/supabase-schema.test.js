@@ -4,6 +4,11 @@ const path = require('node:path');
 
 const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261113210000_initial_schema.sql'), 'utf8');
 const tables = ['user_profiles', 'products', 'recipes', 'planner', 'goals'];
+const renameMigration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations',
+  '20261124220000_rename_non_english_columns.sql'), 'utf8');
+const documentedMigration = fs.readFileSync(path.join(__dirname, '..', 'docs', 'sql',
+  'rename_non_english_columns.sql'), 'utf8');
+assert.equal(renameMigration, documentedMigration, 'documented and Supabase migrations must remain identical');
 const tableBody = (name) => {
   const match = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS public\\.${name} \\(([\\s\\S]*?)\\n\\);`));
   assert.ok(match, `table ${name} is defined`);

@@ -58,7 +58,7 @@ console.log('\n📋 CSV Import Integration Tests\n');
 
 // Test 1: Load real CSV file with proper headers
 test('Load real CSV fixture with proper headers', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -68,7 +68,7 @@ test('Load real CSV fixture with proper headers', () => {
 
 // Test 2: Verify parsed recipe structure
 test('Parsed recipes have correct structure', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -86,7 +86,7 @@ test('Parsed recipes have correct structure', () => {
 
 // Test 3: Verify field names match AdminRecipes expectations
 test('Field names match AdminRecipes.js mapping', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -114,7 +114,7 @@ test('Field names match AdminRecipes.js mapping', () => {
 
 // Test 4: Parse multiple recipes and verify all fields populated
 test('Multiple recipes parsed with all fields', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -132,7 +132,7 @@ test('Multiple recipes parsed with all fields', () => {
 
 // Test 5: Verify ingredients are parsed with correct structure
 test('Ingredients have correct structure', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -150,7 +150,7 @@ test('Ingredients have correct structure', () => {
 
 // Test 6: Verify macros are numeric and valid
 test('Macro values are valid numbers', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -170,7 +170,7 @@ test('Macro values are valid numbers', () => {
 
 // Test 7: Verify steps are parsed correctly
 test('Steps are parsed correctly', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const recipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   
@@ -187,7 +187,7 @@ test('Steps are parsed correctly', () => {
 
 // Test 8: Integration test - AdminRecipes mapping
 test('AdminRecipes.js integration mapping works', () => {
-  const csvPath = path.join(__dirname, 'fixtures/macrochef-recipes-sniadania.csv');
+  const csvPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
   const csvText = fs.readFileSync(csvPath, 'utf8');
   const parsedRecipes = window.MacroChef.recipeCsv.parseCSV(csvText);
   

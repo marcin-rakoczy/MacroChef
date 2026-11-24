@@ -179,7 +179,7 @@ Chicken Breast,8.99,165,31,0,3.6,Carrefour,Meat`;
     assert(products[1].calories === 165, 'Chicken calories should be 165');
   });
 
-  // Test: Fat (Tłuszcze) field name correctness
+  // Test: Fat field name correctness
   tests.push(async () => {
     const recipes = [
       { id: 'rec-1', name: 'Oatmeal', calories: 300, protein: 10, carbs: 50, fats: 5 },

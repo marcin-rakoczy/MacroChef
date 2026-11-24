@@ -31,7 +31,7 @@ eval(recipeCSVCode);
 const { parseCSV: csvParse, parseCSVLine, createTemplate } = global.window.MacroChef.recipeCsv;
 
 // Test data
-const testCSVPath = path.join(__dirname, './fixtures/macrochef-recipes-sniadania.csv');
+const testCSVPath = path.join(__dirname, 'fixtures', 'macrochef-breakfast-recipes.csv');
 
 const tests = [];
 let passedTests = 0;
@@ -149,8 +149,9 @@ if (fs.existsSync(testCSVPath)) {
 // Test 3: Template generation
 console.log('\n📋 Test Suite: Template Generation\n');
 const templatePL = createTemplate('pl');
-assert(templatePL.includes('nazwa'), 'Polish template has "nazwa" header');
+assert(templatePL.includes('"name"') && !templatePL.includes('"nazwa"'), 'Polish template uses English headers');
 assert(templatePL.includes('Przykładowy przepis'), 'Polish template has example values');
+assert(csvParse(templatePL, 'pl')[0].name.pl === 'Przykładowy przepis', 'Polish template imports with English headers');
 
 const templateEN = createTemplate('en');
 assert(templateEN.includes('name'), 'English template has "name" header');
