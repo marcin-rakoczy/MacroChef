@@ -11,6 +11,30 @@ permissions:
   contents: read
 
 jobs:
+  branch-name-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate pull request branch
+        shell: bash
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          node <<'NODE'
+          const branch = process.env.PR_BRANCH || '';
+          const automatedBranch = /^(dependabot|copilot)\//.test(branch);
+          const issueBranch = /^(feat|fix|chore|test|docs|refactor)\/[0-9]+-[a-z0-9-]+$/.test(branch);
+          if (!automatedBranch && !issueBranch) {
+            console.error('Branch name must include a GitHub Project issue number. Create a branch such as: git checkout -b feat/14-short-description');
+            process.exitCode = 1;
+          }
+          NODE
+
   test:
     if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
@@ -35,9 +59,10 @@ jobs:
       - name: Run Node tests
         shell: bash
         run: |
+          node tests/buildBundle.test.js
           for test in tests/*.test.js; do
             case "$test" in
-              tests/*.browser.test.js|tests/admin-panel.integration.test.js|tests/admin-panel.test.js|tests/admin-panel.ui.test.js|tests/db.test.js|tests/i18n.test.js|tests/recipe-import.test.js|tests/rls-policies.test.js)
+              tests/buildBundle.test.js|tests/*.browser.test.js|tests/admin-panel.integration.test.js|tests/admin-panel.test.js|tests/admin-panel.ui.test.js|tests/db.test.js|tests/i18n.test.js|tests/recipe-import.test.js|tests/rls-policies.test.js)
                 continue ;;
             esac
             node "$test"
