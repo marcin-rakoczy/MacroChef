@@ -36,18 +36,16 @@ jobs:
           node-version: '20'
 
       - name: Run tests
+        shell: bash
         run: |
-          node tests/nutrition.test.js
-          node tests/sw.test.js
-          node tests/environment.test.js
-          node tests/header-navigation.test.js
-          node tests/recipe-image-ai.test.js
-          node tests/recipe-steps-normalization.test.js
-          node tests/sync-permission.test.js
-          node tests/syncConflict.test.js
-          node tests/outboxSerialization.test.js
-          node tests/accountIsolation.test.js
-          node tests/offlineAuth.test.js
+          node tests/deployPipeline.test.js
+          for test in tests/*.test.js; do
+            case "$test" in
+              tests/deployPipeline.test.js|tests/*.browser.test.js|tests/admin-panel.integration.test.js|tests/admin-panel.test.js|tests/admin-panel.ui.test.js|tests/db.test.js|tests/i18n.test.js|tests/recipe-import.test.js|tests/rls-policies.test.js)
+                continue ;;
+            esac
+            node "$test"
+          done
 
   # ============================================================================
   # PREVIEW BUILD - For pushes (Cloudflare Pages deploys automatically)
@@ -83,25 +81,13 @@ jobs:
     steps:
       - name: Check out main
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Run full test suite
-        run: |
-          node tests/nutrition.test.js
-          node tests/sw.test.js
-          node tests/environment.test.js
-          node tests/header-navigation.test.js
-          node tests/recipe-image-ai.test.js
-          node tests/recipe-steps-normalization.test.js
-          node tests/version.test.js
-          node tests/syncConflict.test.js
-          node tests/outboxSerialization.test.js
-          node tests/accountIsolation.test.js
-          node tests/offlineAuth.test.js
 
       - name: Bump version and build
         run: |
@@ -128,7 +114,7 @@ jobs:
   # GITHUB PAGES DEPLOY - Manual only (workflow_dispatch from main branch)
   # ============================================================================
   deploy-github-pages:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && needs.test.result == 'success' && needs.build.result == 'success'
     needs: [test, build]
     runs-on: ubuntu-latest
     environment:

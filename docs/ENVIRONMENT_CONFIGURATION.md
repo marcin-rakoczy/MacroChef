@@ -167,25 +167,36 @@ To test offline functionality:
 
 The deployment workflow respects environment configuration:
 
-### On Pull Requests & Push (non-deploy)
-- **Trigger:** Push to `main` (with `[skip ci]` ignored) or pull_request to `main`
-- **Actions:**
-  - ✅ Run tests only:
-    - `node tests/nutrition.test.js`
-    - `node tests/sw.test.js`
-  - ❌ NO version bump
-  - ❌ NO build
-  - ❌ NO deploy
+### Pull requests and pushes
 
-### On Manual Workflow Dispatch (main only)
-- **Trigger:** Click "Run workflow" on `main` branch
-- **Actions:**
-  - ✅ Run full test suite
-  - ✅ Bump version: `node scripts/bump-version.js`
-  - ✅ Build: `npm run build`
-  - ✅ Verify build: `node tests/sw.test.js`
-  - ✅ Commit version bump with `[skip ci]` tag
-  - ✅ Deploy to GitHub Pages (macrochef.pl)
+Pull requests targeting `main` and pushes to `main` or `feature/**` run all
+Node unit tests. The pipeline test also runs a build in an isolated temporary
+directory. A successful push runs a preview build; Cloudflare Pages deploys
+independently according to its Git integration. Neither event bumps the version
+or deploys to GitHub Pages.
+
+The workflow discovers `tests/*.test.js` automatically, excluding the existing
+browser-only tests. Name new browser-only tests `*.browser.test.js`; new Node
+tests are included automatically.
+
+### Manual production release
+
+1. Merge the changes into the latest `main` and ensure its checks pass.
+2. In GitHub, open **Actions** → **Build & Deploy (GitHub Pages + Cloudflare Pages)**
+   → **Run workflow**, select `main`, and start the workflow.
+3. Confirm that the test, build, and `deploy-github-pages` jobs succeed, then
+   check https://macrochef.pl and its version.
+
+The test job runs first. The build job then bumps the patch version, builds,
+checks the service worker and `CNAME`, commits the generated files with
+`[skip ci]`, and uploads the repository-root Pages artifact. The deployment job
+requires both earlier jobs to succeed. GitHub Pages must use **GitHub Actions**
+as its source, and repository permissions or branch protection must allow the
+workflow's `GITHUB_TOKEN` to push to `main`. No custom PAT is needed.
+
+The bump script stages all three version files and rolls back replacements on
+reported write errors. A process or machine crash during replacement cannot be
+made atomic across multiple files; rerun the parity tests before retrying.
 
 ---
 

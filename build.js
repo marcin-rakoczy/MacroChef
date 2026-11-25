@@ -1,4 +1,4 @@
-// build.js - Zero-dependency bundler and local dev utility for MacroChef
+// build.js - Zero-dependency single-file packaging utility for MacroChef
 const fs = require('fs');
 const path = require('path');
 
@@ -79,6 +79,23 @@ const indexHtml = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf8');
 
 // Replace script tags with inlined bundled script
 const scriptTagRegex = /<!-- Non-JSX Core Scripts[\s\S]*?<!-- App Component & Main Bootstrapper[\s\S]*?<script type="text\/babel" src="js\/main\.js"><\/script>/;
+const scriptSection = indexHtml.match(scriptTagRegex);
+if (!scriptSection) {
+  throw new Error('Could not find the application script section in index.html.');
+}
+const localScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)]
+  .map((match) => match[1])
+  .filter((src) => !/^(?:https?:)?\/\//.test(src));
+const bundledScripts = filesToBundle.map((file) => path.posix.normalize(`js/${file}`));
+const sectionScripts = [...scriptSection[0].matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)]
+  .map((match) => match[1]);
+if (JSON.stringify(localScripts) !== JSON.stringify(bundledScripts) ||
+    JSON.stringify(sectionScripts) !== JSON.stringify(bundledScripts)) {
+  throw new Error('Application script list in index.html must match the build script list and order.');
+}
+if (/<\/script/i.test(bundleContent)) {
+  throw new Error('Application scripts cannot contain an HTML closing script tag.');
+}
 
 const bundledHtml = indexHtml.replace(
   scriptTagRegex,
