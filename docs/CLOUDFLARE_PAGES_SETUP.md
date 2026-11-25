@@ -4,7 +4,7 @@
 
 MacroChef now uses dual deployment strategy:
 - **macrochef.pl** → GitHub Pages (production, manual version bumps)
-- **test.macrochef.pl** → Cloudflare Pages (testing, automatic branch deploys)
+- **test.macrochef.pl** → Cloudflare Pages (manual TEST deployments)
 
 This document covers setup and configuration.
 
@@ -19,22 +19,20 @@ This document covers setup and configuration.
 
 ---
 
-## Step 1: Create Cloudflare Project
+## Step 1: Configure Cloudflare Project
 
 ### 1.1 Sign in to Cloudflare
 1. Go to https://dash.cloudflare.com/
 2. Log in or create account
 
-### 1.2 Create Pages Project
-1. **Pages** → **Create a project**
-2. **Connect to Git** → Select GitHub account
-3. Choose repository: `marcin-rakoczy/MacroChef`
-4. Project name: `macrochef-test`
-5. **Build settings:**
-   - Build command: `npm run build`
-   - Build output directory: `.`
-   - Node version: `20.x`
-6. **Create project**
+### 1.2 Check Pages Project
+1. Open **Workers & Pages**.
+2. Select the existing `macrochef-3wo` project.
+3. Confirm its production branch is `main` and its custom domain
+   `test.macrochef.pl` is attached to the production deployment.
+4. For manual-only deployments, open the project's **Build** → **Branch control**,
+   disable automatic production deployments, and set preview branches to
+   **None**. Git-integrated projects can still be deployed with Wrangler.
 
 ---
 
@@ -44,7 +42,7 @@ This document covers setup and configuration.
 
 After project creation, Cloudflare will show:
 ```
-Default domain: macrochef-test.pages.dev
+Default domain: macrochef-3wo.pages.dev
 ```
 
 ### 2.2 Configure OVH DNS
@@ -55,7 +53,7 @@ Default domain: macrochef-test.pages.dev
    ```
    Record Type: CNAME
    Subdomain: test
-   Target: macrochef-test.pages.dev
+   Target: macrochef-3wo.pages.dev
    TTL: 3600
    ```
 4. **Save**
@@ -67,7 +65,7 @@ Default domain: macrochef-test.pages.dev
 dig test.macrochef.pl CNAME
 
 # Should show:
-# test.macrochef.pl.      3600    IN  CNAME   macrochef-test.pages.dev.
+# test.macrochef.pl.      3600    IN  CNAME   macrochef-3wo.pages.dev.
 ```
 
 ---
@@ -125,7 +123,7 @@ The app automatically detects environment by hostname:
 |----------|-------------|----------|-----|
 | `macrochef.pl` | PROD | Production | Off |
 | `test.macrochef.pl` | TEST | Test | Off |
-| `feature-*.test.macrochef.pl` | TEST | Test | Off |
+| Cloudflare preview hostname | TEST | Test | Off |
 | `localhost` | TEST | Test (local) | Off |
 | `127.0.0.1` | TEST | Test (local) | Off |
 
@@ -140,78 +138,43 @@ The app automatically detects environment by hostname:
 
 ### 5.3 Deployment Workflow
 
-**On push to any branch:**
-```
-✓ Run tests
-✓ Build application
-✓ Deploy to Cloudflare Pages
-  ├─ main → test.macrochef.pl (production branch)
-  ├─ feature/xyz → feature-xyz.test.macrochef.pl
-  └─ other branches → branch-name.test.macrochef.pl
-```
+GitHub Actions has four workflows:
 
-**On push to main (without [skip ci]):**
-```
-✓ Run tests
-✓ Bump version (npm package.json + js/data/appVersion.js)
-✓ Build
-✓ Deploy to GitHub Pages (macrochef.pl)
-✓ Commit version bump with [skip ci]
-```
+- **CI Tests**: tests and builds on pull requests and pushes to `main`.
+- **Deploy to PROD**: manually releases `main` to GitHub Pages.
+- **Deploy to TEST**: manually builds the selected source branch and deploys
+  it to Cloudflare branch `main`, serving `https://test.macrochef.pl`.
+- **Deploy to FEATURE**: manually builds the selected source branch and
+  deploys to a Cloudflare preview branch named by `feature_name`.
 
-**On manual workflow_dispatch from main:**
-```
-✓ Same as "push to main"
-```
+The TEST and FEATURE workflows do not bump versions or push commits. All three
+deployment workflows call shared CI first. Feature names must be 1–63 lowercase
+letters or digits, optionally separated by single hyphens; `main` is reserved.
+Both Cloudflare workflows verify the project's production branch is `main`
+before deploying.
+Use the URL returned in the GitHub Actions summary for the preview. The selected
+source branch must contain these workflows and the shared CI workflow.
+
+Disabling Cloudflare's automatic branch builds is a separate dashboard setting;
+otherwise Cloudflare's Git integration can deploy independently of these
+workflows, including on pushes that skip GitHub Actions.
 
 ---
 
-## Step 6: Configure _redirects for SPA
+## Step 6: Test Deployment
 
-File `_redirects` is already in repository. It handles:
-- ✅ Single Page App (SPA) client-side routing
-- ✅ Serve index.html for all routes
-- ✅ Preserve static files (dist/, sw.js, CNAME)
+### 6.1 Test Branch Deploy
 
-**File:** `_redirects` (auto-used by Cloudflare Pages)
+1. Open **Actions** → **Deploy to FEATURE** → **Run workflow**.
+2. Select the source branch and enter a preview name such as `meal-filters`.
+3. Wait for the workflow to succeed and open the preview URL in its summary.
+4. Confirm the TEST badge and environment in the browser console.
 
----
+### 6.2 Test Main Deploy
 
-## Step 7: Test Deployment
-
-### 7.1 Test Branch Deploy
-
-1. Create new branch:
-   ```bash
-   git checkout -b feature/test-deploy
-   echo "// test" >> js/app.js
-   git add js/app.js
-   git commit -m "test: verify deployment"
-   git push -u origin feature/test-deploy
-   ```
-
-2. Check GitHub Actions:
-   - Go to repo → **Actions**
-   - Should show "Build & Deploy" running
-   - Wait for completion (~2 minutes)
-
-3. Visit `https://feature-test-deploy.test.macrochef.pl`
-   - Should show app with TEST environment badge
-   - Check console for: `[MacroChef] Environment: TEST`
-
-### 7.2 Test Main Deploy
-
-1. Create PR: `feature/test-deploy` → `main`
-2. Merge to main
-3. GitHub Actions should:
-   - Run tests
-   - Bump version
-   - Deploy to GitHub Pages
-   - Commit with `[skip ci]`
-
-4. Visit:
-   - `https://test.macrochef.pl` (Cloudflare - main branch preview)
-   - `https://macrochef.pl` (GitHub Pages - production)
+1. Open **Actions** → **Deploy to TEST** → **Run workflow**.
+2. Select the source branch and start the workflow.
+3. After it succeeds, visit `https://test.macrochef.pl`.
 
 ---
 
@@ -220,7 +183,7 @@ File `_redirects` is already in repository. It handles:
 ### Check Deployment Status
 
 1. **Cloudflare Pages:**
-   - Dashboard → **Pages** → `macrochef-test` → **Deployments**
+   - Dashboard → **Pages** → `macrochef-3wo` → **Deployments**
    - Shows all branch deployments
 
 2. **GitHub Pages:**
@@ -254,9 +217,10 @@ File `_redirects` is already in repository. It handles:
 
 | File | Purpose |
 |------|---------|
-| `.github/workflows/deploy.yml` | CI/CD pipeline (tests, build, deploy) |
-| `wrangler.toml` | Cloudflare Pages configuration |
-| `_redirects` | SPA routing rules |
+| `.github/workflows/ci.yml` | Shared test and build checks |
+| `.github/workflows/deploy-prod.yml` | Manual GitHub Pages release |
+| `.github/workflows/deploy-test.yml` | Manual TEST deployment |
+| `.github/workflows/deploy-feature.yml` | Manual FEATURE preview deployment |
 | `js/supabaseClient.js` | Environment detection & Supabase config |
 | `js/db.js` | Database initialization with env prefix |
 | `CNAME` | GitHub Pages domain (macrochef.pl) |

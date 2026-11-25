@@ -6,53 +6,61 @@ const { execSync, spawnSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const workflow = read('.github/workflows/deploy.yml').replace(/\r\n/g, '\n');
-const jobs = new Map([...workflow.matchAll(/^  ([\w-]+):\n([\s\S]*?)(?=^  [\w-]+:\n|(?![\s\S]))/gm)]
-  .map((match) => [match[1], match[2]]));
-const job = (name) => {
-  const body = jobs.get(name);
+const workflow = (name) => read(`.github/workflows/${name}.yml`).replace(/\r\n/g, '\n');
+const ci = workflow('ci');
+const prod = workflow('deploy-prod');
+const test = workflow('deploy-test');
+const feature = workflow('deploy-feature');
+const job = (source, name) => {
+  const jobs = source.slice(source.indexOf('\njobs:') + 1);
+  const match = jobs.match(new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [\\w-]+:\\n|(?![\\s\\S]))`, 'm'));
+  const body = match && match[1];
   assert.ok(body, `Missing workflow job: ${name}`);
   return body;
 };
-const testJob = job('test');
-const previewJob = job('build-preview');
-const buildJob = job('build');
-const deployJob = job('deploy-github-pages');
-const triggers = workflow.slice(0, workflow.indexOf('\njobs:'));
-assert.match(triggers, /(?:^|\n)  push:\n    branches:\n      - main(?:\n|$)/);
-assert.match(triggers, /(?:^|\n)  pull_request:\n    branches:\n      - main(?:\n|$)/);
-assert.match(triggers, /(?:^|\n)  workflow_dispatch:/);
-assert.doesNotMatch(testJob, /^    if:/m, 'Tests must run for all configured events');
-assert.doesNotMatch(`${testJob}\n${buildJob}\n${deployJob}`, /^\s+continue-on-error:/m);
-assert.doesNotMatch(`${testJob}\n${buildJob}\n${deployJob}`, /^ {6,}if:/m);
-assert.match(testJob, /name: Run tests\n        shell: bash\n        run: \|/);
-assert.match(testJob, /node tests\/deployPipeline\.test\.js/);
+assert.equal(fs.existsSync(path.join(root, '.github', 'workflows', 'deploy.yml')), false);
+assert.match(ci, /^name: CI Tests$/m);
+assert.match(ci, /^  push:\n    branches:\n      - main$/m);
+assert.match(ci, /^  pull_request:$/m);
+assert.match(ci, /^  workflow_call:$/m);
+const testJob = job(ci, 'test');
+assert.match(testJob, /github\.event_name != 'push' \|\| !contains\(github\.event\.head_commit\.message, '\[skip ci\]'\)/);
 assert.match(testJob, /for test in tests\/\*\.test\.js; do/);
 assert.match(testJob, /node "\$test"/);
 assert.match(testJob, /tests\/\*\.browser\.test\.js/);
-assert.match(previewJob, /^    needs: test$/m);
-assert.match(previewJob, /github\.event_name == 'push'/);
-assert.match(previewJob, /contains\(github\.event\.head_commit\.message, '\[skip ci\]'\)/);
-assert.doesNotMatch(`${testJob}\n${previewJob}`, /bump-version\.js|actions\/deploy-pages@/);
-assert.match(buildJob, /^    needs: test$/m);
-const releaseGuard = "github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'";
-assert.ok(buildJob.includes(`    if: ${releaseGuard}\n`), 'Build must be manual and limited to main');
-assert.ok(deployJob.includes(`    if: ${releaseGuard} && needs.test.result == 'success' && needs.build.result == 'success'\n`),
-  'Deploy must require a successful manual main release');
-assert.match(deployJob, /^    needs: \[test, build\]$/m);
-assert.doesNotMatch(`${buildJob}\n${deployJob}`, /\balways\s*\(/);
-assert.match(buildJob, /token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+assert.match(testJob, /npm run build/);
+assert.doesNotMatch(ci, /bump-version\.js|git push|actions\/deploy-pages@|cloudflare\/wrangler-action@/);
+
+for (const [source, name] of [[prod, 'PROD'], [test, 'TEST'], [feature, 'FEATURE']]) {
+  assert.match(source, new RegExp(`^name: Deploy to ${name}$`, 'm'));
+  assert.match(source, /^  workflow_dispatch:/m);
+  assert.doesNotMatch(source, /^  (?:push|pull_request):/m);
+  assert.doesNotMatch(source, /^\s+continue-on-error:|\balways\s*\(/m);
+  assert.match(job(source, 'ci'), /uses: \.\/\.github\/workflows\/ci\.yml/);
+}
+assert.match(prod, /contents: write/);
+assert.match(prod, /pages: write/);
+assert.match(prod, /id-token: write/);
+assert.match(prod, /group: pages-prod\n  cancel-in-progress: false/);
+assert.match(job(prod, 'validate-main'), /"\$GITHUB_REF" != "refs\/heads\/main"/);
+assert.match(job(prod, 'validate-main'), /::error::PROD deployment must be run from the main branch/);
+assert.match(job(prod, 'ci'), /^    needs: validate-main$/m);
+const buildJob = job(prod, 'build');
+const deployJob = job(prod, 'deploy');
+assert.match(buildJob, /^    needs: ci$/m);
+assert.match(buildJob, /ref: main\n          token: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+assert.match(buildJob, /git rev-parse HEAD.*GITHUB_SHA/);
 assert.doesNotMatch(buildJob, /persist-credentials:\s*false/);
 assert.match(buildJob, /git config user\.name "github-actions\[bot\]"/);
 assert.match(buildJob, /git add package\.json sw\.js js\/data\/appVersion\.js dist\/ macrochef_calorie_meal_planner_pwa\.html/);
-assert.match(buildJob, /git commit .*chore: bump version \[skip ci\]/);
+assert.match(buildJob, /git commit .*chore\(release\): bump version \[skip ci\]/);
 assert.match(buildJob, /git push origin HEAD:refs\/heads\/main/);
 assert.match(buildJob, /test "\$\(tr -d '\\r\\n' < CNAME\)" = "macrochef\.pl"/);
-assert.match(buildJob, /uses: actions\/upload-pages-artifact@v\d+[\s\S]*?name: github-pages\n\s+path: \./);
-assert.match(deployJob, /uses: actions\/deploy-pages@v\d+/);
-assert.match(workflow, /contents: write/);
-assert.match(workflow, /pages: write/);
-assert.match(workflow, /id-token: write/);
+assert.match(buildJob, /uses: actions\/configure-pages@v5/);
+assert.match(buildJob, /uses: actions\/upload-pages-artifact@v3[\s\S]*?name: github-pages\n\s+path: \./);
+assert.match(deployJob, /^    needs: \[ci, build\]$/m);
+assert.match(deployJob, /name: github-pages/);
+assert.match(deployJob, /uses: actions\/deploy-pages@v4/);
 const bump = buildJob.indexOf('node scripts/bump-version.js');
 const build = buildJob.indexOf('npm run build');
 const commit = buildJob.indexOf('git commit');
@@ -60,6 +68,31 @@ const upload = buildJob.indexOf('actions/upload-pages-artifact@');
 assert.ok(bump >= 0 && bump < build && build < commit && commit < upload,
   'Production must bump, build, commit, and then upload');
 assert.equal(read('CNAME').trim(), 'macrochef.pl');
+
+for (const source of [test, feature]) {
+  const deploy = job(source, 'deploy');
+  assert.match(deploy, /needs: (?:ci|\[validate-feature, ci\])/);
+  assert.match(deploy, /actions\/checkout@v4/);
+  assert.match(deploy, /actions\/setup-node@v4/);
+  assert.match(deploy, /npm run build/);
+  assert.match(deploy, /result\.production_branch == "main"/);
+  assert.ok(deploy.indexOf('result.production_branch == "main"') < deploy.indexOf('cloudflare/wrangler-action@v3'));
+  assert.match(deploy, /cloudflare\/wrangler-action@v3/);
+  assert.match(deploy, /apiToken: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
+  assert.match(deploy, /accountId: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
+  assert.doesNotMatch(source, /bump-version\.js|git (?:commit|push)/);
+}
+assert.match(job(test, 'deploy'), /pages deploy \. --project-name=macrochef-3wo --branch=main/);
+assert.match(job(test, 'deploy'), /https:\/\/test\.macrochef\.pl.*GITHUB_STEP_SUMMARY/);
+assert.match(feature, /feature_name:\n\s+description:.*\n\s+required: true\n\s+type: string/);
+assert.match(job(feature, 'validate-feature'), /FEATURE_NAME: \$\{\{ inputs\.feature_name \}\}/);
+assert.ok(job(feature, 'validate-feature').includes(
+  '[[ ${#FEATURE_NAME} -gt 63 || ! "$FEATURE_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ || "$FEATURE_NAME" == "main" ]]'
+), 'Preview names must be safe branch slugs and must not target main');
+assert.match(job(feature, 'ci'), /needs: validate-feature/);
+assert.match(job(feature, 'deploy'), /pages deploy \. --project-name=macrochef-3wo --branch=\$\{\{ needs\.validate-feature\.outputs\.branch \}\}/);
+assert.match(job(feature, 'deploy'), /pages-deployment-alias-url/);
+assert.match(job(feature, 'deploy'), /GITHUB_STEP_SUMMARY/);
 
 const version = JSON.parse(read('package.json')).version;
 assert.match(version, /^\d+\.\d+\.\d+$/);

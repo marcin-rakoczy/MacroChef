@@ -1,0 +1,47 @@
+name: CI Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci --ignore-scripts
+          elif [[ -f package.json ]]; then
+            npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          fi
+
+      - name: Run Node tests
+        shell: bash
+        run: |
+          for test in tests/*.test.js; do
+            case "$test" in
+              tests/*.browser.test.js|tests/admin-panel.integration.test.js|tests/admin-panel.test.js|tests/admin-panel.ui.test.js|tests/db.test.js|tests/i18n.test.js|tests/recipe-import.test.js|tests/rls-policies.test.js)
+                continue ;;
+            esac
+            node "$test"
+          done
+
+      - name: Build application
+        run: npm run build

@@ -169,11 +169,10 @@ The deployment workflow respects environment configuration:
 
 ### Pull requests and pushes
 
-Pull requests targeting `main` and pushes to `main` or `feature/**` run all
-Node unit tests. The pipeline test also runs a build in an isolated temporary
-directory. A successful push runs a preview build; Cloudflare Pages deploys
-independently according to its Git integration. Neither event bumps the version
-or deploys to GitHub Pages.
+Pull requests and pushes to `main` run the shared **CI Tests** workflow. The
+pipeline test also runs a build in an isolated temporary directory. CI does not
+bump a version or deploy. GitHub skips workflows for commits containing
+`[skip ci]`.
 
 The workflow discovers `tests/*.test.js` automatically, excluding the existing
 browser-only tests. Name new browser-only tests `*.browser.test.js`; new Node
@@ -182,9 +181,9 @@ tests are included automatically.
 ### Manual production release
 
 1. Merge the changes into the latest `main` and ensure its checks pass.
-2. In GitHub, open **Actions** → **Build & Deploy (GitHub Pages + Cloudflare Pages)**
-   → **Run workflow**, select `main`, and start the workflow.
-3. Confirm that the test, build, and `deploy-github-pages` jobs succeed, then
+2. In GitHub, open **Actions** → **Deploy to PROD** → **Run workflow**, select
+   `main`, and start the workflow.
+3. Confirm that the validation, CI, build, and deployment jobs succeed, then
    check https://macrochef.pl and its version.
 
 The test job runs first. The build job then bumps the patch version, builds,
@@ -193,10 +192,28 @@ checks the service worker and `CNAME`, commits the generated files with
 requires both earlier jobs to succeed. GitHub Pages must use **GitHub Actions**
 as its source, and repository permissions or branch protection must allow the
 workflow's `GITHUB_TOKEN` to push to `main`. No custom PAT is needed.
+The release is rejected if `main` changes between the workflow's selected
+revision and the build checkout.
 
 The bump script stages all three version files and rolls back replacements on
 reported write errors. A process or machine crash during replacement cannot be
 made atomic across multiple files; rerun the parity tests before retrying.
+
+### Manual TEST and FEATURE deployments
+
+Select **Deploy to TEST** or **Deploy to FEATURE** in GitHub Actions, choose
+the source branch in **Use workflow from**, and run the workflow. FEATURE also
+requires a `feature_name`: 1–63 lowercase letters, digits, or single hyphens;
+`main` is reserved for TEST. The workflow summary contains the preview URL
+returned by Cloudflare. Both workflows run shared CI, build, and deploy without
+bumping or committing a version.
+
+The Cloudflare Pages project must be named `macrochef-3wo`, have production
+branch `main`, and have `test.macrochef.pl` attached to its production
+deployment. Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as
+GitHub Actions secrets. Disable automatic production and preview branch builds
+in Cloudflare if deployments should be manual; repository workflows cannot
+change those external settings. See [Cloudflare setup](CLOUDFLARE_PAGES_SETUP.md).
 
 ---
 
@@ -267,14 +284,15 @@ Check browser DevTools → Console to verify correct environment detection.
    - Separate user accounts for testing
    - Clear test data regularly
 
-3. **Use [skip ci] for non-deploy commits**
-   - Prevents unnecessary deployments
-   - Commits version bumps use this tag automatically
+3. **Understand [skip ci]**
+   - Skips the GitHub Actions CI workflow for the commit
+   - Release version-bump commits use this tag automatically
+   - Cloudflare Git integration is controlled separately
 
-4. **Deploy only via workflow_dispatch**
+4. **Deploy via workflow_dispatch**
    - Use GitHub Actions "Run workflow" button
    - Ensures all tests pass before production deploy
-   - Prevents accidental deployments
+   - Disable Cloudflare automatic branch builds for manual-only deployment
 
 5. **Monitor environment badges**
    - Always verify you're on correct environment
@@ -289,7 +307,10 @@ Check browser DevTools → Console to verify correct environment detection.
 - **js/db.js** - Database name prefixing by environment
 - **js/components/Header.js** - Environment badge display
 - **js/components/AuthGate.js** - Login screen environment badge
-- **.github/workflows/deploy.yml** - Environment-aware CI/CD
+- **.github/workflows/ci.yml** - Shared CI checks
+- **.github/workflows/deploy-prod.yml** - Manual production deployment
+- **.github/workflows/deploy-test.yml** - Manual TEST deployment
+- **.github/workflows/deploy-feature.yml** - Manual FEATURE deployment
 - **js/data/appVersion.js** - App version display
 
 ---

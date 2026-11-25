@@ -1,0 +1,101 @@
+name: Deploy to FEATURE
+
+on:
+  workflow_dispatch:
+    inputs:
+      feature_name:
+        description: 'Feature build name (used for preview URL slug, e.g. meal-filters)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-feature-${{ inputs.feature_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate-feature:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.validate.outputs.branch }}
+    steps:
+      - name: Validate preview branch name
+        id: validate
+        shell: bash
+        env:
+          FEATURE_NAME: ${{ inputs.feature_name }}
+        run: |
+          if [[ ${#FEATURE_NAME} -gt 63 || ! "$FEATURE_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ || "$FEATURE_NAME" == "main" ]]; then
+            echo "::error::feature_name must be 1-63 lowercase letters, digits, or single hyphens, and cannot be main."
+            exit 1
+          fi
+          echo "branch=$FEATURE_NAME" >> "$GITHUB_OUTPUT"
+
+  ci:
+    needs: validate-feature
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: [validate-feature, ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci --ignore-scripts
+          elif [[ -f package.json ]]; then
+            npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+          fi
+
+      - name: Build application
+        run: npm run build
+
+      - name: Verify Cloudflare production branch
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [[ -z "$CLOUDFLARE_API_TOKEN" || ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-fA-F0-9]{32}$ ]]; then
+            echo "::error::Cloudflare credentials are missing or the account ID is invalid."
+            exit 1
+          fi
+          if ! curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/macrochef-3wo" \
+            | jq -e '.success == true and .result.production_branch == "main"' > /dev/null; then
+            echo "::error::Could not verify that the Cloudflare project's production branch is main."
+            exit 1
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        id: deployment
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy . --project-name=macrochef-3wo --branch=${{ needs.validate-feature.outputs.branch }}
+
+      - name: Report preview URL
+        shell: bash
+        env:
+          ALIAS_URL: ${{ steps.deployment.outputs.pages-deployment-alias-url }}
+          DEPLOYMENT_URL: ${{ steps.deployment.outputs.deployment-url }}
+        run: |
+          url="${ALIAS_URL:-$DEPLOYMENT_URL}"
+          if [[ "$url" != https://* ]]; then
+            echo "::error::Cloudflare did not return a valid preview URL."
+            exit 1
+          fi
+          printf 'FEATURE preview: %s\n' "$url" >> "$GITHUB_STEP_SUMMARY"
