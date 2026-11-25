@@ -82,7 +82,7 @@ for (const source of [test, feature]) {
   assert.match(deploy, /accountId: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
   assert.doesNotMatch(source, /bump-version\.js|git (?:commit|push)/);
 }
-assert.match(job(test, 'deploy'), /pages deploy \. --project-name=macrochef-3wo --branch=main/);
+assert.match(job(test, 'deploy'), /pages deploy \. --project-name=macrochef --branch=main/);
 assert.match(job(test, 'deploy'), /name: Report deployment\n        run: \|\n          echo 'TEST: https:\/\/test\.macrochef\.pl' >> "\$GITHUB_STEP_SUMMARY"/);
 assert.match(feature, /feature_name:\n\s+description:.*\n\s+required: true\n\s+type: string/);
 assert.match(job(feature, 'validate-feature'), /FEATURE_NAME: \$\{\{ inputs\.feature_name \}\}/);
@@ -90,7 +90,7 @@ assert.ok(job(feature, 'validate-feature').includes(
   '[[ ${#FEATURE_NAME} -gt 63 || ! "$FEATURE_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ || "$FEATURE_NAME" == "main" ]]'
 ), 'Preview names must be safe branch slugs and must not target main');
 assert.match(job(feature, 'ci'), /needs: validate-feature/);
-assert.match(job(feature, 'deploy'), /pages deploy \. --project-name=macrochef-3wo --branch=\$\{\{ needs\.validate-feature\.outputs\.branch \}\}/);
+assert.match(job(feature, 'deploy'), /pages deploy \. --project-name=macrochef --branch=\$\{\{ needs\.validate-feature\.outputs\.branch \}\}/);
 assert.match(job(feature, 'deploy'), /pages-deployment-alias-url/);
 assert.match(job(feature, 'deploy'), /GITHUB_STEP_SUMMARY/);
 

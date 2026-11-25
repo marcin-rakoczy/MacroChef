@@ -73,7 +73,7 @@ jobs:
           fi
           if ! curl --fail --silent --show-error \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/macrochef-3wo" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/macrochef" \
             | jq -e '.success == true and .result.production_branch == "main"' > /dev/null; then
             echo "::error::Could not verify that the Cloudflare project's production branch is main."
             exit 1
@@ -85,7 +85,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=macrochef-3wo --branch=${{ needs.validate-feature.outputs.branch }}
+          command: pages deploy . --project-name=macrochef --branch=${{ needs.validate-feature.outputs.branch }}
 
       - name: Report preview URL
         shell: bash

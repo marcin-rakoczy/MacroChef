@@ -208,7 +208,7 @@ requires a `feature_name`: 1–63 lowercase letters, digits, or single hyphens;
 returned by Cloudflare. Both workflows run shared CI, build, and deploy without
 bumping or committing a version.
 
-The Cloudflare Pages project must be named `macrochef-3wo`, have production
+The Cloudflare Pages project must be named `macrochef`, have production
 branch `main`, and have `test.macrochef.pl` attached to its production
 deployment. Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as
 GitHub Actions secrets. Disable automatic production and preview branch builds

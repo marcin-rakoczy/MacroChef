@@ -27,7 +27,7 @@ This document covers setup and configuration.
 
 ### 1.2 Check Pages Project
 1. Open **Workers & Pages**.
-2. Select the existing `macrochef-3wo` project.
+2. Select the existing `macrochef` project.
 3. Confirm its production branch is `main` and its custom domain
    `test.macrochef.pl` is attached to the production deployment.
 4. For manual-only deployments, open the project's **Build** → **Branch control**,
@@ -183,7 +183,7 @@ workflows, including on pushes that skip GitHub Actions.
 ### Check Deployment Status
 
 1. **Cloudflare Pages:**
-   - Dashboard → **Pages** → `macrochef-3wo` → **Deployments**
+   - Dashboard → **Pages** → `macrochef` → **Deployments**
    - Shows all branch deployments
 
 2. **GitHub Pages:**
