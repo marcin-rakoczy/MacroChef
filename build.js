@@ -66,7 +66,7 @@ if (!allExist) {
   process.exit(1);
 }
 
-// Generate single-file distribution for double-click offline file:// support
+// Inline the application scripts while retaining external assets and browser-side Babel
 const bundleContent = filesToBundle
   .map((relPath) => {
     const fullPath = path.join(JS_DIR, relPath);
@@ -83,12 +83,20 @@ const scriptSection = indexHtml.match(scriptTagRegex);
 if (!scriptSection) {
   throw new Error('Could not find the application script section in index.html.');
 }
-const localScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)]
-  .map((match) => match[1])
-  .filter((src) => !/^(?:https?:)?\/\//.test(src));
+const scriptSources = (html) => {
+  const sources = [];
+  const tags = /<!--[\s\S]*?-->|<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi;
+  for (const match of html.matchAll(tags)) {
+    if (match[1] === undefined) continue;
+    const src = match[1].match(/(?:^|\s)src\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/i);
+    if (src) sources.push(src[1] || src[2] || src[3] || '');
+  }
+  return sources;
+};
+const localScripts = scriptSources(indexHtml)
+  .filter((src) => !/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(src));
 const bundledScripts = filesToBundle.map((file) => path.posix.normalize(`js/${file}`));
-const sectionScripts = [...scriptSection[0].matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)]
-  .map((match) => match[1]);
+const sectionScripts = scriptSources(scriptSection[0]);
 if (JSON.stringify(localScripts) !== JSON.stringify(bundledScripts) ||
     JSON.stringify(sectionScripts) !== JSON.stringify(bundledScripts)) {
   throw new Error('Application script list in index.html must match the build script list and order.');

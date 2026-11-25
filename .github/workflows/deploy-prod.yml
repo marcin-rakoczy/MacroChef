@@ -64,6 +64,7 @@ jobs:
         run: |
           node scripts/bump-version.js
           npm run build
+          node tests/buildBundle.test.js
           node tests/sw.test.js
           test "$(tr -d '\r\n' < CNAME)" = "macrochef.pl"
 
