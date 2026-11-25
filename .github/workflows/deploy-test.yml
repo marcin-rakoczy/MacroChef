@@ -64,4 +64,5 @@ jobs:
           command: pages deploy . --project-name=macrochef-3wo --branch=main
 
       - name: Report deployment
-        run: echo 'TEST: https://test.macrochef.pl' >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo 'TEST: https://test.macrochef.pl' >> "$GITHUB_STEP_SUMMARY"

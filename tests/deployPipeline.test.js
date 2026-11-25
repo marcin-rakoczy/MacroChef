@@ -83,7 +83,7 @@ for (const source of [test, feature]) {
   assert.doesNotMatch(source, /bump-version\.js|git (?:commit|push)/);
 }
 assert.match(job(test, 'deploy'), /pages deploy \. --project-name=macrochef-3wo --branch=main/);
-assert.match(job(test, 'deploy'), /https:\/\/test\.macrochef\.pl.*GITHUB_STEP_SUMMARY/);
+assert.match(job(test, 'deploy'), /name: Report deployment\n        run: \|\n          echo 'TEST: https:\/\/test\.macrochef\.pl' >> "\$GITHUB_STEP_SUMMARY"/);
 assert.match(feature, /feature_name:\n\s+description:.*\n\s+required: true\n\s+type: string/);
 assert.match(job(feature, 'validate-feature'), /FEATURE_NAME: \$\{\{ inputs\.feature_name \}\}/);
 assert.ok(job(feature, 'validate-feature').includes(
